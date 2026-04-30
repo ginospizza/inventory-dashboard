@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/supabase/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminClient } from "./admin-client";
 
 export default async function AdminPage() {
@@ -8,7 +8,7 @@ export default async function AdminPage() {
   if (!user) redirect("/login");
   if (user.role !== "super_admin") redirect("/overview");
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const [
     { data: dsmsData },

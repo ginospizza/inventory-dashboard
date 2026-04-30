@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * GET /api/metrics
@@ -17,7 +17,7 @@ import { createClient } from "@/lib/supabase/server";
  *   limit   — max rows (default 500)
  */
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/supabase/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchMetrics } from "@/lib/data-access";
 import { generateFlags } from "@/lib/calculations";
 import type { WeeklyMetrics, Brand } from "@/lib/types";
@@ -25,7 +25,7 @@ export default async function StoreDetailPage({ params }: PageProps) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   // Fetch store info
   const { data: store } = await supabase

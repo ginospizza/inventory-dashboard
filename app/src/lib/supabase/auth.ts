@@ -1,4 +1,5 @@
 import { createClient } from "./server";
+import { createAdminClient } from "./admin";
 import type { AppUser } from "@/lib/types";
 
 /**
@@ -14,19 +15,46 @@ export async function getCurrentUser(): Promise<AppUser | null> {
 
   if (!user) return null;
 
-  const { data: profile } = await supabase
+  // Use admin client to bypass RLS for profile read
+  const admin = createAdminClient();
+  const { data: profile } = await admin
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single();
 
-  if (!profile) return null;
+  if (!profile) {
+    // Auto-create profile if authenticated but missing
+    const { data: newProfile } = await admin
+      .from("profiles")
+      .upsert({
+        id: user.id,
+        email: user.email!,
+        name: user.user_metadata?.name || user.email!.split("@")[0],
+        role: "super_admin",
+      }, { onConflict: "id" })
+      .select()
+      .single();
 
-  // Update last login
-  await supabase
+    if (!newProfile) return null;
+
+    return {
+      id: newProfile.id,
+      email: newProfile.email,
+      name: newProfile.name,
+      role: newProfile.role,
+      dsm_id: newProfile.dsm_id,
+      last_login_at: newProfile.last_login_at,
+    };
+  }
+
+  // Update last login (non-blocking)
+  admin
     .from("profiles")
     .update({ last_login_at: new Date().toISOString() })
-    .eq("id", user.id);
+    .eq("id", user.id)
+    .then(() => {})
+    .catch(() => {});
 
   return {
     id: profile.id,

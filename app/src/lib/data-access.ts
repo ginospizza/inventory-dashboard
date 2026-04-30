@@ -3,7 +3,7 @@
  * Used by page components to fetch data with proper RLS filtering.
  */
 
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { computeNetworkStats, computeBrandStats, generateFlags } from "@/lib/calculations";
 import type { WeeklyMetrics, NetworkStats, BrandStats, WeeklyTrend, Brand } from "@/lib/types";
 
@@ -21,7 +21,7 @@ interface MetricsFilters {
  * RLS automatically filters by user role.
  */
 export async function fetchMetrics(filters: MetricsFilters = {}) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const year = filters.year ?? new Date().getFullYear();
 
   let query = supabase
@@ -80,7 +80,7 @@ export async function fetchMetrics(filters: MetricsFilters = {}) {
  * Get the latest week number that has data.
  */
 export async function getLatestWeek(year?: number): Promise<number | null> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const y = year ?? new Date().getFullYear();
 
   const { data } = await supabase
@@ -98,7 +98,7 @@ export async function getLatestWeek(year?: number): Promise<number | null> {
  * Get all available weeks.
  */
 export async function getAvailableWeeks(year?: number): Promise<number[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const y = year ?? new Date().getFullYear();
 
   const { data } = await supabase
@@ -116,7 +116,7 @@ export async function getAvailableWeeks(year?: number): Promise<number[]> {
  * Get all brands that have stores.
  */
 export async function getAvailableBrands(): Promise<string[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from("stores")
     .select("brand")
@@ -130,7 +130,7 @@ export async function getAvailableBrands(): Promise<string[]> {
  * Get all DSMs.
  */
 export async function getDsms(): Promise<{ id: string; name: string; region: string }[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from("dsms")
     .select("id, name, region")
@@ -165,7 +165,7 @@ export async function getNetworkStats(
 export async function getBrandStats(
   filters: MetricsFilters = {}
 ): Promise<BrandStats[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const metrics = await fetchMetrics(filters);
 
   // Build store map for brand lookup
@@ -258,7 +258,7 @@ export async function getAtRiskStores(
  * Get recent uploads.
  */
 export async function getRecentUploads(limit = 5) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data } = await supabase
     .from("uploads")
     .select("*, profiles(name)")
