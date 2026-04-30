@@ -1,0 +1,32 @@
+[    1237ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[    1323ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[    1391ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[    1392ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[   52692ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[   52692ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[  887202ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[  887417ms] [ERROR] %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values. Removing backgroundImage background @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:3272
+[  887423ms] [ERROR] %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values. Removing backgroundRepeat background @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:3272
+[  887424ms] [ERROR] %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values. Removing backgroundPosition background @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:3272
+[  887426ms] [ERROR] %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values. Removing backgroundImage background @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:3272
+[  887427ms] [ERROR] %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values. Removing backgroundRepeat background @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:3272
+[  887428ms] [ERROR] %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values. Removing backgroundPosition background @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:3272
+[  887459ms] [LOG] [Fast Refresh] done in 243ms @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[  887685ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[  887781ms] [LOG] [Fast Refresh] done in 197ms @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[  896442ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[  896502ms] [LOG] [Fast Refresh] done in 118ms @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[  922238ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[  922299ms] [LOG] [Fast Refresh] done in 162ms @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431

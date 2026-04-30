@@ -1,0 +1,26 @@
+[     454ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[     512ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[     568ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[     569ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[  350373ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[  350966ms] [LOG] [Fast Refresh] done in 698ms @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[  811482ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[  811489ms] [LOG] [Fast Refresh] done in 109ms @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[ 1137569ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=MfsbnTGfbDsCjwcNV0wmJ' failed:  @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_client_0x7ui.f._.js:13299
+[ 1137655ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[ 1138582ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=MfsbnTGfbDsCjwcNV0wmJ' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_client_0x7ui.f._.js:13299
+[ 1139583ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=MfsbnTGfbDsCjwcNV0wmJ' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_client_0x7ui.f._.js:13299
+[ 1140585ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=MfsbnTGfbDsCjwcNV0wmJ' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_client_0x7ui.f._.js:13299
+[ 1141587ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=MfsbnTGfbDsCjwcNV0wmJ' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_client_0x7ui.f._.js:13299
+[ 1143417ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431
+[ 1505240ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=MfsbnTGfbDsCjwcNV0wmJ' failed:  @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_client_0x7ui.f._.js:13299
+[ 1506249ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=MfsbnTGfbDsCjwcNV0wmJ' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_client_0x7ui.f._.js:13299
+[ 1507252ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=MfsbnTGfbDsCjwcNV0wmJ' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_client_0x7ui.f._.js:13299
+[ 1508254ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=MfsbnTGfbDsCjwcNV0wmJ' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_client_0x7ui.f._.js:13299
+[ 1511081ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/0c-e_next_dist_0bh-ne0._.js:2431

@@ -1,0 +1,186 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── Gino's Design Tokens ───────────────────────────────── */
+
+@theme inline {
+  /* Brand */
+  --color-ginos-red: #E2231A;
+  --color-ginos-red-deep: #B81812;
+  --color-ginos-red-soft: #FCEAE9;
+
+  /* Compliance status */
+  --color-basil: #2E7D4F;
+  --color-basil-soft: #E6F1EA;
+  --color-mustard: #C77A00;
+  --color-mustard-soft: #FBEFD9;
+
+  /* Surfaces */
+  --color-paper: #FBF8F2;
+  --color-card-surface: #FFFFFF;
+  --color-crust: #F4ECDD;
+  --color-crust-deep: #E9DDC2;
+  --color-line: #E7DFCE;
+  --color-line-2: #D6CDB7;
+
+  /* Text */
+  --color-ink: #1B1A17;
+  --color-ink-2: #4A4843;
+  --color-ink-3: #7A7670;
+
+  /* Brand swatches */
+  --color-brand-ginos: #E2231A;
+  --color-brand-ttd: #0E5FAE;
+  --color-brand-pp: #7A2A2A;
+  --color-brand-store: #3D6644;
+  --color-brand-dd: #9C5B14;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 0 rgba(27, 26, 23, 0.04), 0 1px 2px rgba(27, 26, 23, 0.04);
+  --shadow-md: 0 1px 0 rgba(27, 26, 23, 0.04), 0 6px 18px rgba(27, 26, 23, 0.06);
+  --shadow-lg: 0 1px 0 rgba(27, 26, 23, 0.04), 0 16px 40px rgba(27, 26, 23, 0.10);
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* Fonts */
+  --font-serif: 'Instrument Serif', 'Times New Roman', serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* shadcn overrides mapped to Gino's palette */
+  --color-background: var(--color-paper);
+  --color-foreground: var(--color-ink);
+  --color-card: var(--color-card-surface);
+  --color-card-foreground: var(--color-ink);
+  --color-popover: var(--color-card-surface);
+  --color-popover-foreground: var(--color-ink);
+  --color-primary: var(--color-ginos-red);
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: var(--color-crust);
+  --color-secondary-foreground: var(--color-ink);
+  --color-muted: var(--color-crust);
+  --color-muted-foreground: var(--color-ink-3);
+  --color-accent: var(--color-crust);
+  --color-accent-foreground: var(--color-ink);
+  --color-destructive: var(--color-ginos-red);
+  --color-border: var(--color-line);
+  --color-input: var(--color-line);
+  --color-ring: var(--color-ginos-red);
+
+  /* Chart colors */
+  --color-chart-1: var(--color-ginos-red);
+  --color-chart-2: var(--color-basil);
+  --color-chart-3: var(--color-mustard);
+  --color-chart-4: var(--color-brand-ttd);
+  --color-chart-5: var(--color-brand-pp);
+}
+
+/* ── Base styles ────────────────────────────────────���────── */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    box-sizing: border-box;
+  }
+
+  html {
+    font-feature-settings: 'ss01', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-paper text-ink font-sans;
+    overflow-x: hidden;
+  }
+}
+
+/* ── Typography utilities ────────────────────────────────── */
+
+.font-serif {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum';
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Brand surfaces ──────────────────────────────────────── */
+
+.checker {
+  background-image:
+    linear-gradient(45deg, rgba(226, 35, 26, 0.06) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(226, 35, 26, 0.06) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(226, 35, 26, 0.06) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(226, 35, 26, 0.06) 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  border: 2px solid var(--color-paper);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22);
+  border: 2px solid var(--color-paper);
+  background-clip: content-box;
+}
+
+/* ── Animations ──────────────────────────────────────────── */
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.28s ease both;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-crust) 25%,
+    var(--color-crust-deep) 50%,
+    var(--color-crust) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}

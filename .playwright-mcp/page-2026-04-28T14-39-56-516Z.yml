@@ -1,0 +1,229 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e6]: G
+        - generic [ref=e7]:
+          - generic [ref=e8]: Gino's
+          - generic [ref=e9]: Inventory
+      - generic [ref=e10]: Analytics
+      - button "Overview" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - text: Overview
+      - button "All Stores" [ref=e17] [cursor=pointer]:
+        - img [ref=e18]
+        - text: All Stores
+      - generic [ref=e22]: Management
+      - generic [ref=e23]:
+        - img [ref=e24]
+        - text: Upload Data
+      - generic [ref=e27]:
+        - img [ref=e28]
+        - text: Admin Panel
+      - generic [ref=e31]:
+        - generic [ref=e32]: JD
+        - generic [ref=e33]:
+          - generic [ref=e34]: James D.
+          - generic [ref=e35]: Super Admin
+    - main [ref=e36]:
+      - generic [ref=e37]:
+        - generic [ref=e38]:
+          - text: Dashboard
+          - generic [ref=e39]: /
+          - generic [ref=e40]: Overview
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - img [ref=e43]
+            - text: Search stores...
+          - img [ref=e47]
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - heading "Overview" [level=1] [ref=e55]
+            - paragraph [ref=e56]: Network-wide compliance at a glance
+          - generic [ref=e57]:
+            - button "Export" [ref=e58] [cursor=pointer]
+            - button "AI Insights" [ref=e59] [cursor=pointer]:
+              - img [ref=e60]
+              - text: AI Insights
+        - generic [ref=e63]:
+          - generic [ref=e64]: Week
+          - combobox [ref=e65]:
+            - option "Week 15" [selected]
+            - option "Week 14"
+            - option "Week 13"
+          - generic [ref=e66]: Brand
+          - combobox [ref=e67]:
+            - option "All Brands" [selected]
+            - option "GINOS"
+            - option "TTD"
+            - option "PP/WM"
+          - generic [ref=e68]: DSM
+          - combobox [ref=e69]:
+            - option "All DSMs" [selected]
+            - option "Brijesh"
+            - option "Jim"
+            - option "Michel"
+            - option "Paul"
+            - option "Raj"
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - generic [ref=e72]: Week 15 · Network Compliance
+            - generic [ref=e73]:
+              - generic [ref=e76]:
+                - generic [ref=e77]: 78%
+                - generic [ref=e78]: Compliant
+              - generic [ref=e84]:
+                - generic [ref=e85]: 118 in compliance
+                - generic [ref=e86]: 15 borderline
+                - generic [ref=e87]: 18 at risk
+            - generic [ref=e88]:
+              - generic [ref=e89]: S:C in band82%
+              - generic [ref=e90]: F:C in band86%
+              - generic [ref=e91]: Reporting151
+          - generic [ref=e92]:
+            - generic [ref=e93]:
+              - generic [ref=e95]: Avg Cheese Diff
+              - generic [ref=e96]: "+3.2"
+              - generic [ref=e97]: cases
+            - generic [ref=e98]:
+              - generic [ref=e100]: Avg Sauce Diff
+              - generic [ref=e101]: "-1.4"
+              - generic [ref=e102]: cases
+            - generic [ref=e103]:
+              - generic [ref=e105]: Avg Flour Diff
+              - generic [ref=e106]: "+0.8"
+              - generic [ref=e107]: bags
+            - generic [ref=e108]:
+              - generic [ref=e110]: Avg Sauce:Cheese
+              - generic [ref=e111]: 94.2%
+              - generic [ref=e112]: "Target: 75–125%"
+            - generic [ref=e113]:
+              - generic [ref=e115]: Avg Flour:Cheese
+              - generic [ref=e116]: 98.7%
+              - generic [ref=e117]: "Target: 75–125%"
+            - generic [ref=e118]:
+              - generic [ref=e119]:
+                - img [ref=e120]
+                - generic [ref=e122]: Active Flags
+              - generic [ref=e123]: "47"
+        - generic [ref=e124]:
+          - generic [ref=e126]:
+            - heading "Compliance Trend" [level=3] [ref=e127]
+            - generic [ref=e128]: Last 8 weeks
+          - generic [ref=e131]:
+            - heading "Brand Breakdown" [level=3] [ref=e133]
+            - generic [ref=e135]:
+              - generic [ref=e137]:
+                - generic [ref=e138]: GINOS
+                - generic [ref=e139]: 85 stores · 81%
+              - generic [ref=e143]:
+                - generic [ref=e144]: TTD
+                - generic [ref=e145]: 31 stores · 74%
+              - generic [ref=e149]:
+                - generic [ref=e150]: PP/WM
+                - generic [ref=e151]: 11 stores · 64%
+              - generic [ref=e155]:
+                - generic [ref=e156]: STORE
+                - generic [ref=e157]: 13 stores · 85%
+              - generic [ref=e161]:
+                - generic [ref=e162]: DD
+                - generic [ref=e163]: 8 stores · 75%
+        - generic [ref=e166]:
+          - generic [ref=e167]:
+            - generic [ref=e169]:
+              - img [ref=e170]
+              - text: AI Insights
+            - heading "What should I focus on this week?" [level=4] [ref=e173]
+            - paragraph [ref=e174]: Generate an AI-powered summary of compliance patterns, anomalies, and recommended actions.
+            - button "Generate insight" [ref=e175] [cursor=pointer]:
+              - img [ref=e176]
+              - text: Generate insight
+          - generic [ref=e179]:
+            - generic [ref=e180]:
+              - heading "Stores Requiring Attention" [level=3] [ref=e181]
+              - generic [ref=e182]:
+                - text: View all
+                - img [ref=e183]
+            - table [ref=e186]:
+              - rowgroup [ref=e187]:
+                - row "Store DSM Cheese Δ Sauce Δ S:C Status" [ref=e188]:
+                  - columnheader "Store" [ref=e189]
+                  - columnheader "DSM" [ref=e190]
+                  - columnheader "Cheese Δ" [ref=e191]
+                  - columnheader "Sauce Δ" [ref=e192]
+                  - columnheader "S:C" [ref=e193]
+                  - columnheader "Status" [ref=e194]
+              - rowgroup [ref=e195]:
+                - row "GINOS032 Guelph Paul +8.2cs -2.1cs 82.0% Out of compliance" [ref=e196]:
+                  - cell "GINOS032 Guelph" [ref=e197]:
+                    - generic [ref=e200]:
+                      - generic [ref=e201]: GINOS032
+                      - generic [ref=e202]: Guelph
+                  - cell "Paul" [ref=e203]
+                  - cell "+8.2cs" [ref=e204]:
+                    - generic [ref=e205]: +8.2cs
+                  - cell "-2.1cs" [ref=e206]:
+                    - generic [ref=e207]: "-2.1cs"
+                  - cell "82.0%" [ref=e208]:
+                    - generic [ref=e209]: 82.0%
+                  - cell "Out of compliance" [ref=e210]:
+                    - generic [ref=e211]: Out of compliance
+                - row "GINOS017 Milton Michel -7.5cs +4.2cs 131.0% Out of compliance" [ref=e213]:
+                  - cell "GINOS017 Milton" [ref=e214]:
+                    - generic [ref=e217]:
+                      - generic [ref=e218]: GINOS017
+                      - generic [ref=e219]: Milton
+                  - cell "Michel" [ref=e220]
+                  - cell "-7.5cs" [ref=e221]:
+                    - generic [ref=e222]: "-7.5cs"
+                  - cell "+4.2cs" [ref=e223]:
+                    - generic [ref=e224]: +4.2cs
+                  - cell "131.0%" [ref=e225]:
+                    - generic [ref=e226]: 131.0%
+                  - cell "Out of compliance" [ref=e227]:
+                    - generic [ref=e228]: Out of compliance
+                - row "TTD BARRIE Barrie Brijesh +5.8cs +6.3cs 72.0% Out of compliance" [ref=e230]:
+                  - cell "TTD BARRIE Barrie" [ref=e231]:
+                    - generic [ref=e234]:
+                      - generic [ref=e235]: TTD BARRIE
+                      - generic [ref=e236]: Barrie
+                  - cell "Brijesh" [ref=e237]
+                  - cell "+5.8cs" [ref=e238]:
+                    - generic [ref=e239]: +5.8cs
+                  - cell "+6.3cs" [ref=e240]:
+                    - generic [ref=e241]: +6.3cs
+                  - cell "72.0%" [ref=e242]:
+                    - generic [ref=e243]: 72.0%
+                  - cell "Out of compliance" [ref=e244]:
+                    - generic [ref=e245]: Out of compliance
+                - row "GINOS065 Peterborough Raj +3.8cs -4.5cs 69.0% Borderline" [ref=e247]:
+                  - cell "GINOS065 Peterborough" [ref=e248]:
+                    - generic [ref=e251]:
+                      - generic [ref=e252]: GINOS065
+                      - generic [ref=e253]: Peterborough
+                  - cell "Raj" [ref=e254]
+                  - cell "+3.8cs" [ref=e255]:
+                    - generic [ref=e256]: +3.8cs
+                  - cell "-4.5cs" [ref=e257]:
+                    - generic [ref=e258]: "-4.5cs"
+                  - cell "69.0%" [ref=e259]:
+                    - generic [ref=e260]: 69.0%
+                  - cell "Borderline" [ref=e261]:
+                    - generic [ref=e262]: Borderline
+                - row "PP/WM14 Waterloo Paul -3.2cs +1.5cs 118.0% Borderline" [ref=e264]:
+                  - cell "PP/WM14 Waterloo" [ref=e265]:
+                    - generic [ref=e268]:
+                      - generic [ref=e269]: PP/WM14
+                      - generic [ref=e270]: Waterloo
+                  - cell "Paul" [ref=e271]
+                  - cell "-3.2cs" [ref=e272]:
+                    - generic [ref=e273]: "-3.2cs"
+                  - cell "+1.5cs" [ref=e274]:
+                    - generic [ref=e275]: +1.5cs
+                  - cell "118.0%" [ref=e276]:
+                    - generic [ref=e277]: 118.0%
+                  - cell "Borderline" [ref=e278]:
+                    - generic [ref=e279]: Borderline
+  - button "Open Next.js Dev Tools" [ref=e286] [cursor=pointer]:
+    - img [ref=e287]

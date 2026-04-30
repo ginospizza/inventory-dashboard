@@ -1,0 +1,251 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e6]: G
+        - generic [ref=e7]:
+          - generic [ref=e8]: Gino's
+          - generic [ref=e9]: Inventory
+      - generic [ref=e10]: Analytics
+      - button "Overview" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - text: Overview
+      - button "All Stores" [ref=e17] [cursor=pointer]:
+        - img [ref=e18]
+        - text: All Stores
+      - generic [ref=e22]: Management
+      - generic [ref=e23]:
+        - img [ref=e24]
+        - text: Upload Data
+      - generic [ref=e27]:
+        - img [ref=e28]
+        - text: Admin Panel
+      - generic [ref=e31]:
+        - generic [ref=e32]: JD
+        - generic [ref=e33]:
+          - generic [ref=e34]: James D.
+          - generic [ref=e35]: Super Admin
+    - main [ref=e36]:
+      - generic [ref=e37]:
+        - generic [ref=e38]:
+          - text: Dashboard
+          - generic [ref=e39]: /
+          - generic [ref=e40]: Overview
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - img [ref=e43]
+            - text: Search stores...
+          - img [ref=e47]
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - heading "Overview" [level=1] [ref=e55]
+            - paragraph [ref=e56]: Network-wide compliance at a glance
+          - generic [ref=e57]:
+            - button "Export" [ref=e58] [cursor=pointer]
+            - button "AI Insights" [ref=e59] [cursor=pointer]:
+              - img [ref=e60]
+              - text: AI Insights
+        - generic [ref=e63]:
+          - generic [ref=e64]: Week
+          - combobox [ref=e65]:
+            - option "Week 15" [selected]
+            - option "Week 14"
+            - option "Week 13"
+          - generic [ref=e66]: Brand
+          - combobox [ref=e67]:
+            - option "All Brands" [selected]
+            - option "GINOS"
+            - option "TTD"
+            - option "PP/WM"
+          - generic [ref=e68]: DSM
+          - combobox [ref=e69]:
+            - option "All DSMs" [selected]
+            - option "Brijesh"
+            - option "Jim"
+            - option "Michel"
+            - option "Paul"
+            - option "Raj"
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - generic [ref=e72]: Week 15 · Network Compliance
+            - generic [ref=e73]:
+              - generic [ref=e74]:
+                - application [ref=e77]
+                - generic [ref=e78]:
+                  - generic [ref=e79]: 78%
+                  - generic [ref=e80]: Compliant
+              - generic [ref=e86]:
+                - generic [ref=e87]: 118 in compliance
+                - generic [ref=e88]: 15 borderline
+                - generic [ref=e89]: 18 at risk
+            - generic [ref=e90]:
+              - generic [ref=e91]: S:C in band82%
+              - generic [ref=e92]: F:C in band86%
+              - generic [ref=e93]: Reporting151
+          - generic [ref=e94]:
+            - generic [ref=e95]:
+              - generic [ref=e97]: Avg Cheese Diff
+              - generic [ref=e98]: "+3.2"
+              - generic [ref=e99]: cases
+            - generic [ref=e100]:
+              - generic [ref=e102]: Avg Sauce Diff
+              - generic [ref=e103]: "-1.4"
+              - generic [ref=e104]: cases
+            - generic [ref=e105]:
+              - generic [ref=e107]: Avg Flour Diff
+              - generic [ref=e108]: "+0.8"
+              - generic [ref=e109]: bags
+            - generic [ref=e110]:
+              - generic [ref=e112]: Avg Sauce:Cheese
+              - generic [ref=e113]: 94.2%
+              - generic [ref=e114]: "Target: 75–125%"
+            - generic [ref=e115]:
+              - generic [ref=e117]: Avg Flour:Cheese
+              - generic [ref=e118]: 98.7%
+              - generic [ref=e119]: "Target: 75–125%"
+            - generic [ref=e120]:
+              - generic [ref=e121]:
+                - img [ref=e122]
+                - generic [ref=e124]: Active Flags
+              - generic [ref=e125]: "47"
+        - generic [ref=e126]:
+          - generic [ref=e127]:
+            - generic [ref=e128]:
+              - heading "Compliance Trend" [level=3] [ref=e129]
+              - generic [ref=e130]: Last 8 weeks
+            - application [ref=e134]:
+              - generic [ref=e155]:
+                - generic [ref=e156]:
+                  - generic [ref=e158]: W8
+                  - generic [ref=e160]: W9
+                  - generic [ref=e162]: W10
+                  - generic [ref=e164]: W11
+                  - generic [ref=e166]: W12
+                  - generic [ref=e168]: W13
+                  - generic [ref=e170]: W14
+                  - generic [ref=e172]: W15
+                - generic [ref=e173]:
+                  - generic [ref=e175]: 60%
+                  - generic [ref=e177]: 70%
+                  - generic [ref=e179]: 80%
+                  - generic [ref=e181]: 90%
+                  - generic [ref=e183]: 100%
+          - generic [ref=e184]:
+            - heading "Brand Breakdown" [level=3] [ref=e186]
+            - generic [ref=e188]:
+              - generic [ref=e190]:
+                - generic [ref=e191]: GINOS
+                - generic [ref=e192]: 85 stores · 81%
+              - generic [ref=e196]:
+                - generic [ref=e197]: TTD
+                - generic [ref=e198]: 31 stores · 74%
+              - generic [ref=e202]:
+                - generic [ref=e203]: PP/WM
+                - generic [ref=e204]: 11 stores · 64%
+              - generic [ref=e208]:
+                - generic [ref=e209]: STORE
+                - generic [ref=e210]: 13 stores · 85%
+              - generic [ref=e214]:
+                - generic [ref=e215]: DD
+                - generic [ref=e216]: 8 stores · 75%
+        - generic [ref=e219]:
+          - generic [ref=e220]:
+            - generic [ref=e222]:
+              - img [ref=e223]
+              - text: AI Insights
+            - heading "What should I focus on this week?" [level=4] [ref=e226]
+            - paragraph [ref=e227]: Generate an AI-powered summary of compliance patterns, anomalies, and recommended actions.
+            - button "Generate insight" [ref=e228] [cursor=pointer]:
+              - img [ref=e229]
+              - text: Generate insight
+          - generic [ref=e232]:
+            - generic [ref=e233]:
+              - heading "Stores Requiring Attention" [level=3] [ref=e234]
+              - generic [ref=e235]:
+                - text: View all
+                - img [ref=e236]
+            - table [ref=e239]:
+              - rowgroup [ref=e240]:
+                - row "Store DSM Cheese Δ Sauce Δ S:C Status" [ref=e241]:
+                  - columnheader "Store" [ref=e242]
+                  - columnheader "DSM" [ref=e243]
+                  - columnheader "Cheese Δ" [ref=e244]
+                  - columnheader "Sauce Δ" [ref=e245]
+                  - columnheader "S:C" [ref=e246]
+                  - columnheader "Status" [ref=e247]
+              - rowgroup [ref=e248]:
+                - row "GINOS032 Guelph Paul +8.2cs -2.1cs 82.0% Out of compliance" [ref=e249]:
+                  - cell "GINOS032 Guelph" [ref=e250]:
+                    - generic [ref=e253]:
+                      - generic [ref=e254]: GINOS032
+                      - generic [ref=e255]: Guelph
+                  - cell "Paul" [ref=e256]
+                  - cell "+8.2cs" [ref=e257]:
+                    - generic [ref=e258]: +8.2cs
+                  - cell "-2.1cs" [ref=e259]:
+                    - generic [ref=e260]: "-2.1cs"
+                  - cell "82.0%" [ref=e261]:
+                    - generic [ref=e262]: 82.0%
+                  - cell "Out of compliance" [ref=e263]:
+                    - generic [ref=e264]: Out of compliance
+                - row "GINOS017 Milton Michel -7.5cs +4.2cs 131.0% Out of compliance" [ref=e266]:
+                  - cell "GINOS017 Milton" [ref=e267]:
+                    - generic [ref=e270]:
+                      - generic [ref=e271]: GINOS017
+                      - generic [ref=e272]: Milton
+                  - cell "Michel" [ref=e273]
+                  - cell "-7.5cs" [ref=e274]:
+                    - generic [ref=e275]: "-7.5cs"
+                  - cell "+4.2cs" [ref=e276]:
+                    - generic [ref=e277]: +4.2cs
+                  - cell "131.0%" [ref=e278]:
+                    - generic [ref=e279]: 131.0%
+                  - cell "Out of compliance" [ref=e280]:
+                    - generic [ref=e281]: Out of compliance
+                - row "TTD BARRIE Barrie Brijesh +5.8cs +6.3cs 72.0% Out of compliance" [ref=e283]:
+                  - cell "TTD BARRIE Barrie" [ref=e284]:
+                    - generic [ref=e287]:
+                      - generic [ref=e288]: TTD BARRIE
+                      - generic [ref=e289]: Barrie
+                  - cell "Brijesh" [ref=e290]
+                  - cell "+5.8cs" [ref=e291]:
+                    - generic [ref=e292]: +5.8cs
+                  - cell "+6.3cs" [ref=e293]:
+                    - generic [ref=e294]: +6.3cs
+                  - cell "72.0%" [ref=e295]:
+                    - generic [ref=e296]: 72.0%
+                  - cell "Out of compliance" [ref=e297]:
+                    - generic [ref=e298]: Out of compliance
+                - row "GINOS065 Peterborough Raj +3.8cs -4.5cs 69.0% Borderline" [ref=e300]:
+                  - cell "GINOS065 Peterborough" [ref=e301]:
+                    - generic [ref=e304]:
+                      - generic [ref=e305]: GINOS065
+                      - generic [ref=e306]: Peterborough
+                  - cell "Raj" [ref=e307]
+                  - cell "+3.8cs" [ref=e308]:
+                    - generic [ref=e309]: +3.8cs
+                  - cell "-4.5cs" [ref=e310]:
+                    - generic [ref=e311]: "-4.5cs"
+                  - cell "69.0%" [ref=e312]:
+                    - generic [ref=e313]: 69.0%
+                  - cell "Borderline" [ref=e314]:
+                    - generic [ref=e315]: Borderline
+                - row "PP/WM14 Waterloo Paul -3.2cs +1.5cs 118.0% Borderline" [ref=e317]:
+                  - cell "PP/WM14 Waterloo" [ref=e318]:
+                    - generic [ref=e321]:
+                      - generic [ref=e322]: PP/WM14
+                      - generic [ref=e323]: Waterloo
+                  - cell "Paul" [ref=e324]
+                  - cell "-3.2cs" [ref=e325]:
+                    - generic [ref=e326]: "-3.2cs"
+                  - cell "+1.5cs" [ref=e327]:
+                    - generic [ref=e328]: +1.5cs
+                  - cell "118.0%" [ref=e329]:
+                    - generic [ref=e330]: 118.0%
+                  - cell "Borderline" [ref=e331]:
+                    - generic [ref=e332]: Borderline
+  - button "Open Next.js Dev Tools" [ref=e339] [cursor=pointer]:
+    - img [ref=e340]
+  - alert [ref=e343]
+  - generic [ref=e344]: 60%
