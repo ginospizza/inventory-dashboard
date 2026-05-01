@@ -82,7 +82,7 @@ export function FilterBar({
       )}
 
       {/* Week filter */}
-      <FilterLabel>Week</FilterLabel>
+      <FilterLabel>Period</FilterLabel>
       <select
         value={currentWeek}
         onChange={(e) => updateParam("week", e.target.value)}
@@ -90,11 +90,19 @@ export function FilterBar({
         style={selectStyle}
       >
         <option value="">Latest</option>
-        {weeks.map((w) => (
-          <option key={w} value={w}>
-            Week {w}
-          </option>
-        ))}
+        <option value="all">All Weeks</option>
+        <option value="ytd">YTD</option>
+        <option value="q1">Q1 (Wk 1-13)</option>
+        <option value="q2">Q2 (Wk 14-26)</option>
+        <option value="q3">Q3 (Wk 27-39)</option>
+        <option value="q4">Q4 (Wk 40-52)</option>
+        <optgroup label="Individual Weeks">
+          {weeks.map((w) => (
+            <option key={w} value={w}>
+              Week {w}
+            </option>
+          ))}
+        </optgroup>
       </select>
 
       {/* Brand filter */}

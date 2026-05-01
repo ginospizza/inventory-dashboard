@@ -8,13 +8,20 @@ import { computeNetworkStats, computeBrandStats, generateFlags, DEFAULT_DIFF_THR
 import type { WeeklyMetrics, NetworkStats, BrandStats, WeeklyTrend, Brand, Anomaly } from "@/lib/types";
 
 interface MetricsFilters {
-  week?: number;
+  week?: number | string; // number for specific week, or "all", "ytd", "q1", "q2", "q3", "q4"
   year?: number;
   brand?: string;
   dsm?: string;
   status?: string;
   storeId?: string;
 }
+
+const QUARTER_RANGES: Record<string, [number, number]> = {
+  q1: [1, 13],
+  q2: [14, 26],
+  q3: [27, 39],
+  q4: [40, 52],
+};
 
 /**
  * Fetch weekly metrics with joins to stores and DSMs.
@@ -47,7 +54,23 @@ export async function fetchMetrics(filters: MetricsFilters = {}) {
     .order("week_number", { ascending: false });
 
   if (filters.week) {
-    query = query.eq("week_number", filters.week);
+    const w = filters.week;
+    if (typeof w === "number") {
+      query = query.eq("week_number", w);
+    } else if (w === "all") {
+      // no week filter — get all weeks
+    } else if (w === "ytd") {
+      // current week of the year
+      const currentWeek = Math.ceil((Date.now() - new Date(year, 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000));
+      query = query.lte("week_number", currentWeek);
+    } else if (QUARTER_RANGES[w]) {
+      const [start, end] = QUARTER_RANGES[w];
+      query = query.gte("week_number", start).lte("week_number", end);
+    } else {
+      // Try as number
+      const num = Number(w);
+      if (num > 0) query = query.eq("week_number", num);
+    }
   }
 
   if (filters.brand && filters.brand !== "all") {
@@ -66,14 +89,23 @@ export async function fetchMetrics(filters: MetricsFilters = {}) {
     query = query.eq("store_id", filters.storeId);
   }
 
-  const { data, error } = await query;
-
-  if (error) {
-    console.error("fetchMetrics error:", error);
-    return [];
+  // Paginate to handle >1000 rows for range queries
+  const allData: Record<string, unknown>[] = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error } = await query.range(from, from + PAGE - 1);
+    if (error) {
+      console.error("fetchMetrics error:", error);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    allData.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
   }
 
-  return (data ?? []) as (WeeklyMetrics & { stores: Record<string, unknown> })[];
+  return allData as (WeeklyMetrics & { stores: Record<string, unknown> })[];
 }
 
 /**

@@ -29,7 +29,14 @@ export default async function StoresPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const selectedYear = params.year ? Number(params.year) : new Date().getFullYear();
   const latestWeek = await getLatestWeek(selectedYear);
-  const week = params.week ? Number(params.week) : latestWeek ?? undefined;
+
+  const weekParam = params.week;
+  const isRange = weekParam && ["all", "ytd", "q1", "q2", "q3", "q4"].includes(weekParam);
+  const week: number | string | undefined = isRange
+    ? weekParam
+    : weekParam
+    ? Number(weekParam)
+    : latestWeek ?? undefined;
 
   const filters = {
     week,
