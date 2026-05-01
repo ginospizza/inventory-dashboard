@@ -91,7 +91,7 @@ export function OverviewClient({
       <div className="grid gap-[14px] mb-[14px]" style={{ gridTemplateColumns: "1.1fr 2fr" }}>
         {/* Hero compliance card */}
         <div
-          className="checker rounded-[14px] p-[18px] bg-white relative overflow-hidden"
+          className="rounded-[14px] p-[18px] bg-white relative overflow-hidden"
           style={{
             border: "1px solid var(--color-line)",
             boxShadow: "var(--shadow-sm)",

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -9,7 +10,104 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const router = useRouter();
+
+  const carouselItems = [
+    {
+      title: "Network Compliance",
+      visual: (
+        <div className="flex items-end gap-[6px] h-[120px] px-2">
+          {[65, 42, 78, 55, 88, 70, 82, 60, 90, 75, 85, 68].map((h, i) => (
+            <div key={i} className="flex-1 rounded-t-[3px] transition-all duration-700" style={{
+              height: `${h}%`,
+              background: h >= 75 ? "rgba(46,125,79,.7)" : h >= 50 ? "rgba(199,122,0,.6)" : "rgba(226,35,26,.6)",
+              animationDelay: `${i * 80}ms`,
+            }} />
+          ))}
+        </div>
+      ),
+      label: "Weekly store compliance rates across the network",
+    },
+    {
+      title: "Ingredient Tracking",
+      visual: (
+        <div className="flex items-center gap-5 h-[120px] px-2">
+          {[
+            { name: "Cheese", pct: 87, color: "#E2231A" },
+            { name: "Sauce", pct: 72, color: "#C77A00" },
+            { name: "Flour", pct: 91, color: "#2E7D4F" },
+          ].map((item) => (
+            <div key={item.name} className="flex-1 flex flex-col items-center gap-2">
+              <div className="relative w-[70px] h-[70px]">
+                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                  <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="3" />
+                  <circle cx="18" cy="18" r="14" fill="none" stroke={item.color} strokeWidth="3"
+                    strokeDasharray={`${item.pct * 0.88} 88`} strokeLinecap="round"
+                    className="transition-all duration-1000" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center text-[13px] font-mono font-semibold" style={{ color: "#F4ECDD" }}>
+                  {item.pct}%
+                </div>
+              </div>
+              <div className="text-[11px]" style={{ color: "#8A7C5F" }}>{item.name}</div>
+            </div>
+          ))}
+        </div>
+      ),
+      label: "Real-time ratio monitoring for key ingredients",
+    },
+    {
+      title: "Store Performance",
+      visual: (
+        <div className="flex flex-col gap-[10px] h-[120px] justify-center px-2">
+          {[
+            { store: "GINOS032", status: "ok", val: "+1.2" },
+            { store: "TTD BARRIE", status: "warn", val: "-4.1" },
+            { store: "GINOS085", status: "bad", val: "+8.3" },
+            { store: "TTD MILTON", status: "ok", val: "-0.5" },
+          ].map((row) => (
+            <div key={row.store} className="flex items-center gap-3 text-[12px]">
+              <div className="w-[6px] h-[6px] rounded-full" style={{
+                background: row.status === "ok" ? "#2E7D4F" : row.status === "warn" ? "#C77A00" : "#E2231A",
+              }} />
+              <span className="font-mono flex-1" style={{ color: "#C9B68B" }}>{row.store}</span>
+              <span className="font-mono" style={{
+                color: row.status === "ok" ? "#2E7D4F" : row.status === "warn" ? "#C77A00" : "#E2231A",
+              }}>{row.val}</span>
+            </div>
+          ))}
+        </div>
+      ),
+      label: "Drill into individual store compliance details",
+    },
+    {
+      title: "Trend Analysis",
+      visual: (
+        <div className="h-[120px] flex items-end px-2">
+          <svg viewBox="0 0 280 100" className="w-full h-full" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="rgba(226,35,26,.25)" />
+                <stop offset="100%" stopColor="rgba(226,35,26,0)" />
+              </linearGradient>
+            </defs>
+            <path d="M0,80 Q35,75 70,60 T140,45 T210,30 T280,20 V100 H0 Z" fill="url(#trendFill)" />
+            <path d="M0,80 Q35,75 70,60 T140,45 T210,30 T280,20" fill="none" stroke="#E2231A" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="280" cy="20" r="3" fill="#E2231A" />
+          </svg>
+        </div>
+      ),
+      label: "8-week compliance trends improving over time",
+    },
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCarouselIndex((prev) => (prev + 1) % carouselItems.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [carouselItems.length]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,31 +134,32 @@ export default function LoginPage() {
     <div className="min-h-screen grid lg:grid-cols-2">
       {/* Left — brand moment */}
       <div
-        className="hidden lg:flex flex-col justify-between p-12 relative overflow-hidden"
+        className="hidden lg:flex flex-col p-12 relative overflow-hidden"
         style={{
           background: "linear-gradient(135deg, #1B1A17 0%, #3a2218 50%, #1B1A17 100%)",
         }}
       >
         <div className="checker absolute inset-0 opacity-30" />
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-4">
-            <div
-              className="w-12 h-12 rounded-xl bg-white p-1 grid place-items-center"
-              style={{ boxShadow: "0 4px 20px rgba(226,35,26,.4)" }}
-            >
-              <div className="w-full h-full rounded-lg bg-ginos-red grid place-items-center text-white font-bold text-lg">
-                G
-              </div>
-            </div>
+
+        {/* Logo */}
+        <div className="relative z-10 mb-10">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/ginos-logo.png"
+              alt="Gino's Pizza"
+              width={56}
+              height={56}
+            />
             <div>
               <div className="font-serif text-3xl text-white">Gino&apos;s Pizza</div>
             </div>
           </div>
         </div>
 
-        <div className="relative z-10">
+        {/* Header */}
+        <div className="relative z-10 mb-3">
           <h2
-            className="font-serif text-[42px] leading-[1.1] mb-4"
+            className="font-serif text-[42px] leading-[1.1] mb-3"
             style={{ color: "#F4ECDD" }}
           >
             Inventory &<br />
@@ -72,12 +171,74 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div
-          className="relative z-10 text-[12px]"
+        {/* Visual carousel */}
+        <div className="relative z-10 flex-1 flex flex-col justify-center">
+          <div
+            className="rounded-[14px] overflow-hidden"
+            style={{
+              background: "rgba(255,255,255,.04)",
+              border: "1px solid rgba(255,255,255,.06)",
+            }}
+          >
+            {/* Carousel header */}
+            <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+              <div className="text-[13px] font-semibold" style={{ color: "#F4ECDD" }}>
+                {carouselItems[carouselIndex].title}
+              </div>
+              <div className="flex gap-[5px]">
+                {carouselItems.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCarouselIndex(i)}
+                    className="h-[4px] rounded-full transition-all duration-500"
+                    style={{
+                      width: carouselIndex === i ? 20 : 6,
+                      background: carouselIndex === i ? "#E2231A" : "rgba(255,255,255,.15)",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Carousel content */}
+            <div className="relative h-[140px] overflow-hidden">
+              {carouselItems.map((item, i) => (
+                <div
+                  key={i}
+                  className="absolute inset-0 transition-all duration-700 ease-in-out"
+                  style={{
+                    opacity: carouselIndex === i ? 1 : 0,
+                    transform: carouselIndex === i
+                      ? "translateX(0)"
+                      : i > carouselIndex
+                      ? "translateX(40px)"
+                      : "translateX(-40px)",
+                  }}
+                >
+                  <div className="p-4">{item.visual}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Carousel label */}
+            <div className="px-5 py-3" style={{ borderTop: "1px solid rgba(255,255,255,.06)" }}>
+              <p className="text-[11.5px] transition-opacity duration-500" style={{ color: "#8A7C5F" }}>
+                {carouselItems[carouselIndex].label}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <a
+          href="https://builtwithgloo.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="relative z-10 text-[12px] mt-6 hover:underline transition-colors"
           style={{ color: "#8A7C5F" }}
         >
-          Built by Gloo &middot; Powered by AI
-        </div>
+          Built by Gloo
+        </a>
       </div>
 
       {/* Right — login form */}
@@ -88,14 +249,12 @@ export default function LoginPage() {
         <div className="w-full max-w-[400px]">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8">
-            <div
-              className="w-10 h-10 rounded-lg bg-white p-[3px] grid place-items-center"
-              style={{ boxShadow: "0 4px 14px rgba(226,35,26,.3)" }}
-            >
-              <div className="w-full h-full rounded-md bg-ginos-red grid place-items-center text-white font-bold text-sm">
-                G
-              </div>
-            </div>
+            <Image
+              src="/ginos-logo.png"
+              alt="Gino's Pizza"
+              width={44}
+              height={44}
+            />
             <span className="font-serif text-2xl">Gino&apos;s</span>
           </div>
 

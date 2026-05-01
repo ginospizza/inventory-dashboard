@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -78,14 +79,13 @@ export function Sidebar({ user }: SidebarProps) {
     >
       {/* Brand */}
       <div className="flex items-center gap-[10px] px-[6px] pt-1 pb-[18px]">
-        <div
-          className="w-[38px] h-[38px] rounded-[9px] bg-white p-[3px] grid place-items-center"
-          style={{ boxShadow: "0 4px 14px rgba(226,35,26,.35)" }}
-        >
-          <div className="w-full h-full rounded-[6px] bg-ginos-red grid place-items-center text-white font-bold text-xs">
-            G
-          </div>
-        </div>
+        <Image
+          src="/ginos-logo.png"
+          alt="Gino's Pizza"
+          width={42}
+          height={42}
+          className="rounded-[6px]"
+        />
         <div className="leading-[1.05]">
           <div className="font-serif text-[22px]">Gino&apos;s</div>
           <div
