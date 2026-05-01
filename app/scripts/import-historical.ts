@@ -204,7 +204,7 @@ async function importProducts(
 
   console.log(`\nImporting ${allProducts.length} products...`);
 
-  for (const row of allProducts) {
+  for (const row of allProducts as Record<string, unknown>[]) {
     const code = String(row["Product Code"] ?? "").trim();
     if (!code) continue;
 
