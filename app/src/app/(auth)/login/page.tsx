@@ -132,73 +132,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col lg:grid lg:grid-cols-2">
-      {/* Mobile — logo + heading (light background, above form) */}
-      <div className="lg:hidden px-6 pt-8 pb-4" style={{ background: "var(--color-paper)" }}>
-        <div className="flex items-center gap-3 mb-5">
-          <Image src="/ginos-logo.png" alt="Gino's Pizza" width={44} height={44} />
-          <div className="font-serif text-2xl">Gino&apos;s Pizza</div>
-        </div>
-        <h2 className="font-serif text-[26px] leading-[1.1] mb-2">
-          Inventory &amp; Compliance
-        </h2>
-        <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-          Monitor ingredient orders and track compliance across all franchise stores.
-        </p>
-      </div>
-
-      {/* Mobile — dark carousel strip (~30% of screen) */}
-      <div
-        className="lg:hidden relative overflow-hidden"
-        style={{
-          background: "linear-gradient(135deg, #1B1A17 0%, #3a2218 50%, #1B1A17 100%)",
-          padding: "16px 20px",
-        }}
-      >
-        <div className="checker absolute inset-0 opacity-30" />
-        <div className="relative z-10">
-          <div
-            className="rounded-[12px] overflow-hidden"
-            style={{
-              background: "rgba(255,255,255,.04)",
-              border: "1px solid rgba(255,255,255,.06)",
-            }}
-          >
-            <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,.06)" }}>
-              <div className="text-[12px] font-semibold" style={{ color: "#F4ECDD" }}>
-                {carouselItems[carouselIndex].title}
-              </div>
-              <div className="flex gap-[4px]">
-                {carouselItems.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCarouselIndex(i)}
-                    className="h-[3px] rounded-full transition-all duration-500"
-                    style={{
-                      width: carouselIndex === i ? 16 : 5,
-                      background: carouselIndex === i ? "#E2231A" : "rgba(255,255,255,.15)",
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="relative h-[110px] overflow-hidden">
-              {carouselItems.map((item, i) => (
-                <div
-                  key={i}
-                  className="absolute inset-0 transition-all duration-700 ease-in-out"
-                  style={{
-                    opacity: carouselIndex === i ? 1 : 0,
-                    transform: carouselIndex === i ? "translateX(0)" : i > carouselIndex ? "translateX(40px)" : "translateX(-40px)",
-                  }}
-                >
-                  <div className="p-3">{item.visual}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Desktop — left brand panel */}
       <div
         className="hidden lg:flex flex-col p-12 relative overflow-hidden"
@@ -298,7 +231,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <a
-          href="https://builtwithgloo.com"
+          href="https://buildwithgloo.com"
           target="_blank"
           rel="noopener noreferrer"
           className="relative z-10 text-[12px] mt-6 hover:underline transition-colors"
@@ -310,10 +243,24 @@ export default function LoginPage() {
 
       {/* Right — login form */}
       <div
-        className="flex-1 flex items-center justify-center p-6 lg:p-8"
+        className="flex-1 flex flex-col items-center justify-center p-6 lg:p-8"
         style={{ background: "var(--color-paper)" }}
       >
         <div className="w-full max-w-[400px]">
+          {/* Mobile logo + heading */}
+          <div className="lg:hidden mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Image src="/ginos-logo.png" alt="Gino's Pizza" width={40} height={40} />
+              <div className="font-serif text-xl">Gino&apos;s Pizza</div>
+            </div>
+            <h2 className="font-serif text-[24px] leading-[1.1] mb-1.5">
+              Inventory &amp; Compliance
+            </h2>
+            <p className="text-[12.5px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+              Monitor ingredient orders and track compliance across all stores.
+            </p>
+          </div>
+
           <h1
             className="font-serif text-[32px] leading-tight mb-2"
             style={{ letterSpacing: "-0.015em" }}
@@ -419,6 +366,73 @@ export default function LoginPage() {
           >
             Contact your administrator for access
           </p>
+        </div>
+      </div>
+
+      {/* Mobile — dark carousel section below form */}
+      <div
+        className="lg:hidden relative overflow-hidden"
+        style={{
+          background: "linear-gradient(135deg, #1B1A17 0%, #3a2218 50%, #1B1A17 100%)",
+          padding: "20px",
+        }}
+      >
+        <div className="checker absolute inset-0 opacity-30" />
+        <div className="relative z-10 w-full">
+          <div
+            className="rounded-[12px] overflow-hidden w-full"
+            style={{
+              background: "rgba(255,255,255,.04)",
+              border: "1px solid rgba(255,255,255,.06)",
+            }}
+          >
+            <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+              <div className="text-[12px] font-semibold" style={{ color: "#F4ECDD" }}>
+                {carouselItems[carouselIndex].title}
+              </div>
+              <div className="flex gap-[4px]">
+                {carouselItems.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCarouselIndex(i)}
+                    className="h-[3px] rounded-full transition-all duration-500"
+                    style={{
+                      width: carouselIndex === i ? 16 : 5,
+                      background: carouselIndex === i ? "#E2231A" : "rgba(255,255,255,.15)",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="relative h-[130px] overflow-hidden">
+              {carouselItems.map((item, i) => (
+                <div
+                  key={i}
+                  className="absolute inset-0 transition-all duration-700 ease-in-out"
+                  style={{
+                    opacity: carouselIndex === i ? 1 : 0,
+                    transform: carouselIndex === i ? "translateX(0)" : i > carouselIndex ? "translateX(40px)" : "translateX(-40px)",
+                  }}
+                >
+                  <div className="p-3">{item.visual}</div>
+                </div>
+              ))}
+            </div>
+            <div className="px-4 py-2.5" style={{ borderTop: "1px solid rgba(255,255,255,.06)" }}>
+              <p className="text-[11px]" style={{ color: "#8A7C5F" }}>
+                {carouselItems[carouselIndex].label}
+              </p>
+            </div>
+          </div>
+          <a
+            href="https://buildwithgloo.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-[11px] mt-3 hover:underline"
+            style={{ color: "#8A7C5F" }}
+          >
+            Built by Gloo
+          </a>
         </div>
       </div>
     </div>

@@ -17,9 +17,9 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen">
       <Sidebar user={user} />
-      <main className="min-w-0 flex flex-col" style={{ marginLeft: 232 }}>
+      <main className="min-w-0 flex flex-col lg:ml-[232px]">
         <Topbar user={user} />
-        <div className="animate-fade-up" style={{ padding: "24px 28px 64px", maxWidth: 1640 }}>
+        <div className="animate-fade-up px-4 py-5 pb-16 lg:px-7 lg:py-6 lg:pb-16" style={{ maxWidth: 1640 }}>
           {children}
         </div>
       </main>

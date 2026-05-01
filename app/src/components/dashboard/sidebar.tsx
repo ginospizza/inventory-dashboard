@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -10,8 +11,8 @@ import {
   Settings,
   LogOut,
   Lock,
-  Bell,
-  ChevronRight,
+  Menu,
+  X,
 } from "lucide-react";
 import type { AppUser } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
@@ -50,7 +51,7 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-export function Sidebar({ user }: SidebarProps) {
+function SidebarContent({ user, onNavigate }: { user: AppUser; onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const isDsm = user.role === "dsm";
@@ -69,14 +70,7 @@ export function Sidebar({ user }: SidebarProps) {
     .slice(0, 2);
 
   return (
-    <aside className="fixed top-0 left-0 h-screen w-[232px] flex flex-col z-10"
-      style={{
-        background: "linear-gradient(180deg, #1B1A17 0%, #2A211A 100%)",
-        color: "#F4ECDD",
-        padding: "20px 16px",
-        gap: "6px",
-      }}
-    >
+    <>
       {/* Brand */}
       <div className="flex items-center gap-[10px] px-[6px] pt-1 pb-[18px]">
         <Image
@@ -137,6 +131,7 @@ export function Sidebar({ user }: SidebarProps) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={onNavigate}
                   className="flex items-center gap-[10px] px-[10px] py-[9px] rounded-lg transition-colors duration-100"
                   style={{
                     fontSize: "13.5px",
@@ -189,6 +184,66 @@ export function Sidebar({ user }: SidebarProps) {
           <LogOut className="w-4 h-4" />
         </button>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export function Sidebar({ user }: SidebarProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex fixed top-0 left-0 h-screen w-[232px] flex-col z-10"
+        style={{
+          background: "linear-gradient(180deg, #1B1A17 0%, #2A211A 100%)",
+          color: "#F4ECDD",
+          padding: "20px 16px",
+          gap: "6px",
+        }}
+      >
+        <SidebarContent user={user} />
+      </aside>
+
+      {/* Mobile hamburger button */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="lg:hidden fixed top-[14px] left-[14px] z-30 w-[38px] h-[38px] grid place-items-center rounded-[9px]"
+        style={{
+          background: "linear-gradient(180deg, #1B1A17 0%, #2A211A 100%)",
+          color: "#F4ECDD",
+          boxShadow: "0 2px 8px rgba(0,0,0,.2)",
+        }}
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
+      {/* Mobile drawer overlay */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-40" onClick={() => setMobileOpen(false)}>
+          <div className="absolute inset-0 bg-black/50" />
+          <aside
+            className="absolute top-0 left-0 h-full w-[280px] flex flex-col"
+            style={{
+              background: "linear-gradient(180deg, #1B1A17 0%, #2A211A 100%)",
+              color: "#F4ECDD",
+              padding: "20px 16px",
+              gap: "6px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="absolute top-[18px] right-[14px] w-8 h-8 grid place-items-center rounded-md hover:bg-white/5"
+              style={{ color: "#8A7C5F" }}
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <SidebarContent user={user} onNavigate={() => setMobileOpen(false)} />
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

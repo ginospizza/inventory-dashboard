@@ -70,7 +70,7 @@ export function StoreDetailClient({
         All Stores
       </Link>
 
-      <div className="flex items-start justify-between gap-5 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 sm:gap-5 mb-6">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <span
@@ -81,10 +81,10 @@ export function StoreDetailClient({
             </span>
             <div className="w-full h-[6px] rounded-full max-w-[60px]" style={{ background: brandColor }} />
           </div>
-          <h1 className="font-serif text-[38px] leading-none" style={{ letterSpacing: "-0.015em" }}>
+          <h1 className="font-serif text-[28px] lg:text-[38px] leading-none" style={{ letterSpacing: "-0.015em" }}>
             {storeCode}
             {storeCity && (
-              <span className="text-[20px] ml-3" style={{ color: "var(--color-ink-3)" }}>
+              <span className="text-[16px] lg:text-[20px] ml-2 lg:ml-3" style={{ color: "var(--color-ink-3)" }}>
                 {storeCity}
               </span>
             )}
@@ -140,7 +140,7 @@ export function StoreDetailClient({
 
       {/* KPI strip */}
       {latest && (
-        <div className="grid grid-cols-5 gap-[14px] mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-[14px] mb-6">
           <KpiStrip label="Cheese" ordered={latest.cheese_ordered_oz as number} estimated={latest.cheese_estimated_oz as number} diff={latest.cheese_diff as number} unit="oz" diffUnit="cs" status={latest.cheese_status as ComplianceStatus} />
           <KpiStrip label="Sauce" ordered={latest.sauce_ordered_floz as number} estimated={latest.sauce_estimated_floz as number} diff={latest.sauce_diff as number} unit="fl oz" diffUnit="cs" status={latest.sauce_status as ComplianceStatus} />
           <KpiStrip label="Flour" ordered={latest.flour_ordered_kg as number} estimated={latest.flour_estimated_kg as number} diff={latest.flour_diff as number} unit="kg" diffUnit="bg" status={latest.flour_status as ComplianceStatus} />
@@ -209,7 +209,7 @@ export function StoreDetailClient({
         )}
 
         {activeTab === "secondary" && (
-          <div className="p-[18px]">
+          <div className="p-[18px] overflow-x-auto">
             {secondaryOrders.length > 0 ? (
               <table className="w-full text-[13px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
                 <thead>
@@ -242,7 +242,7 @@ export function StoreDetailClient({
         )}
 
         {activeTab === "trends" && (
-          <div className="p-[18px] grid grid-cols-2 gap-[18px]">
+          <div className="p-[18px] grid grid-cols-1 lg:grid-cols-2 gap-[18px]">
             <TrendChart title="Sauce:Cheese Ratio" data={trendData} dataKey="sauce_cheese_ratio" multiply={100} color="var(--color-mustard)" target={{ low: 75, high: 125 }} />
             <TrendChart title="Flour:Cheese Ratio" data={trendData} dataKey="flour_cheese_ratio" multiply={100} color="var(--color-basil)" target={{ low: 75, high: 125 }} />
             <TrendChart title="Cheese Diff (cases)" data={trendData} dataKey="cheese_diff" color="var(--color-ginos-red)" threshold={6} />

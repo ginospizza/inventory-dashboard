@@ -103,12 +103,12 @@ export function UploadClient({ recentUploads }: { recentUploads: Record<string, 
     <div>
       <div className="flex items-end justify-between gap-5 mb-[22px]">
         <div>
-          <h1 className="font-serif text-[38px] leading-none" style={{ letterSpacing: "-0.015em" }}>Upload Data</h1>
+          <h1 className="font-serif text-[28px] lg:text-[38px] leading-none" style={{ letterSpacing: "-0.015em" }}>Upload Data</h1>
           <p className="text-[13px] mt-[6px]" style={{ color: "var(--color-ink-3)" }}>Import weekly order data from the warehouse system</p>
         </div>
       </div>
 
-      <div className="grid gap-[18px]" style={{ gridTemplateColumns: "1.2fr 1fr" }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-[18px]">
         {/* Left — Upload flow */}
         <div className="rounded-[14px] bg-white" style={{ border: "1px solid var(--color-line)", boxShadow: "var(--shadow-sm)" }}>
           {/* Idle */}
@@ -151,7 +151,7 @@ export function UploadClient({ recentUploads }: { recentUploads: Record<string, 
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-3 mb-5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
                 <StatCard label="Total Rows" value={preview.total_rows} />
                 <StatCard label="Primary" value={preview.primary_count} color="var(--color-basil)" />
                 <StatCard label="Secondary" value={preview.secondary_count} color="var(--color-brand-ttd)" />

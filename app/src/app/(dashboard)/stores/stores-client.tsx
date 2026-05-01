@@ -105,9 +105,9 @@ export function StoresClient({
   return (
     <div>
       {/* Header */}
-      <div className="flex items-end justify-between gap-5 mb-[22px]">
+      <div className="flex items-end justify-between gap-3 lg:gap-5 mb-[18px] lg:mb-[22px]">
         <div>
-          <h1 className="font-serif text-[38px] leading-none" style={{ letterSpacing: "-0.015em" }}>
+          <h1 className="font-serif text-[28px] lg:text-[38px] leading-none" style={{ letterSpacing: "-0.015em" }}>
             All Stores
           </h1>
           <p className="text-[13px] mt-[6px]" style={{ color: "var(--color-ink-3)" }}>
@@ -138,7 +138,7 @@ export function StoresClient({
             placeholder="Search by store code or city..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border-0 outline-none bg-transparent text-[13px] w-[240px]"
+            className="border-0 outline-none bg-transparent text-[13px] w-full sm:w-[240px]"
             style={{ color: "var(--color-ink)" }}
           />
         </div>

@@ -40,13 +40,13 @@ export function AdminClient({
     <div>
       <div className="flex items-end justify-between gap-5 mb-[22px]">
         <div>
-          <h1 className="font-serif text-[38px] leading-none" style={{ letterSpacing: "-0.015em" }}>Admin Panel</h1>
+          <h1 className="font-serif text-[28px] lg:text-[38px] leading-none" style={{ letterSpacing: "-0.015em" }}>Admin Panel</h1>
           <p className="text-[13px] mt-[6px]" style={{ color: "var(--color-ink-3)" }}>Manage stores, products, thresholds, and users</p>
         </div>
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 mb-5 p-[3px] rounded-lg" style={{ background: "var(--color-crust)", display: "inline-flex" }}>
+      <div className="flex gap-1 mb-5 p-[3px] rounded-lg overflow-x-auto" style={{ background: "var(--color-crust)", display: "inline-flex" }}>
         {TABS.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -170,7 +170,7 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
 
 function ThresholdsTab({ thresholds, assumptions }: { thresholds: Record<string, unknown>[]; assumptions: Record<string, unknown>[] }) {
   return (
-    <div className="p-[18px] grid grid-cols-2 gap-6">
+    <div className="p-[18px] grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div>
         <h4 className="text-[14px] font-semibold mb-3">Compliance Thresholds</h4>
         <div className="flex flex-col gap-3">
@@ -288,7 +288,7 @@ function AiTab({ config, calls }: { config: Record<string, unknown>; calls: Reco
   }).length;
 
   return (
-    <div className="p-[18px] grid grid-cols-2 gap-6">
+    <div className="p-[18px] grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div>
         <div className="font-serif text-[32px] leading-none mb-2">
           {thisMonth} <span className="text-[18px]" style={{ color: "var(--color-ink-3)" }}>of {cap} calls</span>

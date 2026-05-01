@@ -54,9 +54,9 @@ export function OverviewClient({
   return (
     <div>
       {/* Page header */}
-      <div className="flex items-end justify-between gap-5 mb-[22px]">
+      <div className="flex items-end justify-between gap-3 lg:gap-5 mb-[18px] lg:mb-[22px]">
         <div>
-          <h1 className="font-serif text-[38px] leading-none" style={{ letterSpacing: "-0.015em" }}>
+          <h1 className="font-serif text-[28px] lg:text-[38px] leading-none" style={{ letterSpacing: "-0.015em" }}>
             Overview
           </h1>
           <p className="text-[13px] mt-[6px]" style={{ color: "var(--color-ink-3)" }}>
@@ -65,21 +65,21 @@ export function OverviewClient({
         </div>
         <div className="flex gap-2 items-center">
           <button
-            className="flex items-center gap-[7px] px-[14px] py-2 rounded-[9px] bg-white text-[13px] font-medium transition-colors hover:bg-crust"
+            className="hidden sm:flex items-center gap-[7px] px-[14px] py-2 rounded-[9px] bg-white text-[13px] font-medium transition-colors hover:bg-crust"
             style={{ border: "1px solid var(--color-line)" }}
           >
             Export
           </button>
           <button
             onClick={handleGenerateInsight}
-            className="flex items-center gap-[7px] px-[14px] py-2 rounded-[9px] text-white text-[13px] font-medium"
+            className="flex items-center gap-[7px] px-[10px] sm:px-[14px] py-2 rounded-[9px] text-white text-[13px] font-medium"
             style={{
               background: "var(--color-ginos-red)",
               boxShadow: "0 4px 14px rgba(226,35,26,.25), inset 0 1px 0 rgba(255,255,255,.18)",
             }}
           >
             <Sparkles className="w-4 h-4" />
-            AI Insights
+            <span className="hidden sm:inline">AI Insights</span>
           </button>
         </div>
       </div>
@@ -88,7 +88,7 @@ export function OverviewClient({
       <FilterBar user={user} weeks={weeks} brands={brands} dsms={dsms} />
 
       {/* Top row: Hero compliance + KPI grid */}
-      <div className="grid gap-[14px] mb-[14px]" style={{ gridTemplateColumns: "1.1fr 2fr" }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_2fr] gap-[14px] mb-[14px]">
         {/* Hero compliance card */}
         <div
           className="rounded-[14px] p-[18px] bg-white relative overflow-hidden"
@@ -171,7 +171,7 @@ export function OverviewClient({
         </div>
 
         {/* KPI grid */}
-        <div className="grid grid-cols-3 grid-rows-2 gap-[14px]">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-[14px]">
           <KpiCard
             label="Avg Cheese Diff"
             value={`${stats.avg_cheese_diff > 0 ? "+" : ""}${stats.avg_cheese_diff.toFixed(1)}`}
@@ -216,7 +216,7 @@ export function OverviewClient({
       </div>
 
       {/* Middle row: Trend + Brand mix */}
-      <div className="grid gap-[14px] mb-[14px]" style={{ gridTemplateColumns: "2fr 1.1fr" }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1.1fr] gap-[14px] mb-[14px]">
         {/* Compliance trend */}
         <div
           className="rounded-[14px] bg-white overflow-hidden"
@@ -289,7 +289,7 @@ export function OverviewClient({
       </div>
 
       {/* Bottom row: AI Insights + At-risk stores */}
-      <div className="grid gap-[14px]" style={{ gridTemplateColumns: "1.05fr 1.6fr" }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1.6fr] gap-[14px]">
         {/* AI Insights */}
         <div
           className="rounded-[14px] p-[18px] relative overflow-hidden"

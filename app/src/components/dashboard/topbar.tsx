@@ -24,28 +24,30 @@ export function Topbar({ user }: TopbarProps) {
 
   return (
     <header
-      className="sticky top-0 z-5 flex items-center gap-[14px]"
+      className="sticky top-0 z-5 flex items-center gap-[14px] px-4 py-3 lg:px-7 lg:py-[14px]"
       style={{
-        padding: "14px 28px",
         background: "var(--color-paper)",
         borderBottom: "1px solid var(--color-line)",
       }}
     >
+      {/* Spacer for mobile hamburger */}
+      <div className="w-[38px] lg:hidden" />
+
       {/* Breadcrumb */}
       <div
         className="flex items-center gap-[6px] text-ink-3"
         style={{ fontSize: "12.5px" }}
       >
-        <span>Dashboard</span>
-        <span style={{ color: "var(--color-ink-3)" }}>/</span>
+        <span className="hidden sm:inline">Dashboard</span>
+        <span className="hidden sm:inline" style={{ color: "var(--color-ink-3)" }}>/</span>
         <span className="font-semibold text-ink">{currentPage}</span>
       </div>
 
       {/* Right side */}
       <div className="ml-auto flex items-center gap-[10px]">
-        {/* Search */}
+        {/* Search — hidden on mobile */}
         <div
-          className="flex items-center gap-2 px-[11px] py-[7px] bg-white rounded-full"
+          className="hidden md:flex items-center gap-2 px-[11px] py-[7px] bg-white rounded-full"
           style={{
             border: "1px solid var(--color-line)",
             fontSize: "12.5px",
