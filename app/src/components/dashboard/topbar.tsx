@@ -11,6 +11,7 @@ interface TopbarProps {
 const BREADCRUMB_MAP: Record<string, string> = {
   "/overview": "Overview",
   "/stores": "All Stores",
+  "/compare": "Compare",
   "/upload": "Upload Data",
   "/admin": "Admin Panel",
 };

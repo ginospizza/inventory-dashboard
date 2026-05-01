@@ -32,7 +32,7 @@ export function StoreDetailClient({
   brandColor,
   anomalies,
 }: StoreDetailClientProps) {
-  const [activeTab, setActiveTab] = useState<"primary" | "secondary" | "trends" | "flags">("primary");
+  const [activeTab, setActiveTab] = useState<"primary" | "secondary" | "trends" | "flags" | "compare">("primary");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
 
@@ -158,6 +158,7 @@ export function StoreDetailClient({
           { key: "primary", label: "Primary Products" },
           { key: "secondary", label: "Secondary Products" },
           { key: "trends", label: "Trends" },
+          { key: "compare", label: "Compare" },
           { key: "flags", label: `Flag History (${flags.length})` },
         ] as const).map((tab) => (
           <button
@@ -250,6 +251,73 @@ export function StoreDetailClient({
             <TrendChart title="Flour:Cheese Ratio" data={trendData} dataKey="flour_cheese_ratio" multiply={100} color="var(--color-basil)" target={{ low: 75, high: 125 }} />
             <TrendChart title="Cheese Diff (cases)" data={trendData} dataKey="cheese_diff" color="var(--color-ginos-red)" threshold={6} />
             <TrendChart title="Sauce Diff (cases)" data={trendData} dataKey="sauce_diff" color="var(--color-mustard)" threshold={6} />
+          </div>
+        )}
+
+        {activeTab === "compare" && (
+          <div className="p-[18px]">
+            {metrics.length >= 2 ? (
+              <div>
+                <p className="text-[13px] mb-4" style={{ color: "var(--color-ink-2)" }}>
+                  Week-over-week comparison for {storeCode}
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[13px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+                    <thead>
+                      <tr>
+                        {["Week", "Cheese Diff", "Sauce Diff", "S:C Ratio", "Status", "vs Prev"].map(h => (
+                          <th key={h} className="text-left font-semibold text-[11px] tracking-[.06em] uppercase px-[14px] py-[10px]" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {metrics.slice(0, 15).map((m, i) => {
+                        const prev = metrics[i + 1] as Record<string, unknown> | undefined;
+                        const statusVal = (s: string) => s === "bad" ? 2 : s === "warn" ? 1 : 0;
+                        const statusChange = prev ? statusVal(m.overall_status as string) - statusVal(prev.overall_status as string) : 0;
+                        return (
+                          <tr key={m.week_number as number} className="hover:bg-[rgba(244,236,221,.3)]">
+                            <td className="px-[14px] py-[10px] font-mono font-medium" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                              Wk {m.week_number as number}
+                              <span className="text-[10px] ml-1" style={{ color: "var(--color-ink-3)" }}>{m.year as number}</span>
+                            </td>
+                            <td className="px-[14px] py-[10px] font-mono" style={{ borderBottom: "1px solid var(--color-line)", color: Math.abs(m.cheese_diff as number) > 6 ? "var(--color-ginos-red)" : "var(--color-ink)" }}>
+                              {(m.cheese_diff as number) > 0 ? "+" : ""}{(m.cheese_diff as number).toFixed(1)}
+                            </td>
+                            <td className="px-[14px] py-[10px] font-mono" style={{ borderBottom: "1px solid var(--color-line)", color: Math.abs(m.sauce_diff as number) > 6 ? "var(--color-ginos-red)" : "var(--color-ink)" }}>
+                              {(m.sauce_diff as number) > 0 ? "+" : ""}{(m.sauce_diff as number).toFixed(1)}
+                            </td>
+                            <td className="px-[14px] py-[10px] font-mono" style={{ borderBottom: "1px solid var(--color-line)", color: (m.sauce_cheese_ratio as number) * 100 < 75 || (m.sauce_cheese_ratio as number) * 100 > 125 ? "var(--color-ginos-red)" : "var(--color-ink)" }}>
+                              {((m.sauce_cheese_ratio as number) * 100).toFixed(1)}%
+                            </td>
+                            <td className="px-[14px] py-[10px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                              <StatusPill status={m.overall_status as "ok" | "warn" | "bad"} />
+                            </td>
+                            <td className="px-[14px] py-[10px] text-center" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                              {prev ? (
+                                statusChange < 0 ? (
+                                  <span className="text-[10px] font-semibold px-[6px] py-[2px] rounded-full" style={{ background: "var(--color-basil-soft)", color: "var(--color-basil)" }}>Better</span>
+                                ) : statusChange > 0 ? (
+                                  <span className="text-[10px] font-semibold px-[6px] py-[2px] rounded-full" style={{ background: "var(--color-ginos-red-soft)", color: "var(--color-ginos-red)" }}>Worse</span>
+                                ) : (
+                                  <span className="text-[10px] px-[6px] py-[2px] rounded-full" style={{ background: "var(--color-crust)", color: "var(--color-ink-3)" }}>Same</span>
+                                )
+                              ) : (
+                                <span className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-[13px]" style={{ color: "var(--color-ink-3)" }}>Not enough data for comparison</p>
+              </div>
+            )}
           </div>
         )}
 

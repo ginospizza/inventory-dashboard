@@ -13,6 +13,7 @@ import {
   Lock,
   Menu,
   X,
+  ArrowLeftRight,
 } from "lucide-react";
 import type { AppUser } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
@@ -40,6 +41,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/overview", label: "Overview", icon: LayoutDashboard },
       { href: "/stores", label: "All Stores", icon: Store },
+      { href: "/compare", label: "Compare", icon: ArrowLeftRight },
     ],
   },
   {
