@@ -131,8 +131,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:grid lg:grid-cols-2">
-      {/* Mobile — brand header */}
+    <div className="min-h-screen flex flex-col-reverse lg:grid lg:grid-cols-2">
+      {/* Mobile — brand section (bottom on mobile, left on desktop) */}
       <div
         className="lg:hidden flex flex-col p-6 pb-5 relative overflow-hidden"
         style={{
