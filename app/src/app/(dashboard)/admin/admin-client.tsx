@@ -170,18 +170,7 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
 
 function ThresholdsTab({ thresholds, assumptions }: { thresholds: Record<string, unknown>[]; assumptions: Record<string, unknown>[] }) {
   return (
-    <div className="p-[18px]">
-      <div
-        className="flex items-start gap-2 px-3 py-2.5 rounded-lg mb-5 text-[12px] leading-relaxed"
-        style={{ background: "var(--color-crust)", color: "var(--color-ink-2)" }}
-      >
-        <span className="mt-0.5 shrink-0" style={{ color: "var(--color-ink-3)" }}>*</span>
-        <span>
-          These defaults were set during initial setup. Thresholds and per-pizza ratios can be adjusted here as needed.
-          AI usage cap and model are configurable below.
-        </span>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="p-[18px] grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div>
         <h4 className="text-[14px] font-semibold mb-3">Compliance Thresholds</h4>
         <div className="flex flex-col gap-3">
@@ -220,7 +209,6 @@ function ThresholdsTab({ thresholds, assumptions }: { thresholds: Record<string,
             ))}
           </tbody>
         </table>
-      </div>
       </div>
     </div>
   );
