@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/supabase/auth";
 import {
   fetchMetrics,
   getAvailableWeeks,
+  getAvailableYears,
   getAvailableBrands,
   getDsms,
   getLatestWeek,
@@ -14,6 +15,7 @@ import { StoresClient } from "./stores-client";
 interface PageProps {
   searchParams: Promise<{
     week?: string;
+    year?: string;
     brand?: string;
     dsm?: string;
     status?: string;
@@ -25,18 +27,21 @@ export default async function StoresPage({ searchParams }: PageProps) {
   if (!user) redirect("/login");
 
   const params = await searchParams;
-  const latestWeek = await getLatestWeek();
+  const selectedYear = params.year ? Number(params.year) : new Date().getFullYear();
+  const latestWeek = await getLatestWeek(selectedYear);
   const week = params.week ? Number(params.week) : latestWeek ?? undefined;
 
   const filters = {
     week,
+    year: selectedYear,
     brand: params.brand,
     dsm: params.dsm,
   };
 
-  const [metrics, weeks, brands, dsms] = await Promise.all([
+  const [metrics, weeks, years, brands, dsms] = await Promise.all([
     fetchMetrics(filters),
-    getAvailableWeeks(),
+    getAvailableWeeks(selectedYear),
+    getAvailableYears(),
     getAvailableBrands(),
     getDsms(),
   ]);
@@ -68,6 +73,7 @@ export default async function StoresPage({ searchParams }: PageProps) {
       user={user}
       metrics={storeMetrics}
       weeks={weeks}
+      years={years}
       brands={brands}
       dsms={dsms}
       statusCounts={statusCounts}

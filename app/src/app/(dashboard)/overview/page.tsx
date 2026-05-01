@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import {
@@ -7,6 +6,7 @@ import {
   getWeeklyTrend,
   getAtRiskStores,
   getAvailableWeeks,
+  getAvailableYears,
   getAvailableBrands,
   getDsms,
   getLatestWeek,
@@ -19,6 +19,7 @@ import { OverviewClient } from "./overview-client";
 interface PageProps {
   searchParams: Promise<{
     week?: string;
+    year?: string;
     brand?: string;
     dsm?: string;
   }>;
@@ -29,22 +30,25 @@ export default async function OverviewPage({ searchParams }: PageProps) {
   if (!user) redirect("/login");
 
   const params = await searchParams;
-  const latestWeek = await getLatestWeek();
+  const selectedYear = params.year ? Number(params.year) : new Date().getFullYear();
+  const latestWeek = await getLatestWeek(selectedYear);
   const week = params.week ? Number(params.week) : latestWeek ?? undefined;
 
   const filters = {
     week,
+    year: selectedYear,
     brand: params.brand,
     dsm: params.dsm,
   };
 
-  const [stats, brandStats, trend, atRisk, weeks, brands, dsms, anomalies] =
+  const [stats, brandStats, trend, atRisk, weeks, years, brands, dsms, anomalies] =
     await Promise.all([
       getNetworkStats(filters),
       getBrandStats(filters),
-      getWeeklyTrend(8, { brand: params.brand, dsm: params.dsm }),
+      getWeeklyTrend(8, { brand: params.brand, dsm: params.dsm, year: selectedYear }),
       getAtRiskStores(filters),
-      getAvailableWeeks(),
+      getAvailableWeeks(selectedYear),
+      getAvailableYears(),
       getAvailableBrands(),
       getDsms(),
       getAnomalies(filters),
@@ -64,9 +68,11 @@ export default async function OverviewPage({ searchParams }: PageProps) {
       trend={trend}
       atRisk={atRiskWithFlags}
       weeks={weeks}
+      years={years}
       brands={brands}
       dsms={dsms}
       currentWeek={week ?? null}
+      currentYear={selectedYear}
       anomalies={anomalies}
     />
   );

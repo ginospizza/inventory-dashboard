@@ -7,6 +7,7 @@ import type { AppUser, ComplianceStatus } from "@/lib/types";
 interface FilterBarProps {
   user: AppUser;
   weeks: number[];
+  years?: number[];
   brands: string[];
   dsms: { id: string; name: string }[];
   statusCounts?: {
@@ -21,6 +22,7 @@ interface FilterBarProps {
 export function FilterBar({
   user,
   weeks,
+  years,
   brands,
   dsms,
   statusCounts,
@@ -57,6 +59,33 @@ export function FilterBar({
         boxShadow: "var(--shadow-sm)",
       }}
     >
+      {/* Year filter */}
+      {years && years.length > 1 && (
+        <>
+          <FilterLabel>Year</FilterLabel>
+          <select
+            value={searchParams.get("year") ?? ""}
+            onChange={(e) => {
+              const params = new URLSearchParams(searchParams.toString());
+              if (e.target.value) {
+                params.set("year", e.target.value);
+              } else {
+                params.delete("year");
+              }
+              params.delete("week"); // reset week when year changes
+              router.push(`?${params.toString()}`);
+            }}
+            className="filter-select"
+            style={selectStyle}
+          >
+            <option value="">{new Date().getFullYear()}</option>
+            {years.filter(y => y !== new Date().getFullYear()).map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </>
+      )}
+
       {/* Week filter */}
       <FilterLabel>Week</FilterLabel>
       <select

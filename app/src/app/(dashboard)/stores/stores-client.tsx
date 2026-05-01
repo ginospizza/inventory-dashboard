@@ -26,6 +26,7 @@ interface StoresClientProps {
   user: AppUser;
   metrics: StoreRow[];
   weeks: number[];
+  years?: number[];
   brands: string[];
   dsms: { id: string; name: string }[];
   statusCounts: { all: number; ok: number; warn: number; bad: number };
@@ -46,6 +47,7 @@ export function StoresClient({
   user,
   metrics,
   weeks,
+  years,
   brands,
   dsms,
   statusCounts,
@@ -120,6 +122,7 @@ export function StoresClient({
       <FilterBar
         user={user}
         weeks={weeks}
+        years={years}
         brands={brands}
         dsms={dsms}
         statusCounts={statusCounts}

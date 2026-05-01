@@ -14,9 +14,11 @@ interface OverviewClientProps {
   trend: WeeklyTrend[];
   atRisk: (Record<string, unknown> & { flags: FlagType[] })[];
   weeks: number[];
+  years: number[];
   brands: string[];
   dsms: { id: string; name: string }[];
   currentWeek: number | null;
+  currentYear: number;
   anomalies: Anomaly[];
 }
 
@@ -27,22 +29,46 @@ export function OverviewClient({
   trend,
   atRisk,
   weeks,
+  years,
   brands,
   dsms,
   currentWeek,
+  currentYear,
   anomalies,
 }: OverviewClientProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
 
   async function handleGenerateInsight() {
+    console.log("AI Insights clicked — fetching...");
     setAiLoading(true);
     setAiInsight(null);
+    // Scroll to AI card
+    document.getElementById("ai-insights-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
     try {
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ page: "overview", context: stats }),
+        body: JSON.stringify({
+          page: "overview",
+          context: {
+            ...stats,
+            currentWeek,
+            brandBreakdown: brandStats.map(b => ({ brand: b.brand, stores: b.store_count, compliance: b.compliance_pct + "%" })),
+            worstStores: atRisk.slice(0, 5).map(m => ({
+              store: (m.stores as Record<string, unknown>)?.code ?? m.store_code,
+              cheese_diff: m.cheese_diff,
+              sauce_diff: m.sauce_diff,
+              status: m.overall_status,
+            })),
+            anomalyCount: anomalies.length,
+            anomalySummary: {
+              critical: anomalies.filter(a => a.severity === "critical").length,
+              warning: anomalies.filter(a => a.severity === "warning").length,
+              info: anomalies.filter(a => a.severity === "info").length,
+            },
+          },
+        }),
       });
       const data = await res.json();
       setAiInsight(data.insight ?? "No insights available.");
@@ -87,7 +113,7 @@ export function OverviewClient({
       </div>
 
       {/* Filter bar */}
-      <FilterBar user={user} weeks={weeks} brands={brands} dsms={dsms} />
+      <FilterBar user={user} weeks={weeks} years={years} brands={brands} dsms={dsms} />
 
       {/* Top row: Hero compliance + KPI grid */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_2fr] gap-[14px] mb-[14px]">
@@ -297,6 +323,7 @@ export function OverviewClient({
       <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1.6fr] gap-[14px]">
         {/* AI Insights */}
         <div
+          id="ai-insights-card"
           className="rounded-[14px] p-[18px] relative overflow-hidden"
           style={{
             background: "radial-gradient(ellipse at top right, rgba(226,35,26,.06), transparent 60%), linear-gradient(180deg, #FFFDF8, #FBF6EC)",

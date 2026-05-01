@@ -113,6 +113,20 @@ export async function getAvailableWeeks(year?: number): Promise<number[]> {
 }
 
 /**
+ * Get all available years.
+ */
+export async function getAvailableYears(): Promise<number[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("weekly_metrics")
+    .select("year")
+    .order("year", { ascending: false });
+
+  if (!data) return [new Date().getFullYear()];
+  return [...new Set(data.map((d: { year: number }) => d.year))];
+}
+
+/**
  * Get all brands that have stores.
  */
 export async function getAvailableBrands(): Promise<string[]> {
