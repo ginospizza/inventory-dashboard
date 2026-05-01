@@ -60,26 +60,21 @@ export function FilterBar({
       }}
     >
       {/* Year filter */}
-      {years && years.length > 1 && (
+      {years && years.length > 0 && (
         <>
           <FilterLabel>Year</FilterLabel>
           <select
-            value={searchParams.get("year") ?? ""}
+            value={searchParams.get("year") ?? String(new Date().getFullYear())}
             onChange={(e) => {
               const params = new URLSearchParams(searchParams.toString());
-              if (e.target.value) {
-                params.set("year", e.target.value);
-              } else {
-                params.delete("year");
-              }
+              params.set("year", e.target.value);
               params.delete("week"); // reset week when year changes
               router.push(`?${params.toString()}`);
             }}
             className="filter-select"
             style={selectStyle}
           >
-            <option value="">{new Date().getFullYear()}</option>
-            {years.filter(y => y !== new Date().getFullYear()).map((y) => (
+            {years.map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>

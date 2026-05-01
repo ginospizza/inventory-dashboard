@@ -95,35 +95,53 @@ export async function getLatestWeek(year?: number): Promise<number | null> {
 }
 
 /**
- * Get all available weeks.
+ * Get all available weeks (paginated to avoid 1000-row limit).
  */
 export async function getAvailableWeeks(year?: number): Promise<number[]> {
   const supabase = createAdminClient();
   const y = year ?? new Date().getFullYear();
 
-  const { data } = await supabase
-    .from("weekly_metrics")
-    .select("week_number")
-    .eq("year", y)
-    .order("week_number", { ascending: false });
+  const weeks = new Set<number>();
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data } = await supabase
+      .from("weekly_metrics")
+      .select("week_number")
+      .eq("year", y)
+      .order("week_number", { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (!data || data.length === 0) break;
+    data.forEach((d: { week_number: number }) => weeks.add(d.week_number));
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
 
-  if (!data) return [];
-
-  return [...new Set(data.map((d: { week_number: number }) => d.week_number))];
+  return [...weeks].sort((a, b) => b - a);
 }
 
 /**
- * Get all available years.
+ * Get all available years (paginated to avoid 1000-row limit).
  */
 export async function getAvailableYears(): Promise<number[]> {
   const supabase = createAdminClient();
-  const { data } = await supabase
-    .from("weekly_metrics")
-    .select("year")
-    .order("year", { ascending: false });
 
-  if (!data) return [new Date().getFullYear()];
-  return [...new Set(data.map((d: { year: number }) => d.year))];
+  const years = new Set<number>();
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data } = await supabase
+      .from("weekly_metrics")
+      .select("year")
+      .order("year", { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (!data || data.length === 0) break;
+    data.forEach((d: { year: number }) => years.add(d.year));
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  return [...years].sort((a, b) => b - a);
 }
 
 /**
