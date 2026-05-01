@@ -11,7 +11,7 @@ const STATUS_CONFIG: Record<
   { label: string; bg: string; text: string }
 > = {
   ok: {
-    label: "In compliance",
+    label: "Compliant",
     bg: "var(--color-basil-soft)",
     text: "var(--color-basil)",
   },
@@ -21,7 +21,7 @@ const STATUS_CONFIG: Record<
     text: "var(--color-mustard)",
   },
   bad: {
-    label: "Out of compliance",
+    label: "At Risk",
     bg: "var(--color-ginos-red-soft)",
     text: "var(--color-ginos-red)",
   },
@@ -33,7 +33,7 @@ export function StatusPill({ status, className }: StatusPillProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-[6px] px-[9px] py-[3px] rounded-full",
+        "inline-flex items-center gap-[5px] px-[8px] py-[3px] rounded-full whitespace-nowrap",
         className
       )}
       style={{
