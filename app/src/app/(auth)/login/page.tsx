@@ -131,8 +131,86 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
-      {/* Left — brand moment */}
+    <div className="min-h-screen flex flex-col lg:grid lg:grid-cols-2">
+      {/* Mobile — brand header */}
+      <div
+        className="lg:hidden flex flex-col p-6 pb-5 relative overflow-hidden"
+        style={{
+          background: "linear-gradient(135deg, #1B1A17 0%, #3a2218 50%, #1B1A17 100%)",
+        }}
+      >
+        <div className="checker absolute inset-0 opacity-30" />
+
+        <div className="relative z-10 flex items-center gap-3 mb-5">
+          <Image src="/ginos-logo.png" alt="Gino's Pizza" width={44} height={44} />
+          <div className="font-serif text-2xl text-white">Gino&apos;s Pizza</div>
+        </div>
+
+        <div className="relative z-10 mb-4">
+          <h2 className="font-serif text-[28px] leading-[1.1] mb-2" style={{ color: "#F4ECDD" }}>
+            Inventory &amp; Compliance
+          </h2>
+          <p className="text-[13px] leading-relaxed" style={{ color: "#C9B68B" }}>
+            Monitor ingredient orders and track compliance across all franchise stores.
+          </p>
+        </div>
+
+        {/* Mobile carousel */}
+        <div className="relative z-10">
+          <div
+            className="rounded-[12px] overflow-hidden"
+            style={{
+              background: "rgba(255,255,255,.04)",
+              border: "1px solid rgba(255,255,255,.06)",
+            }}
+          >
+            <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+              <div className="text-[12px] font-semibold" style={{ color: "#F4ECDD" }}>
+                {carouselItems[carouselIndex].title}
+              </div>
+              <div className="flex gap-[4px]">
+                {carouselItems.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCarouselIndex(i)}
+                    className="h-[3px] rounded-full transition-all duration-500"
+                    style={{
+                      width: carouselIndex === i ? 16 : 5,
+                      background: carouselIndex === i ? "#E2231A" : "rgba(255,255,255,.15)",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="relative h-[110px] overflow-hidden">
+              {carouselItems.map((item, i) => (
+                <div
+                  key={i}
+                  className="absolute inset-0 transition-all duration-700 ease-in-out"
+                  style={{
+                    opacity: carouselIndex === i ? 1 : 0,
+                    transform: carouselIndex === i ? "translateX(0)" : i > carouselIndex ? "translateX(40px)" : "translateX(-40px)",
+                  }}
+                >
+                  <div className="p-3">{item.visual}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <a
+          href="https://builtwithgloo.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="relative z-10 text-[11px] mt-4 hover:underline"
+          style={{ color: "#8A7C5F" }}
+        >
+          Built by Gloo
+        </a>
+      </div>
+
+      {/* Desktop — left brand panel */}
       <div
         className="hidden lg:flex flex-col p-12 relative overflow-hidden"
         style={{
@@ -243,21 +321,10 @@ export default function LoginPage() {
 
       {/* Right — login form */}
       <div
-        className="flex items-center justify-center p-8"
+        className="flex-1 flex items-center justify-center p-6 lg:p-8"
         style={{ background: "var(--color-paper)" }}
       >
         <div className="w-full max-w-[400px]">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-8">
-            <Image
-              src="/ginos-logo.png"
-              alt="Gino's Pizza"
-              width={44}
-              height={44}
-            />
-            <span className="font-serif text-2xl">Gino&apos;s</span>
-          </div>
-
           <h1
             className="font-serif text-[32px] leading-tight mb-2"
             style={{ letterSpacing: "-0.015em" }}
