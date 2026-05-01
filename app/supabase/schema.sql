@@ -112,6 +112,7 @@ create table if not exists weekly_metrics (
   cheese_ordered_oz numeric not null default 0,
   sauce_ordered_floz numeric not null default 0,
   flour_ordered_kg numeric not null default 0,
+  dough_ordered_kg numeric not null default 0,
 
   -- Box counts (individual boxes)
   boxes_small integer not null default 0,
@@ -125,15 +126,18 @@ create table if not exists weekly_metrics (
   cheese_estimated_oz numeric not null default 0,
   sauce_estimated_floz numeric not null default 0,
   flour_estimated_kg numeric not null default 0,
+  dough_estimated_kg numeric not null default 0,
 
   -- Differences
   cheese_diff numeric not null default 0,
   sauce_diff numeric not null default 0,
   flour_diff numeric not null default 0,
+  dough_diff numeric not null default 0,
 
   -- Ratios (as decimals, e.g. 0.878 = 87.8%)
   sauce_cheese_ratio numeric not null default 0,
   flour_cheese_ratio numeric not null default 0,
+  dough_cheese_ratio numeric not null default 0,
 
   -- Sales estimates
   total_boxes_ordered integer not null default 0,
@@ -141,11 +145,17 @@ create table if not exists weekly_metrics (
   weekly_pizza_sales integer not null default 0,
 
   -- Status
+  -- Store type
+  store_type text not null default 'flour' check (store_type in ('flour', 'dough')),
+
+  -- Status
   cheese_status text not null default 'ok' check (cheese_status in ('ok', 'warn', 'bad')),
   sauce_status text not null default 'ok' check (sauce_status in ('ok', 'warn', 'bad')),
   flour_status text not null default 'ok' check (flour_status in ('ok', 'warn', 'bad')),
+  dough_status text not null default 'ok' check (dough_status in ('ok', 'warn', 'bad')),
   sauce_cheese_status text not null default 'ok' check (sauce_cheese_status in ('ok', 'warn', 'bad')),
   flour_cheese_status text not null default 'ok' check (flour_cheese_status in ('ok', 'warn', 'bad')),
+  dough_cheese_status text not null default 'ok' check (dough_cheese_status in ('ok', 'warn', 'bad')),
   overall_status text not null default 'ok' check (overall_status in ('ok', 'warn', 'bad')),
 
   created_at timestamptz default now(),
