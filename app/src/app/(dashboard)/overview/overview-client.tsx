@@ -136,17 +136,17 @@ export function OverviewClient({
                 )}
               </div>
 
-              <div className="flex justify-between text-[12px]">
-                <span className="flex items-center gap-[5px]" style={{ color: "var(--color-basil)" }}>
-                  <span className="w-[7px] h-[7px] rounded-full" style={{ background: "var(--color-basil)" }} />
+              <div className="flex flex-col gap-[6px] text-[12px] mt-1">
+                <span className="flex items-center gap-[6px]" style={{ color: "var(--color-basil)" }}>
+                  <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: "var(--color-basil)" }} />
                   <strong>{stats.compliant_count}</strong> Compliant
                 </span>
-                <span className="flex items-center gap-[5px]" style={{ color: "var(--color-mustard)" }}>
-                  <span className="w-[7px] h-[7px] rounded-full" style={{ background: "var(--color-mustard)" }} />
+                <span className="flex items-center gap-[6px]" style={{ color: "var(--color-mustard)" }}>
+                  <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: "var(--color-mustard)" }} />
                   <strong>{stats.borderline_count}</strong> Borderline
                 </span>
-                <span className="flex items-center gap-[5px]" style={{ color: "var(--color-ginos-red)" }}>
-                  <span className="w-[7px] h-[7px] rounded-full" style={{ background: "var(--color-ginos-red)" }} />
+                <span className="flex items-center gap-[6px]" style={{ color: "var(--color-ginos-red)" }}>
+                  <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: "var(--color-ginos-red)" }} />
                   <strong>{stats.at_risk_count}</strong> At Risk
                 </span>
               </div>

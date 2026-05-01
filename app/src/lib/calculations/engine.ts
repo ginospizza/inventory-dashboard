@@ -25,6 +25,8 @@ import {
   KG_TO_OZ,
   BOXES_PER_CASE,
   BOX_RATIOS,
+  WING_BOX_RATIOS,
+  WING_BOXES_PER_CASE,
   FLOUR_YIELD_FACTOR,
   PIZZA_SALES_PER_CASE,
   SAUCE_CASE_FLOZ,
@@ -60,7 +62,11 @@ interface StoreWeekAggregates {
   boxes_party_21x15: number;
   boxes_clamshell: number;
 
-  wing_boxes: number;
+  // Wing box cases by size (used as pizza boxes in some stores)
+  wing_8: number;
+  wing_10: number;
+  wing_12: number;
+  wing_14: number;
 }
 
 // ── Box size detection ───────────────────────────────────────
@@ -99,6 +105,15 @@ function isWingBox(product: Product): boolean {
   return (desc.includes("wing") && desc.includes("box")) || product.type === "Wing Box";
 }
 
+function getWingBoxSize(product: Product): "wing_8" | "wing_10" | "wing_12" | "wing_14" | null {
+  const desc = product.description.toLowerCase();
+  if (desc.includes("14")) return "wing_14";
+  if (desc.includes("12")) return "wing_12";
+  if (desc.includes("10")) return "wing_10";
+  if (desc.includes("8")) return "wing_8";
+  return null;
+}
+
 // ── Aggregation ──────────────────────────────────────────────
 
 export function aggregateStoreWeek(
@@ -123,7 +138,10 @@ export function aggregateStoreWeek(
     boxes_party_20: 0,
     boxes_party_21x15: 0,
     boxes_clamshell: 0,
-    wing_boxes: 0,
+    wing_8: 0,
+    wing_10: 0,
+    wing_12: 0,
+    wing_14: 0,
   };
 
   for (const row of rows) {
@@ -158,7 +176,8 @@ export function aggregateStoreWeek(
       }
       case "Packaging": {
         if (isWingBox(product)) {
-          agg.wing_boxes += qty;
+          const ws = getWingBoxSize(product);
+          if (ws) agg[ws] += qty;
         } else {
           const size = getBoxSize(product);
           if (size) {
@@ -176,7 +195,8 @@ export function aggregateStoreWeek(
         break;
       }
       case "Wing Box": {
-        agg.wing_boxes += qty;
+        const ws = getWingBoxSize(product);
+        if (ws) agg[ws] += qty;
         break;
       }
       default:
@@ -199,10 +219,14 @@ function sumEstimated(agg: StoreWeekAggregates, field: "cheese_oz" | "sauce_oz" 
     agg.boxes_party_21x15 * BOXES_PER_CASE * BOX_RATIOS.party_21x15[field];
 
   if (includeClamshell && agg.boxes_clamshell > 0) {
-    // Clamshells: units vary by case, but each unit = one slice
-    // Using cases * BOXES_PER_CASE as approximation (40 slices per case)
     total += agg.boxes_clamshell * BOXES_PER_CASE * BOX_RATIOS.clamshell[field];
   }
+
+  // Wing boxes count as pizza boxes (some stores use them for pizza)
+  total += agg.wing_8 * WING_BOXES_PER_CASE * WING_BOX_RATIOS.wing_8[field] +
+    agg.wing_10 * WING_BOXES_PER_CASE * WING_BOX_RATIOS.wing_10[field] +
+    agg.wing_12 * WING_BOXES_PER_CASE * WING_BOX_RATIOS.wing_12[field] +
+    agg.wing_14 * WING_BOXES_PER_CASE * WING_BOX_RATIOS.wing_14[field];
 
   return total;
 }

@@ -42,10 +42,29 @@ function normalizeStoreCode(raw: string): string {
   return raw
     .trim()
     .replace(/\s+/g, " ")
-    .replace(/\s*NEW\s*$/i, "")
-    .replace(/\s*NEW$/i, "")
     .toUpperCase()
+    .replace(/\s*OLD\s*\d*\s*$/i, "")  // strip OLD, OLD2, etc.
+    .replace(/\s*NEW\s*\d*\s*$/i, "")  // strip NEW, NEW2, etc.
+    .replace(/NEW$/, "")               // catch remaining NEW suffix
     .trim();
+}
+
+// Stores to ignore per James: head offices, wholesalers, anything without a brand prefix
+const IGNORE_STORES = new Set([
+  "SAPUTO", "SUNDRY", "GRAND TOTAL",
+  "GINOS HEAD OFFICE", "DOUBLE DOUBLE PIZZA CHICKEN HEAD OFFICE",
+  "TWICE THE DEAL HEAD OFFICE", "TTD WOOLWICH HEAD OFFICE",
+  "WING MACHINE INC", "IGG INTERNATIONAL INC", "PANZEROTTO PIZZA INC",
+  "SKYBLUE WHOLESALE", "MURRAY WHOLESALE", "NR FUELS CONVENIENCE INC",
+  "DOUBLE TASTE PIZZA AND SHAWARMA", "DOUBLE TASTE PIZZA AND SHAWARMA 2",
+  "CRISPY SLICE PIZZA",
+]);
+
+function shouldIgnoreStore(code: string): boolean {
+  if (IGNORE_STORES.has(code)) return true;
+  // Ignore anything without a known brand prefix
+  const brandPrefixes = ["GINOS", "TTD", "PP", "WM", "STORE", "DD", "C "];
+  return !brandPrefixes.some(p => code.startsWith(p));
 }
 
 // Sheets to skip in 2025 file
@@ -394,14 +413,8 @@ async function computeAndWriteMetrics(
   for (const row of allRows) {
     const normCode = normalizeStoreCode(row.company_name);
 
-    // Skip non-store entries
-    if (
-      normCode.includes("SAPUTO") ||
-      normCode.includes("SUNDRY") ||
-      normCode === "GRAND TOTAL" ||
-      normCode === ""
-    )
-      continue;
+    // Skip non-store entries and ignored stores
+    if (!normCode || shouldIgnoreStore(normCode)) continue;
 
     const key = groupKey(row);
     if (!groups.has(key)) groups.set(key, []);

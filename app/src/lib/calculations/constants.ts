@@ -25,6 +25,17 @@ export const BOX_RATIOS = {
   clamshell:    { cheese_oz: 2,   sauce_oz: 0.75, dough_kg: 0.097 },
 } as const;
 
+// Wing box ratios — some stores use wing boxes for pizza (confirmed by James)
+// 8-wing = Small, 10-wing = Medium, 12-wing = Large, 14-wing = XL
+export const WING_BOX_RATIOS = {
+  wing_8:  { cheese_oz: 4,  sauce_oz: 2.5, dough_kg: 0.3 },   // = Small
+  wing_10: { cheese_oz: 6,  sauce_oz: 4,   dough_kg: 0.45 },  // = Medium
+  wing_12: { cheese_oz: 8,  sauce_oz: 5,   dough_kg: 0.6 },   // = Large
+  wing_14: { cheese_oz: 10, sauce_oz: 6,   dough_kg: 0.775 }, // = XL
+} as const;
+
+export const WING_BOXES_PER_CASE = 50;
+
 // Flour-to-dough yield factor
 // flour_kg * 1.6 = dough_kg (for Flour stores)
 // estimated_flour = estimated_dough / 1.6
