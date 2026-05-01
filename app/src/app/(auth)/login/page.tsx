@@ -131,31 +131,30 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col-reverse lg:grid lg:grid-cols-2">
-      {/* Mobile — brand section (bottom on mobile, left on desktop) */}
+    <div className="min-h-screen flex flex-col lg:grid lg:grid-cols-2">
+      {/* Mobile — logo + heading (light background, above form) */}
+      <div className="lg:hidden px-6 pt-8 pb-4" style={{ background: "var(--color-paper)" }}>
+        <div className="flex items-center gap-3 mb-5">
+          <Image src="/ginos-logo.png" alt="Gino's Pizza" width={44} height={44} />
+          <div className="font-serif text-2xl">Gino&apos;s Pizza</div>
+        </div>
+        <h2 className="font-serif text-[26px] leading-[1.1] mb-2">
+          Inventory &amp; Compliance
+        </h2>
+        <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+          Monitor ingredient orders and track compliance across all franchise stores.
+        </p>
+      </div>
+
+      {/* Mobile — dark carousel strip (~30% of screen) */}
       <div
-        className="lg:hidden flex flex-col p-6 pb-5 relative overflow-hidden"
+        className="lg:hidden relative overflow-hidden"
         style={{
           background: "linear-gradient(135deg, #1B1A17 0%, #3a2218 50%, #1B1A17 100%)",
+          padding: "16px 20px",
         }}
       >
         <div className="checker absolute inset-0 opacity-30" />
-
-        <div className="relative z-10 flex items-center gap-3 mb-5">
-          <Image src="/ginos-logo.png" alt="Gino's Pizza" width={44} height={44} />
-          <div className="font-serif text-2xl text-white">Gino&apos;s Pizza</div>
-        </div>
-
-        <div className="relative z-10 mb-4">
-          <h2 className="font-serif text-[28px] leading-[1.1] mb-2" style={{ color: "#F4ECDD" }}>
-            Inventory &amp; Compliance
-          </h2>
-          <p className="text-[13px] leading-relaxed" style={{ color: "#C9B68B" }}>
-            Monitor ingredient orders and track compliance across all franchise stores.
-          </p>
-        </div>
-
-        {/* Mobile carousel */}
         <div className="relative z-10">
           <div
             className="rounded-[12px] overflow-hidden"
@@ -198,16 +197,6 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
-
-        <a
-          href="https://builtwithgloo.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="relative z-10 text-[11px] mt-4 hover:underline"
-          style={{ color: "#8A7C5F" }}
-        >
-          Built by Gloo
-        </a>
       </div>
 
       {/* Desktop — left brand panel */}
