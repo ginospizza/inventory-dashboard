@@ -251,6 +251,21 @@ export interface WeeklyTrend {
   avg_flour_cheese: number;
 }
 
+// ── Anomalies ──────────────────────────────────────────────
+
+export type AnomalyType = "extreme_diff" | "zero_cheese" | "zero_boxes" | "week_spike";
+
+export interface Anomaly {
+  type: AnomalyType;
+  severity: "info" | "warning" | "critical";
+  store_code: string;
+  store_id: string;
+  week: number;
+  metric: string;
+  value: number;
+  description: string;
+}
+
 // ── AI ──────────────────────────────────────────────────────
 
 export interface AICall {

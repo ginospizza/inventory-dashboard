@@ -2,7 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchMetrics } from "@/lib/data-access";
+import { fetchMetrics, getAnomalies } from "@/lib/data-access";
 import { generateFlags } from "@/lib/calculations";
 import type { WeeklyMetrics, Brand } from "@/lib/types";
 import { StoreDetailClient } from "./store-detail-client";
@@ -68,6 +68,9 @@ export default async function StoreDetailPage({ params }: PageProps) {
 
   const brandColor = BRAND_COLORS[store.brand] ?? "#7A7670";
 
+  // Get anomalies for this store
+  const anomalies = await getAnomalies({}, id);
+
   return (
     <StoreDetailClient
       user={user}
@@ -77,6 +80,7 @@ export default async function StoreDetailPage({ params }: PageProps) {
       flags={latestFlags}
       secondaryOrders={secondaryOrders}
       brandColor={brandColor}
+      anomalies={anomalies}
     />
   );
 }

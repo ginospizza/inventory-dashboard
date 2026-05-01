@@ -8,7 +8,8 @@ import {
   ResponsiveContainer, ReferenceLine, ReferenceArea,
 } from "recharts";
 import { StatusPill, DiffCell, RatioCell } from "@/components/dashboard";
-import type { AppUser, Flag, ComplianceStatus } from "@/lib/types";
+import { AlertTriangle, AlertCircle, Info } from "lucide-react";
+import type { AppUser, Flag, ComplianceStatus, Anomaly } from "@/lib/types";
 
 interface StoreDetailClientProps {
   user: AppUser;
@@ -18,6 +19,7 @@ interface StoreDetailClientProps {
   flags: Flag[];
   secondaryOrders: Record<string, unknown>[];
   brandColor: string;
+  anomalies: Anomaly[];
 }
 
 export function StoreDetailClient({
@@ -28,6 +30,7 @@ export function StoreDetailClient({
   flags,
   secondaryOrders,
   brandColor,
+  anomalies,
 }: StoreDetailClientProps) {
   const [activeTab, setActiveTab] = useState<"primary" | "secondary" | "trends" | "flags">("primary");
   const [aiLoading, setAiLoading] = useState(false);
@@ -272,6 +275,48 @@ export function StoreDetailClient({
           </div>
         )}
       </div>
+
+      {/* Anomalies for this store */}
+      {anomalies.length > 0 && (
+        <div
+          className="rounded-[14px] bg-white overflow-hidden mt-[14px]"
+          style={{ border: "1px solid var(--color-line)", boxShadow: "var(--shadow-sm)" }}
+        >
+          <div className="flex items-center gap-2 px-[18px] py-[14px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
+            <AlertTriangle className="w-4 h-4" style={{ color: "var(--color-mustard)" }} />
+            <h3 className="text-[14px] font-semibold">Anomalies</h3>
+            <span className="text-[11px] font-mono px-[6px] py-[2px] rounded-full" style={{ background: "var(--color-mustard-soft)", color: "var(--color-mustard)" }}>
+              {anomalies.length}
+            </span>
+          </div>
+          <div className="divide-y" style={{ borderColor: "var(--color-line)" }}>
+            {anomalies.map((a, i) => (
+              <div key={`${a.week}-${a.type}-${i}`} className="flex items-center gap-3 px-[18px] py-[12px]">
+                {a.severity === "critical" ? (
+                  <AlertCircle className="w-4 h-4 shrink-0" style={{ color: "var(--color-ginos-red)" }} />
+                ) : a.severity === "warning" ? (
+                  <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: "var(--color-mustard)" }} />
+                ) : (
+                  <Info className="w-4 h-4 shrink-0" style={{ color: "var(--color-ink-3)" }} />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-medium">Week {a.week} — {a.metric}</div>
+                  <p className="text-[12px]" style={{ color: "var(--color-ink-2)" }}>{a.description}</p>
+                </div>
+                <span
+                  className="shrink-0 text-[10px] font-semibold tracking-[.04em] uppercase px-[7px] py-[2px] rounded-full"
+                  style={{
+                    background: a.severity === "critical" ? "var(--color-ginos-red-soft)" : a.severity === "warning" ? "var(--color-mustard-soft)" : "var(--color-crust)",
+                    color: a.severity === "critical" ? "var(--color-ginos-red)" : a.severity === "warning" ? "var(--color-mustard)" : "var(--color-ink-3)",
+                  }}
+                >
+                  {a.type === "extreme_diff" ? "Extreme" : a.type === "zero_cheese" ? "No Cheese" : a.type === "zero_boxes" ? "No Boxes" : "Spike"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

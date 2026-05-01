@@ -4,8 +4,8 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { computeNetworkStats, computeBrandStats, generateFlags } from "@/lib/calculations";
-import type { WeeklyMetrics, NetworkStats, BrandStats, WeeklyTrend, Brand } from "@/lib/types";
+import { computeNetworkStats, computeBrandStats, generateFlags, DEFAULT_DIFF_THRESHOLDS } from "@/lib/calculations";
+import type { WeeklyMetrics, NetworkStats, BrandStats, WeeklyTrend, Brand, Anomaly } from "@/lib/types";
 
 interface MetricsFilters {
   week?: number;
@@ -252,6 +252,119 @@ export async function getAtRiskStores(
     .slice(0, limit);
 
   return sorted;
+}
+
+/**
+ * Detect anomalies in weekly metrics.
+ */
+export async function getAnomalies(
+  filters: MetricsFilters = {},
+  storeId?: string
+): Promise<Anomaly[]> {
+  const metrics = await fetchMetrics(filters);
+  const anomalies: Anomaly[] = [];
+  const extremeThreshold = DEFAULT_DIFF_THRESHOLDS.bad * 2; // 12 cases
+
+  // Build store lookup
+  const storeInfo = new Map<string, { code: string; id: string }>();
+  for (const m of metrics) {
+    const store = m.stores as unknown as { id: string; code: string } | undefined;
+    if (store) storeInfo.set(m.store_id, { code: store.code, id: store.id });
+  }
+
+  // Group by store for week-over-week analysis
+  const byStore = new Map<string, typeof metrics>();
+  for (const m of metrics) {
+    if (storeId && m.store_id !== storeId) continue;
+    if (!byStore.has(m.store_id)) byStore.set(m.store_id, []);
+    byStore.get(m.store_id)!.push(m);
+  }
+
+  for (const [sid, storeMetrics] of byStore) {
+    const info = storeInfo.get(sid);
+    if (!info) continue;
+    const sorted = [...storeMetrics].sort((a, b) => a.week_number - b.week_number);
+
+    for (const m of sorted) {
+      // Extreme diffs (>2x bad threshold)
+      if (Math.abs(m.cheese_diff) > extremeThreshold) {
+        anomalies.push({
+          type: "extreme_diff",
+          severity: "critical",
+          store_code: info.code,
+          store_id: sid,
+          week: m.week_number,
+          metric: "Cheese",
+          value: m.cheese_diff,
+          description: `Cheese diff of ${m.cheese_diff > 0 ? "+" : ""}${m.cheese_diff.toFixed(1)} cases (${m.cheese_diff > 0 ? "bulk order or event" : "possible shortage"})`,
+        });
+      }
+      if (Math.abs(m.sauce_diff) > extremeThreshold) {
+        anomalies.push({
+          type: "extreme_diff",
+          severity: "critical",
+          store_code: info.code,
+          store_id: sid,
+          week: m.week_number,
+          metric: "Sauce",
+          value: m.sauce_diff,
+          description: `Sauce diff of ${m.sauce_diff > 0 ? "+" : ""}${m.sauce_diff.toFixed(1)} cases`,
+        });
+      }
+
+      // Zero cheese
+      if (m.cheese_ordered_oz === 0 && m.boxes_total > 0) {
+        anomalies.push({
+          type: "zero_cheese",
+          severity: "warning",
+          store_code: info.code,
+          store_id: sid,
+          week: m.week_number,
+          metric: "Cheese",
+          value: 0,
+          description: "Ordered boxes but no cheese",
+        });
+      }
+
+      // Zero boxes
+      if (m.boxes_total === 0 && m.cheese_ordered_oz > 0) {
+        anomalies.push({
+          type: "zero_boxes",
+          severity: "info",
+          store_code: info.code,
+          store_id: sid,
+          week: m.week_number,
+          metric: "Boxes",
+          value: 0,
+          description: "Ordered ingredients but no boxes — ratios may be skewed",
+        });
+      }
+    }
+
+    // Week-over-week spike detection (>3x previous week's cheese)
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+      if (prev.cheese_ordered_oz > 0 && curr.cheese_ordered_oz > prev.cheese_ordered_oz * 3) {
+        anomalies.push({
+          type: "week_spike",
+          severity: "warning",
+          store_code: info.code,
+          store_id: sid,
+          week: curr.week_number,
+          metric: "Cheese",
+          value: curr.cheese_ordered_oz / prev.cheese_ordered_oz,
+          description: `Cheese order ${(curr.cheese_ordered_oz / prev.cheese_ordered_oz).toFixed(1)}x previous week`,
+        });
+      }
+    }
+  }
+
+  // Sort by severity then week
+  const sevOrder = { critical: 0, warning: 1, info: 2 };
+  anomalies.sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity] || b.week - a.week);
+
+  return anomalies;
 }
 
 /**

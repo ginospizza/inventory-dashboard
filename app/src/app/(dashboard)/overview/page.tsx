@@ -10,6 +10,7 @@ import {
   getAvailableBrands,
   getDsms,
   getLatestWeek,
+  getAnomalies,
 } from "@/lib/data-access";
 import { generateFlags } from "@/lib/calculations";
 import type { WeeklyMetrics } from "@/lib/types";
@@ -37,7 +38,7 @@ export default async function OverviewPage({ searchParams }: PageProps) {
     dsm: params.dsm,
   };
 
-  const [stats, brandStats, trend, atRisk, weeks, brands, dsms] =
+  const [stats, brandStats, trend, atRisk, weeks, brands, dsms, anomalies] =
     await Promise.all([
       getNetworkStats(filters),
       getBrandStats(filters),
@@ -46,6 +47,7 @@ export default async function OverviewPage({ searchParams }: PageProps) {
       getAvailableWeeks(),
       getAvailableBrands(),
       getDsms(),
+      getAnomalies(filters),
     ]);
 
   // Enrich at-risk stores with flags
@@ -65,6 +67,7 @@ export default async function OverviewPage({ searchParams }: PageProps) {
       brands={brands}
       dsms={dsms}
       currentWeek={week ?? null}
+      anomalies={anomalies}
     />
   );
 }

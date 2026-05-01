@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Sparkles, RefreshCw, Flag, TrendingUp, TrendingDown } from "lucide-react";
+import { ChevronRight, Sparkles, RefreshCw, Flag, TrendingUp, TrendingDown, AlertTriangle, Info, AlertCircle } from "lucide-react";
 import { FilterBar, StatusPill, DiffCell, RatioCell } from "@/components/dashboard";
 import { DonutChart, ComplianceTrend, Sparkline } from "@/components/charts";
-import type { AppUser, NetworkStats, BrandStats, WeeklyTrend, Flag as FlagType } from "@/lib/types";
+import type { AppUser, NetworkStats, BrandStats, WeeklyTrend, Flag as FlagType, Anomaly } from "@/lib/types";
 
 interface OverviewClientProps {
   user: AppUser;
@@ -17,6 +17,7 @@ interface OverviewClientProps {
   brands: string[];
   dsms: { id: string; name: string }[];
   currentWeek: number | null;
+  anomalies: Anomaly[];
 }
 
 export function OverviewClient({
@@ -29,6 +30,7 @@ export function OverviewClient({
   brands,
   dsms,
   currentWeek,
+  anomalies,
 }: OverviewClientProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
@@ -442,6 +444,73 @@ export function OverviewClient({
           )}
         </div>
       </div>
+
+      {/* Anomalies */}
+      {anomalies.length > 0 && (
+        <div
+          className="rounded-[14px] bg-white overflow-hidden mt-[14px]"
+          style={{
+            border: "1px solid var(--color-line)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div className="flex items-center justify-between px-[18px] py-[14px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" style={{ color: "var(--color-mustard)" }} />
+              <h3 className="text-[14px] font-semibold" style={{ letterSpacing: "-0.005em" }}>
+                Anomalies Detected
+              </h3>
+              <span className="text-[11px] font-mono px-[6px] py-[2px] rounded-full" style={{ background: "var(--color-mustard-soft)", color: "var(--color-mustard)" }}>
+                {anomalies.length}
+              </span>
+            </div>
+          </div>
+          <div className="divide-y" style={{ borderColor: "var(--color-line)" }}>
+            {anomalies.slice(0, 8).map((a, i) => (
+              <Link
+                key={`${a.store_id}-${a.week}-${a.type}-${i}`}
+                href={`/store/${a.store_id}`}
+                className="flex items-center gap-3 px-[18px] py-[12px] hover:bg-[rgba(244,236,221,.3)] transition-colors"
+              >
+                <div className="shrink-0">
+                  {a.severity === "critical" ? (
+                    <AlertCircle className="w-4 h-4" style={{ color: "var(--color-ginos-red)" }} />
+                  ) : a.severity === "warning" ? (
+                    <AlertTriangle className="w-4 h-4" style={{ color: "var(--color-mustard)" }} />
+                  ) : (
+                    <Info className="w-4 h-4" style={{ color: "var(--color-ink-3)" }} />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 text-[13px]">
+                    <span className="font-medium">{a.store_code}</span>
+                    <span className="font-mono text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+                      Wk {a.week}
+                    </span>
+                  </div>
+                  <p className="text-[12px] truncate" style={{ color: "var(--color-ink-2)" }}>
+                    {a.description}
+                  </p>
+                </div>
+                <span
+                  className="shrink-0 text-[10px] font-semibold tracking-[.04em] uppercase px-[7px] py-[2px] rounded-full"
+                  style={{
+                    background: a.severity === "critical" ? "var(--color-ginos-red-soft)" : a.severity === "warning" ? "var(--color-mustard-soft)" : "var(--color-crust)",
+                    color: a.severity === "critical" ? "var(--color-ginos-red)" : a.severity === "warning" ? "var(--color-mustard)" : "var(--color-ink-3)",
+                  }}
+                >
+                  {a.type === "extreme_diff" ? "Extreme" : a.type === "zero_cheese" ? "No Cheese" : a.type === "zero_boxes" ? "No Boxes" : "Spike"}
+                </span>
+              </Link>
+            ))}
+          </div>
+          {anomalies.length > 8 && (
+            <div className="px-[18px] py-[10px] text-center text-[12px]" style={{ color: "var(--color-ink-3)", borderTop: "1px solid var(--color-line)" }}>
+              +{anomalies.length - 8} more anomalies
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
