@@ -48,13 +48,12 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     };
   }
 
-  // Update last login (non-blocking)
-  admin
+  // Update last login (non-blocking, fire-and-forget)
+  void admin
     .from("profiles")
     .update({ last_login_at: new Date().toISOString() })
     .eq("id", user.id)
-    .then(() => {})
-    .catch(() => {});
+    .then(() => {});
 
   return {
     id: profile.id,
