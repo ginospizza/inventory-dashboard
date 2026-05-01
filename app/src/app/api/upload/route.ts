@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { parseExcelFile, getUploadPreview } from "@/lib/excel-parser";
 import { computeWeeklyMetrics, detectBrand } from "@/lib/calculations";
 import type { Product, RawOrderRow } from "@/lib/types";
