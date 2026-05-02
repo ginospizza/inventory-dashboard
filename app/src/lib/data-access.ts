@@ -105,7 +105,7 @@ export async function fetchMetrics(filters: MetricsFilters = {}) {
     from += PAGE;
   }
 
-  return allData as (WeeklyMetrics & { stores: Record<string, unknown> })[];
+  return allData as unknown as (WeeklyMetrics & { stores: Record<string, unknown> })[];
 }
 
 /**

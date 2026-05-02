@@ -79,7 +79,7 @@ export default async function OverviewPage({ searchParams }: PageProps) {
       years={years}
       brands={brands}
       dsms={dsms}
-      currentWeek={week ?? null}
+      currentWeek={typeof week === "number" ? week : null}
       currentYear={selectedYear}
       anomalies={anomalies}
     />
