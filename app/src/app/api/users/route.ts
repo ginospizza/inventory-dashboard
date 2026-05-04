@@ -9,7 +9,7 @@ import { createClient as createAuthClient } from "@supabase/supabase-js";
 export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const body = await request.json();
-  const { email, name, role, dsm_id, password } = body;
+  const { email, name, role, dsm_id, new_dsm_name, password } = body;
 
   if (!email || !name || !role || !password) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -19,8 +19,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   }
 
-  if (role === "dsm" && !dsm_id) {
+  if (role === "dsm" && !dsm_id && !new_dsm_name) {
     return NextResponse.json({ error: "DSM role requires a DSM assignment" }, { status: 400 });
+  }
+
+  // If creating a new DSM district, do that first
+  let finalDsmId = dsm_id;
+  if (role === "dsm" && new_dsm_name && !dsm_id) {
+    const { data: newDsm, error: dsmError } = await admin
+      .from("dsms")
+      .insert({ name: new_dsm_name, region: "Ontario" })
+      .select("id")
+      .single();
+
+    if (dsmError) {
+      return NextResponse.json({ error: `Failed to create district: ${dsmError.message}` }, { status: 400 });
+    }
+    finalDsmId = newDsm.id;
   }
 
   try {
@@ -48,7 +63,7 @@ export async function POST(request: NextRequest) {
       email,
       name,
       role,
-      dsm_id: role === "dsm" ? dsm_id : null,
+      dsm_id: role === "dsm" ? finalDsmId : null,
     });
 
     if (profileError) {

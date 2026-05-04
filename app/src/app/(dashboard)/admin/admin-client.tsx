@@ -87,7 +87,7 @@ export function AdminClient({
 function UsersTab({ profiles, dsms }: { profiles: Record<string, unknown>[]; dsms: Record<string, unknown>[] }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ email: "", name: "", role: "dsm", dsm_id: "", password: "" });
+  const [formData, setFormData] = useState({ email: "", name: "", role: "dsm", dsm_id: "", new_dsm_name: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -98,10 +98,15 @@ function UsersTab({ profiles, dsms }: { profiles: Record<string, unknown>[]; dsm
     setSuccess("");
     setLoading(true);
 
+    const payload = {
+      ...formData,
+      dsm_id: formData.dsm_id === "__new__" ? "" : formData.dsm_id,
+    };
+
     const res = await fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
+      body: JSON.stringify(payload),
     });
 
     const data = await res.json();
@@ -110,8 +115,8 @@ function UsersTab({ profiles, dsms }: { profiles: Record<string, unknown>[]; dsm
     if (data.error) {
       setError(data.error);
     } else {
-      setSuccess(`User ${formData.email} created successfully`);
-      setFormData({ email: "", name: "", role: "dsm", dsm_id: "", password: "" });
+      setSuccess(`User ${formData.email} created successfully${formData.new_dsm_name ? ` — new district "${formData.new_dsm_name}" created` : ""}`);
+      setFormData({ email: "", name: "", role: "dsm", dsm_id: "", new_dsm_name: "", password: "" });
       setShowForm(false);
       router.refresh();
     }
@@ -226,8 +231,8 @@ function UsersTab({ profiles, dsms }: { profiles: Record<string, unknown>[]; dsm
                 <label className="block mb-1.5 text-[11.5px] font-semibold tracking-[.04em] uppercase" style={{ color: "var(--color-ink-3)" }}>Assign to DSM District</label>
                 <select
                   value={formData.dsm_id}
-                  onChange={(e) => setFormData({ ...formData, dsm_id: e.target.value })}
-                  required
+                  onChange={(e) => setFormData({ ...formData, dsm_id: e.target.value, new_dsm_name: "" })}
+                  required={!formData.new_dsm_name}
                   className="w-full px-3 py-[9px] rounded-[9px] bg-white text-[13px]"
                   style={{ border: "1px solid var(--color-line)" }}
                 >
@@ -235,7 +240,19 @@ function UsersTab({ profiles, dsms }: { profiles: Record<string, unknown>[]; dsm
                   {dsms.map((d) => (
                     <option key={d.id as string} value={d.id as string}>{d.name as string}</option>
                   ))}
+                  <option value="__new__">+ Create new district</option>
                 </select>
+                {formData.dsm_id === "__new__" && (
+                  <input
+                    type="text"
+                    value={formData.new_dsm_name}
+                    onChange={(e) => setFormData({ ...formData, dsm_id: "__new__", new_dsm_name: e.target.value })}
+                    placeholder="New district name (e.g., Sarah)"
+                    required
+                    className="w-full mt-2 px-3 py-[9px] rounded-[9px] bg-white text-[13px] outline-none"
+                    style={{ border: "1px solid var(--color-line)" }}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -324,9 +341,81 @@ function UsersTab({ profiles, dsms }: { profiles: Record<string, unknown>[]; dsm
 // ── DSM ↔ Stores ─────────────────────────────────────────────
 
 function DsmTab({ dsms, stores }: { dsms: Record<string, unknown>[]; stores: Record<string, unknown>[] }) {
+  const router = useRouter();
+  const [newDsmName, setNewDsmName] = useState("");
+  const [addingDsm, setAddingDsm] = useState(false);
+  const [reassigning, setReassigning] = useState<string | null>(null); // store id being reassigned
+  const [message, setMessage] = useState("");
+
+  async function handleAddDsm(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newDsmName.trim()) return;
+    setAddingDsm(true);
+    const res = await fetch("/api/dsms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newDsmName.trim() }),
+    });
+    const data = await res.json();
+    setAddingDsm(false);
+    if (data.error) {
+      setMessage(`Error: ${data.error}`);
+    } else {
+      setMessage(`District "${newDsmName}" created`);
+      setNewDsmName("");
+      router.refresh();
+    }
+  }
+
+  async function handleReassign(storeId: string, newDsmId: string) {
+    const res = await fetch("/api/dsms", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ store_id: storeId, dsm_id: newDsmId || null }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      setMessage(`Error: ${data.error}`);
+    } else {
+      setMessage("Store reassigned");
+      setReassigning(null);
+      router.refresh();
+    }
+  }
+
+  const unassigned = stores.filter(s => !s.dsm_id);
+
   return (
     <div className="p-[18px]">
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Add DSM */}
+      <div className="flex items-center gap-3 mb-5">
+        <form onSubmit={handleAddDsm} className="flex items-center gap-2">
+          <input
+            type="text"
+            value={newDsmName}
+            onChange={(e) => setNewDsmName(e.target.value)}
+            placeholder="New district name..."
+            className="px-3 py-[7px] rounded-[9px] bg-white text-[13px] outline-none w-[200px]"
+            style={{ border: "1px solid var(--color-line)" }}
+          />
+          <button
+            type="submit"
+            disabled={addingDsm || !newDsmName.trim()}
+            className="px-3 py-[7px] rounded-[9px] text-white text-[13px] font-medium disabled:opacity-50"
+            style={{ background: "var(--color-ginos-red)" }}
+          >
+            {addingDsm ? "Adding..." : "Add District"}
+          </button>
+        </form>
+        {message && (
+          <span className="text-[12px]" style={{ color: message.startsWith("Error") ? "var(--color-ginos-red)" : "var(--color-basil)" }}>
+            {message}
+          </span>
+        )}
+      </div>
+
+      {/* DSM cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {dsms.map((dsm) => {
           const dsmStores = stores.filter((s) => s.dsm_id === dsm.id);
           return (
@@ -344,9 +433,34 @@ function DsmTab({ dsms, stores }: { dsms: Record<string, unknown>[]; stores: Rec
               </div>
               <div className="max-h-[200px] overflow-y-auto flex flex-col gap-1">
                 {dsmStores.map((s) => (
-                  <div key={s.id as string} className="text-[12px] px-2 py-1 rounded hover:bg-crust transition-colors">
-                    <span className="font-medium">{s.code as string}</span>
-                    <span className="ml-2" style={{ color: "var(--color-ink-3)" }}>{s.city as string}</span>
+                  <div key={s.id as string} className="text-[12px] px-2 py-1 rounded hover:bg-crust transition-colors flex items-center justify-between group">
+                    <div>
+                      <span className="font-medium">{s.code as string}</span>
+                      <span className="ml-2" style={{ color: "var(--color-ink-3)" }}>{s.city as string}</span>
+                    </div>
+                    {reassigning === s.id ? (
+                      <select
+                        autoFocus
+                        defaultValue={dsm.id as string}
+                        onChange={(e) => handleReassign(s.id as string, e.target.value)}
+                        onBlur={() => setReassigning(null)}
+                        className="text-[11px] px-1 py-0.5 rounded border"
+                        style={{ borderColor: "var(--color-line)" }}
+                      >
+                        {dsms.map(d => (
+                          <option key={d.id as string} value={d.id as string}>{d.name as string}</option>
+                        ))}
+                        <option value="">Unassign</option>
+                      </select>
+                    ) : (
+                      <button
+                        onClick={() => setReassigning(s.id as string)}
+                        className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity px-1.5 py-0.5 rounded"
+                        style={{ color: "var(--color-ink-3)", background: "var(--color-crust)" }}
+                      >
+                        Move
+                      </button>
+                    )}
                   </div>
                 ))}
                 {dsmStores.length === 0 && (
@@ -356,6 +470,54 @@ function DsmTab({ dsms, stores }: { dsms: Record<string, unknown>[]; stores: Rec
             </div>
           );
         })}
+
+        {/* Unassigned stores */}
+        {unassigned.length > 0 && (
+          <div className="rounded-xl p-4" style={{ border: "1px dashed var(--color-line)" }}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full grid place-items-center font-bold text-sm" style={{ background: "var(--color-crust)", color: "var(--color-ink-3)" }}>
+                ?
+              </div>
+              <div>
+                <div className="font-semibold text-[14px]">Unassigned</div>
+                <div className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>{unassigned.length} stores</div>
+              </div>
+            </div>
+            <div className="max-h-[200px] overflow-y-auto flex flex-col gap-1">
+              {unassigned.map((s) => (
+                <div key={s.id as string} className="text-[12px] px-2 py-1 rounded hover:bg-crust transition-colors flex items-center justify-between group">
+                  <div>
+                    <span className="font-medium">{s.code as string}</span>
+                    <span className="ml-2" style={{ color: "var(--color-ink-3)" }}>{s.brand as string}</span>
+                  </div>
+                  {reassigning === s.id ? (
+                    <select
+                      autoFocus
+                      defaultValue=""
+                      onChange={(e) => handleReassign(s.id as string, e.target.value)}
+                      onBlur={() => setReassigning(null)}
+                      className="text-[11px] px-1 py-0.5 rounded border"
+                      style={{ borderColor: "var(--color-line)" }}
+                    >
+                      <option value="">Unassigned</option>
+                      {dsms.map(d => (
+                        <option key={d.id as string} value={d.id as string}>{d.name as string}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <button
+                      onClick={() => setReassigning(s.id as string)}
+                      className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity px-1.5 py-0.5 rounded"
+                      style={{ color: "var(--color-ginos-red)", background: "var(--color-ginos-red-soft)" }}
+                    >
+                      Assign
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       {dsms.length === 0 && <p className="text-center py-8 text-[13px]" style={{ color: "var(--color-ink-3)" }}>No DSMs configured</p>}
     </div>
