@@ -467,8 +467,8 @@ async function computeAndWriteMetrics(
     console.log(`  Skipped ${skippedStores.size} unmatched stores:`, [...skippedStores].slice(0, 10));
   }
 
-  // Compute metrics in batches
-  const metricsToInsert: Record<string, unknown>[] = [];
+  // Pass 1: Compute raw metrics for all store-weeks
+  const rawMetrics = new Map<string, { storeId: string; weekNumber: number; year: number; storeType: string; metrics: any }>();
   let computed = 0;
   let skipped = 0;
 
@@ -486,14 +486,11 @@ async function computeAndWriteMetrics(
       continue;
     }
 
-    // Year is determined by the file context, not week number alone.
-    // The import caller passes the correct year per file.
     let actualYear = year;
-
-    // Check for GINOS stores that use clamshells
     const isClamshell = storeInfo.brand === "GINOS";
 
     try {
+      // First pass: compute without rolling average
       const metrics = computeWeeklyMetrics(
         rows,
         productMap,
@@ -502,43 +499,12 @@ async function computeAndWriteMetrics(
         isClamshell
       );
 
-      metricsToInsert.push({
-        store_id: storeInfo.id,
-        week_number: weekNumber,
+      rawMetrics.set(`${storeInfo.id}::${actualYear}::${weekNumber}`, {
+        storeId: storeInfo.id,
+        weekNumber,
         year: actualYear,
-        store_type: storeInfo.storeType,
-        cheese_ordered_oz: metrics.cheese_ordered_oz,
-        sauce_ordered_floz: metrics.sauce_ordered_floz,
-        flour_ordered_kg: metrics.flour_ordered_kg,
-        dough_ordered_kg: metrics.dough_ordered_kg,
-        boxes_small: metrics.boxes_small,
-        boxes_medium: metrics.boxes_medium,
-        boxes_large: metrics.boxes_large,
-        boxes_xl: metrics.boxes_xl,
-        boxes_party: metrics.boxes_party,
-        boxes_total: metrics.boxes_total,
-        cheese_estimated_oz: metrics.cheese_estimated_oz,
-        sauce_estimated_floz: metrics.sauce_estimated_floz,
-        flour_estimated_kg: metrics.flour_estimated_kg,
-        dough_estimated_kg: metrics.dough_estimated_kg,
-        cheese_diff: metrics.cheese_diff,
-        sauce_diff: metrics.sauce_diff,
-        flour_diff: metrics.flour_diff,
-        dough_diff: metrics.dough_diff,
-        sauce_cheese_ratio: metrics.sauce_cheese_ratio,
-        flour_cheese_ratio: metrics.flour_cheese_ratio,
-        dough_cheese_ratio: metrics.dough_cheese_ratio,
-        total_boxes_ordered: metrics.total_boxes_ordered,
-        estimated_pizza_sales: metrics.estimated_pizza_sales,
-        weekly_pizza_sales: metrics.weekly_pizza_sales,
-        cheese_status: metrics.cheese_status,
-        sauce_status: metrics.sauce_status,
-        flour_status: metrics.flour_status,
-        dough_status: metrics.dough_status,
-        sauce_cheese_status: metrics.sauce_cheese_status,
-        flour_cheese_status: metrics.flour_cheese_status,
-        dough_cheese_status: metrics.dough_cheese_status,
-        overall_status: metrics.overall_status,
+        storeType: storeInfo.storeType,
+        metrics,
       });
 
       computed++;
@@ -548,7 +514,113 @@ async function computeAndWriteMetrics(
     }
   }
 
-  console.log(`  Computed ${computed} metrics, skipped ${skipped}`);
+  console.log(`  Computed ${computed} raw metrics, skipped ${skipped}`);
+
+  // Pass 2: Re-compute with 4-week rolling average for status
+  // Group by store, then for each week look back 3 weeks
+  const byStoreAll = new Map<string, { year: number; week: number; metrics: any }[]>();
+  for (const [, entry] of rawMetrics) {
+    if (!byStoreAll.has(entry.storeId)) byStoreAll.set(entry.storeId, []);
+    byStoreAll.get(entry.storeId)!.push({ year: entry.year, week: entry.weekNumber, metrics: entry.metrics });
+  }
+
+  const metricsToInsert: Record<string, unknown>[] = [];
+
+  for (const [storeId, entries] of byStoreAll) {
+    // Sort by year then week
+    entries.sort((a, b) => a.year !== b.year ? a.year - b.year : a.week - b.week);
+
+    for (let i = 0; i < entries.length; i++) {
+      const { metrics } = entries[i];
+
+      // Get prior 3 weeks (indices i-1, i-2, i-3)
+      const priorWeeks = [];
+      for (let j = Math.max(0, i - 3); j < i; j++) {
+        priorWeeks.push({
+          cheese_ordered_oz: entries[j].metrics.cheese_ordered_oz,
+          sauce_ordered_floz: entries[j].metrics.sauce_ordered_floz,
+          flour_ordered_kg: entries[j].metrics.flour_ordered_kg,
+          dough_ordered_kg: entries[j].metrics.dough_ordered_kg ?? 0,
+        });
+      }
+
+      // Re-compute status with rolling average
+      const { diffStatusPct } = await import("../src/lib/calculations/engine");
+      const { DEFAULT_PCT_THRESHOLDS } = await import("../src/lib/calculations/constants");
+
+      let cheeseForStatus = metrics.cheese_ordered_oz;
+      let sauceForStatus = metrics.sauce_ordered_floz;
+      let flourForStatus = metrics.flour_ordered_kg;
+      let doughForStatus = metrics.dough_ordered_kg ?? 0;
+
+      if (priorWeeks.length > 0) {
+        const all = [
+          { cheese_ordered_oz: metrics.cheese_ordered_oz, sauce_ordered_floz: metrics.sauce_ordered_floz, flour_ordered_kg: metrics.flour_ordered_kg, dough_ordered_kg: metrics.dough_ordered_kg ?? 0 },
+          ...priorWeeks,
+        ];
+        const n = all.length;
+        cheeseForStatus = all.reduce((s: number, w: any) => s + w.cheese_ordered_oz, 0) / n;
+        sauceForStatus = all.reduce((s: number, w: any) => s + w.sauce_ordered_floz, 0) / n;
+        flourForStatus = all.reduce((s: number, w: any) => s + w.flour_ordered_kg, 0) / n;
+        doughForStatus = all.reduce((s: number, w: any) => s + w.dough_ordered_kg, 0) / n;
+      }
+
+      const cheeseEst = metrics.cheese_estimated_oz;
+      const sauceEst = metrics.sauce_estimated_floz;
+      const flourEst = metrics.flour_estimated_kg;
+      const doughEst = metrics.dough_estimated_kg ?? 0;
+      const storeType = entries[i].metrics.store_type;
+
+      const cStatus = diffStatusPct(cheeseForStatus, cheeseEst);
+      const sStatus = diffStatusPct(sauceForStatus, sauceEst);
+      const fStatus = storeType === "flour" ? diffStatusPct(flourForStatus, flourEst) : "ok";
+      const dStatus = storeType === "dough" ? diffStatusPct(doughForStatus, doughEst) : "ok";
+
+      const statuses = [cStatus, sStatus, metrics.sauce_cheese_status, metrics.flour_cheese_status];
+      if (storeType === "flour") statuses.push(fStatus);
+      else statuses.push(dStatus, metrics.dough_cheese_status ?? "ok");
+      const overallStatus = statuses.includes("bad") ? "bad" : statuses.includes("warn") ? "warn" : "ok";
+
+      metricsToInsert.push({
+        store_id: storeId,
+        week_number: entries[i].week,
+        year: entries[i].year,
+        store_type: storeType,
+        cheese_ordered_oz: metrics.cheese_ordered_oz,
+        sauce_ordered_floz: metrics.sauce_ordered_floz,
+        flour_ordered_kg: metrics.flour_ordered_kg,
+        dough_ordered_kg: metrics.dough_ordered_kg ?? 0,
+        boxes_small: metrics.boxes_small,
+        boxes_medium: metrics.boxes_medium,
+        boxes_large: metrics.boxes_large,
+        boxes_xl: metrics.boxes_xl,
+        boxes_party: metrics.boxes_party,
+        boxes_total: metrics.boxes_total,
+        cheese_estimated_oz: metrics.cheese_estimated_oz,
+        sauce_estimated_floz: metrics.sauce_estimated_floz,
+        flour_estimated_kg: metrics.flour_estimated_kg,
+        dough_estimated_kg: metrics.dough_estimated_kg ?? 0,
+        cheese_diff: metrics.cheese_diff,
+        sauce_diff: metrics.sauce_diff,
+        flour_diff: metrics.flour_diff,
+        dough_diff: metrics.dough_diff ?? 0,
+        sauce_cheese_ratio: metrics.sauce_cheese_ratio,
+        flour_cheese_ratio: metrics.flour_cheese_ratio,
+        dough_cheese_ratio: metrics.dough_cheese_ratio ?? 0,
+        total_boxes_ordered: metrics.total_boxes_ordered,
+        estimated_pizza_sales: metrics.estimated_pizza_sales,
+        weekly_pizza_sales: metrics.weekly_pizza_sales,
+        cheese_status: cStatus,
+        sauce_status: sStatus,
+        flour_status: fStatus,
+        dough_status: dStatus,
+        sauce_cheese_status: metrics.sauce_cheese_status,
+        flour_cheese_status: metrics.flour_cheese_status,
+        dough_cheese_status: metrics.dough_cheese_status ?? "ok",
+        overall_status: overallStatus,
+      });
+    }
+  }
 
   // Write in batches of 100
   console.log(`  Writing ${metricsToInsert.length} metrics to Supabase...`);

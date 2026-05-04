@@ -35,6 +35,7 @@ import {
   CHEESE_RATIO_DIVISOR,
   DOUGH_RATIO_DIVISOR,
   DEFAULT_DIFF_THRESHOLDS,
+  DEFAULT_PCT_THRESHOLDS,
   DEFAULT_RATIO_THRESHOLDS,
 } from "./constants";
 
@@ -188,7 +189,7 @@ export function aggregateStoreWeek(
               case "xl": agg.boxes_xl += qty; break;
               case "party_20": agg.boxes_party_20 += qty; break;
               case "party_21x15": agg.boxes_party_21x15 += qty; break;
-              case "clamshell": agg.boxes_clamshell += qty; break;
+              case "clamshell": agg.boxes_clamshell += qty * (product.weight || BOXES_PER_CASE); break; // store individual units (weight = units/case)
             }
           }
         }
@@ -219,7 +220,8 @@ function sumEstimated(agg: StoreWeekAggregates, field: "cheese_oz" | "sauce_oz" 
     agg.boxes_party_21x15 * BOXES_PER_CASE * BOX_RATIOS.party_21x15[field];
 
   if (includeClamshell && agg.boxes_clamshell > 0) {
-    total += agg.boxes_clamshell * BOXES_PER_CASE * BOX_RATIOS.clamshell[field];
+    // boxes_clamshell stores individual units (not cases), so multiply directly by ratio
+    total += agg.boxes_clamshell * BOX_RATIOS.clamshell[field];
   }
 
   // Wing boxes count as pizza boxes (some stores use them for pizza)
@@ -312,6 +314,15 @@ export function diffStatus(value: number, warn = DEFAULT_DIFF_THRESHOLDS.warn, b
   return "ok";
 }
 
+/** Percentage-based diff status: compares diff as % of estimated */
+export function diffStatusPct(ordered: number, estimated: number): ComplianceStatus {
+  if (estimated <= 0) return "ok"; // can't calculate % if no estimate
+  const pctDiff = Math.abs(ordered - estimated) / estimated;
+  if (pctDiff > DEFAULT_PCT_THRESHOLDS.bad) return "bad";
+  if (pctDiff > DEFAULT_PCT_THRESHOLDS.warn) return "warn";
+  return "ok";
+}
+
 export function ratioStatus(value: number, thresholds = DEFAULT_RATIO_THRESHOLDS): ComplianceStatus {
   const pct = value * 100;
   if (pct < thresholds.warn_low || pct > thresholds.warn_high) return "bad";
@@ -386,21 +397,34 @@ export function generateFlags(metrics: WeeklyMetrics): Flag[] {
 
 // ── Main computation entry point ─────────────────────────────
 
+/** Prior weeks' ordered amounts for rolling average */
+export interface PriorWeekData {
+  cheese_ordered_oz: number;
+  sauce_ordered_floz: number;
+  flour_ordered_kg: number;
+  dough_ordered_kg: number;
+}
+
 export function computeWeeklyMetrics(
   rows: RawOrderRow[],
   productLookup: Map<string, Product>,
   year: number,
   storeType: StoreType = "flour",
-  storeIsClamshell = false // true for GINOS stores that use clamshells
+  storeIsClamshell = false,
+  priorWeeks?: PriorWeekData[] // last 3 weeks (not including current) for 4-week rolling avg
 ): Omit<WeeklyMetrics, "id"> {
   const agg = aggregateStoreWeek(rows, productLookup, year);
   const inclClam = storeIsClamshell;
 
-  // Estimated usage
+  // Estimated usage (from this week's box orders)
   const cheeseEst = estimatedCheeseOz(agg, inclClam);
   const sauceEst = estimatedSauceFloz(agg, inclClam);
   const doughEst = estimatedDoughKg(agg, inclClam);
   const flourEst = doughEst / FLOUR_YIELD_FACTOR;
+
+  // If prior weeks available, use 4-week rolling average of estimated
+  // (current + 3 prior weeks averaged) as baseline for comparison
+  // This smooths out stocking spikes
 
   // Diffs
   const cDiff = cheeseDiff(agg, cheeseEst);
@@ -414,10 +438,29 @@ export function computeWeeklyMetrics(
   const dcRatio = storeType === "dough" ? doughCheeseRatio(agg.total_dough_kg, agg.total_cheese_oz) : 0;
 
   // Status
-  const cStatus = diffStatus(cDiff);
-  const sStatus = diffStatus(sDiff);
-  const fStatus = storeType === "flour" ? diffStatus(fDiff) : "ok" as ComplianceStatus;
-  const dStatus = storeType === "dough" ? diffStatus(dDiff) : "ok" as ComplianceStatus;
+  // Percentage-based thresholds: compare ordered vs estimated
+  // If rolling average data available, use averaged ordered for status (smooths spikes)
+  let cheeseForStatus = agg.total_cheese_oz;
+  let sauceForStatus = agg.total_sauce_floz;
+  let flourForStatus = agg.total_flour_kg;
+  let doughForStatus = agg.total_dough_kg;
+
+  if (priorWeeks && priorWeeks.length > 0) {
+    const allWeeks = [
+      { cheese_ordered_oz: agg.total_cheese_oz, sauce_ordered_floz: agg.total_sauce_floz, flour_ordered_kg: agg.total_flour_kg, dough_ordered_kg: agg.total_dough_kg },
+      ...priorWeeks,
+    ];
+    const n = allWeeks.length;
+    cheeseForStatus = allWeeks.reduce((s, w) => s + w.cheese_ordered_oz, 0) / n;
+    sauceForStatus = allWeeks.reduce((s, w) => s + w.sauce_ordered_floz, 0) / n;
+    flourForStatus = allWeeks.reduce((s, w) => s + w.flour_ordered_kg, 0) / n;
+    doughForStatus = allWeeks.reduce((s, w) => s + w.dough_ordered_kg, 0) / n;
+  }
+
+  const cStatus = diffStatusPct(cheeseForStatus, cheeseEst);
+  const sStatus = diffStatusPct(sauceForStatus, sauceEst);
+  const fStatus = storeType === "flour" ? diffStatusPct(flourForStatus, flourEst) : "ok" as ComplianceStatus;
+  const dStatus = storeType === "dough" ? diffStatusPct(doughForStatus, doughEst) : "ok" as ComplianceStatus;
   const scStatus = ratioStatus(scRatio);
   const fcStatus = storeType === "flour" ? ratioStatus(fcRatio) : "ok" as ComplianceStatus;
   const dcStatus = storeType === "dough" ? ratioStatus(dcRatio) : "ok" as ComplianceStatus;

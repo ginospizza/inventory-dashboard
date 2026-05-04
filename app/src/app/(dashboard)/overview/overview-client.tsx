@@ -199,6 +199,9 @@ export function OverviewClient({
               <span className="font-mono font-medium ml-2">{stats.stores_reporting}</span>
             </div>
           </div>
+          <p className="text-[10px] mt-3" style={{ color: "var(--color-ink-3)", opacity: 0.7 }}>
+            Estimates based on pizza box orders per week
+          </p>
         </div>
 
         {/* KPI grid */}

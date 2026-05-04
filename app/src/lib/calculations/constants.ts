@@ -70,9 +70,17 @@ export const CHEESE_RATIO_DIVISOR = 8;
 export const DOUGH_RATIO_DIVISOR = 0.6;
 
 // ── Default thresholds (configurable per item in admin) ──────
+// Legacy flat thresholds (kept for reference)
 export const DEFAULT_DIFF_THRESHOLDS = {
   warn: 3,
   bad: 6,
+} as const;
+
+// Percentage-based thresholds (confirmed by James)
+// Diff as % of estimated: warn at 25%, bad at 50%
+export const DEFAULT_PCT_THRESHOLDS = {
+  warn: 0.25,
+  bad: 0.50,
 } as const;
 
 export const DEFAULT_RATIO_THRESHOLDS = {

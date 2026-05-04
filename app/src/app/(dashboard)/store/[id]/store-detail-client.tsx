@@ -398,7 +398,7 @@ function KpiStrip({ label, ordered, estimated, diff, unit, diffUnit, status }: {
     <div className="rounded-[14px] p-[16px] bg-white flex flex-col gap-1" style={{ border: "1px solid var(--color-line)", boxShadow: "var(--shadow-sm)" }}>
       <span className="text-[11px] font-semibold tracking-[.06em] uppercase" style={{ color: "var(--color-ink-3)" }}>{label}</span>
       <span className="font-mono text-[16px] font-medium">{fmt(ordered)} <span className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>{unit}</span></span>
-      <span className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>Est: {fmt(estimated)} {unit}</span>
+      <span className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>Est. from boxes: {fmt(estimated)} {unit}</span>
       <div className="mt-1"><DiffCell value={diff} unit={diffUnit} /></div>
     </div>
   );
