@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Package, Sliders, Activity, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Users, Package, Sliders, Activity, Sparkles, UserPlus, Trash2 } from "lucide-react";
 
 interface AdminClientProps {
   dsms: Record<string, unknown>[];
@@ -14,9 +15,10 @@ interface AdminClientProps {
   aiCalls: Record<string, unknown>[];
 }
 
-type Tab = "dsm" | "products" | "thresholds" | "activity" | "ai";
+type Tab = "users" | "dsm" | "products" | "thresholds" | "activity" | "ai";
 
 const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: "users", label: "Users", icon: UserPlus },
   { key: "dsm", label: "DSM ↔ Stores", icon: Users },
   { key: "products", label: "Product Classification", icon: Package },
   { key: "thresholds", label: "Thresholds & Assumptions", icon: Sliders },
@@ -34,7 +36,7 @@ export function AdminClient({
   aiConfig,
   aiCalls,
 }: AdminClientProps) {
-  const [activeTab, setActiveTab] = useState<Tab>("dsm");
+  const [activeTab, setActiveTab] = useState<Tab>("users");
 
   return (
     <div>
@@ -69,11 +71,251 @@ export function AdminClient({
 
       {/* Tab content */}
       <div className="rounded-[14px] bg-white" style={{ border: "1px solid var(--color-line)", boxShadow: "var(--shadow-sm)" }}>
+        {activeTab === "users" && <UsersTab profiles={profiles} dsms={dsms} />}
         {activeTab === "dsm" && <DsmTab dsms={dsms} stores={stores} />}
         {activeTab === "products" && <ProductsTab products={products} />}
         {activeTab === "thresholds" && <ThresholdsTab thresholds={thresholds} assumptions={assumptions} />}
         {activeTab === "activity" && <ActivityTab profiles={profiles} />}
         {activeTab === "ai" && <AiTab config={aiConfig} calls={aiCalls} />}
+      </div>
+    </div>
+  );
+}
+
+// ── Users ───────────────────────────────────────────────────
+
+function UsersTab({ profiles, dsms }: { profiles: Record<string, unknown>[]; dsms: Record<string, unknown>[] }) {
+  const router = useRouter();
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({ email: "", name: "", role: "dsm", dsm_id: "", password: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setLoading(true);
+
+    const res = await fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    });
+
+    const data = await res.json();
+    setLoading(false);
+
+    if (data.error) {
+      setError(data.error);
+    } else {
+      setSuccess(`User ${formData.email} created successfully`);
+      setFormData({ email: "", name: "", role: "dsm", dsm_id: "", password: "" });
+      setShowForm(false);
+      router.refresh();
+    }
+  }
+
+  async function handleDelete(userId: string, userName: string) {
+    if (!confirm(`Delete user "${userName}"? This cannot be undone.`)) return;
+
+    const res = await fetch("/api/users", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId }),
+    });
+
+    const data = await res.json();
+    if (data.error) {
+      setError(data.error);
+    } else {
+      setSuccess(`User "${userName}" deleted`);
+      router.refresh();
+    }
+  }
+
+  return (
+    <div className="p-[18px]">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h4 className="text-[14px] font-semibold">Manage Users</h4>
+          <p className="text-[12px] mt-1" style={{ color: "var(--color-ink-3)" }}>
+            Create accounts for admins and district managers
+          </p>
+        </div>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="flex items-center gap-[7px] px-[14px] py-2 rounded-[9px] text-white text-[13px] font-medium"
+          style={{
+            background: "var(--color-ginos-red)",
+            boxShadow: "0 4px 14px rgba(226,35,26,.25), inset 0 1px 0 rgba(255,255,255,.18)",
+          }}
+        >
+          <UserPlus className="w-4 h-4" />
+          {showForm ? "Cancel" : "Add User"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="px-3 py-2 rounded-lg text-[13px] mb-4" style={{ background: "var(--color-ginos-red-soft)", color: "var(--color-ginos-red)" }}>
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="px-3 py-2 rounded-lg text-[13px] mb-4" style={{ background: "var(--color-basil-soft)", color: "var(--color-basil)" }}>
+          {success}
+        </div>
+      )}
+
+      {/* Create user form */}
+      {showForm && (
+        <form onSubmit={handleCreate} className="rounded-xl p-5 mb-5" style={{ border: "1px solid var(--color-line)", background: "var(--color-paper)" }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block mb-1.5 text-[11.5px] font-semibold tracking-[.04em] uppercase" style={{ color: "var(--color-ink-3)" }}>Name</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g., Brijesh Patel"
+                required
+                className="w-full px-3 py-[9px] rounded-[9px] bg-white text-[13px] outline-none"
+                style={{ border: "1px solid var(--color-line)" }}
+              />
+            </div>
+            <div>
+              <label className="block mb-1.5 text-[11.5px] font-semibold tracking-[.04em] uppercase" style={{ color: "var(--color-ink-3)" }}>Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="e.g., brijesh@ginospizza.ca"
+                required
+                className="w-full px-3 py-[9px] rounded-[9px] bg-white text-[13px] outline-none"
+                style={{ border: "1px solid var(--color-line)" }}
+              />
+            </div>
+            <div>
+              <label className="block mb-1.5 text-[11.5px] font-semibold tracking-[.04em] uppercase" style={{ color: "var(--color-ink-3)" }}>Password</label>
+              <input
+                type="text"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="Temporary password"
+                required
+                minLength={6}
+                className="w-full px-3 py-[9px] rounded-[9px] bg-white text-[13px] outline-none"
+                style={{ border: "1px solid var(--color-line)" }}
+              />
+            </div>
+            <div>
+              <label className="block mb-1.5 text-[11.5px] font-semibold tracking-[.04em] uppercase" style={{ color: "var(--color-ink-3)" }}>Role</label>
+              <select
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value, dsm_id: "" })}
+                className="w-full px-3 py-[9px] rounded-[9px] bg-white text-[13px]"
+                style={{ border: "1px solid var(--color-line)" }}
+              >
+                <option value="dsm">District Manager (DSM)</option>
+                <option value="super_admin">Super Admin</option>
+              </select>
+            </div>
+            {formData.role === "dsm" && (
+              <div className="sm:col-span-2">
+                <label className="block mb-1.5 text-[11.5px] font-semibold tracking-[.04em] uppercase" style={{ color: "var(--color-ink-3)" }}>Assign to DSM District</label>
+                <select
+                  value={formData.dsm_id}
+                  onChange={(e) => setFormData({ ...formData, dsm_id: e.target.value })}
+                  required
+                  className="w-full px-3 py-[9px] rounded-[9px] bg-white text-[13px]"
+                  style={{ border: "1px solid var(--color-line)" }}
+                >
+                  <option value="">Select district...</option>
+                  {dsms.map((d) => (
+                    <option key={d.id as string} value={d.id as string}>{d.name as string}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-5 py-[9px] rounded-[9px] text-white text-[13px] font-medium disabled:opacity-60"
+            style={{ background: "var(--color-ginos-red)" }}
+          >
+            {loading ? "Creating..." : "Create User"}
+          </button>
+        </form>
+      )}
+
+      {/* User list */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-[13px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+          <thead>
+            <tr>
+              {["User", "Email", "Role", "District", "Last Login", ""].map((h) => (
+                <th key={h} className="text-left font-semibold text-[11px] tracking-[.06em] uppercase px-[14px] py-[10px]" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)" }}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {profiles.map((p) => {
+              const role = p.role as string;
+              const dsm = p.dsms as { name: string } | null;
+              const lastLogin = p.last_login_at ? new Date(p.last_login_at as string).toLocaleDateString() : "Never";
+              return (
+                <tr key={p.id as string} className="hover:bg-[rgba(244,236,221,.4)]">
+                  <td className="px-[14px] py-[10px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-7 h-7 rounded-full grid place-items-center text-white font-bold text-[10px]"
+                        style={{ background: role === "super_admin" ? "var(--color-ink)" : "var(--color-ginos-red)" }}
+                      >
+                        {(p.name as string)?.charAt(0) ?? "?"}
+                      </div>
+                      <span className="font-medium">{p.name as string}</span>
+                    </div>
+                  </td>
+                  <td className="px-[14px] py-[10px] text-[12px]" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-2)" }}>
+                    {p.email as string}
+                  </td>
+                  <td className="px-[14px] py-[10px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                    <span
+                      className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                      style={{
+                        background: role === "super_admin" ? "var(--color-crust)" : "var(--color-ginos-red-soft)",
+                        color: role === "super_admin" ? "var(--color-ink)" : "var(--color-ginos-red)",
+                      }}
+                    >
+                      {role === "super_admin" ? "Admin" : "DSM"}
+                    </span>
+                  </td>
+                  <td className="px-[14px] py-[10px]" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-2)" }}>
+                    {dsm?.name ?? "—"}
+                  </td>
+                  <td className="px-[14px] py-[10px] font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-3)" }}>
+                    {lastLogin}
+                  </td>
+                  <td className="px-[14px] py-[10px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                    <button
+                      onClick={() => handleDelete(p.id as string, p.name as string)}
+                      className="w-7 h-7 grid place-items-center rounded-md hover:bg-ginos-red-soft transition-colors"
+                      style={{ color: "var(--color-ink-3)" }}
+                      title="Delete user"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {profiles.length === 0 && <p className="text-center py-8 text-[13px]" style={{ color: "var(--color-ink-3)" }}>No users yet</p>}
       </div>
     </div>
   );
