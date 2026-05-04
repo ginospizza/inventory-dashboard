@@ -347,6 +347,26 @@ function DsmTab({ dsms, stores }: { dsms: Record<string, unknown>[]; stores: Rec
   const [reassigning, setReassigning] = useState<string | null>(null); // store id being reassigned
   const [message, setMessage] = useState("");
 
+  async function handleDeleteDsm(dsmId: string, dsmName: string, storeCount: number) {
+    const msg = storeCount > 0
+      ? `Delete district "${dsmName}"? Its ${storeCount} stores will become unassigned.`
+      : `Delete district "${dsmName}"?`;
+    if (!confirm(msg)) return;
+
+    const res = await fetch("/api/dsms", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: dsmId }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      setMessage(`Error: ${data.error}`);
+    } else {
+      setMessage(`District "${dsmName}" deleted`);
+      router.refresh();
+    }
+  }
+
   async function handleAddDsm(e: React.FormEvent) {
     e.preventDefault();
     if (!newDsmName.trim()) return;
@@ -424,12 +444,20 @@ function DsmTab({ dsms, stores }: { dsms: Record<string, unknown>[]; stores: Rec
                 <div className="w-10 h-10 rounded-full bg-ginos-red grid place-items-center text-white font-bold text-sm">
                   {(dsm.name as string).charAt(0)}
                 </div>
-                <div>
+                <div className="flex-1">
                   <div className="font-semibold text-[14px]">{dsm.name as string}</div>
                   <div className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>
                     {dsm.region as string || "—"} &middot; {dsmStores.length} stores
                   </div>
                 </div>
+                <button
+                  onClick={() => handleDeleteDsm(dsm.id as string, dsm.name as string, dsmStores.length)}
+                  className="w-7 h-7 grid place-items-center rounded-md hover:bg-ginos-red-soft transition-colors"
+                  style={{ color: "var(--color-ink-3)" }}
+                  title="Delete district"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
               <div className="max-h-[200px] overflow-y-auto flex flex-col gap-1">
                 {dsmStores.map((s) => (

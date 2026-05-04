@@ -70,3 +70,32 @@ export async function PATCH(request: NextRequest) {
 
   return NextResponse.json({ success: true });
 }
+
+/**
+ * DELETE /api/dsms — Delete a DSM district
+ * Body: { id }
+ * Unassigns all stores and profiles first.
+ */
+export async function DELETE(request: NextRequest) {
+  const admin = createAdminClient();
+  const { id } = await request.json();
+
+  if (!id) {
+    return NextResponse.json({ error: "ID is required" }, { status: 400 });
+  }
+
+  // Unassign stores from this DSM
+  await admin.from("stores").update({ dsm_id: null }).eq("dsm_id", id);
+
+  // Unassign profiles from this DSM
+  await admin.from("profiles").update({ dsm_id: null }).eq("dsm_id", id);
+
+  // Delete the DSM
+  const { error } = await admin.from("dsms").delete().eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ success: true });
+}
