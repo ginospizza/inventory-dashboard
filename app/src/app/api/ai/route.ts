@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 const SYSTEM_PROMPT = `You are the AI compliance analyst for Gino's Pizza, a franchise network of ~150+ pizza stores across Ontario, Canada. You work inside their internal inventory dashboard.
 
@@ -94,6 +95,18 @@ Provide:
 export async function POST(request: NextRequest) {
   const admin = createAdminClient();
 
+  // Get current user from session
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id ?? null;
+
+  // Look up user name for tracking
+  let userName = "Unknown";
+  if (userId) {
+    const { data: profile } = await admin.from("profiles").select("name").eq("id", userId).single();
+    if (profile) userName = profile.name;
+  }
+
   const body = await request.json();
   const { page, context } = body;
 
@@ -156,6 +169,7 @@ export async function POST(request: NextRequest) {
 
     // Track the call
     await admin.from("ai_calls").insert({
+      user_id: userId,
       page_context: page,
       tokens_used: tokensUsed,
       model,

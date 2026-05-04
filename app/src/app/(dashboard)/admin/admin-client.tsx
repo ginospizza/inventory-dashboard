@@ -715,16 +715,26 @@ function AiTab({ config, calls }: { config: Record<string, unknown>; calls: Reco
       <div>
         <h4 className="text-[14px] font-semibold mb-3">Recent Calls</h4>
         <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
-          {calls.slice(0, 10).map((c) => {
+          {calls.slice(0, 15).map((c) => {
             const user = c.profiles as { name: string } | null;
+            const tokens = c.tokens_used as number ?? 0;
             return (
-              <div key={c.id as string} className="flex items-center justify-between text-[12px] py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                <div>
-                  <span className="font-medium">{user?.name ?? "Unknown"}</span>
-                  <span className="ml-2" style={{ color: "var(--color-ink-3)" }}>{c.page_context as string}</span>
+              <div key={c.id as string} className="flex items-center gap-3 text-[12px] py-2" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                <div
+                  className="w-6 h-6 rounded-full grid place-items-center text-white font-bold text-[9px] shrink-0"
+                  style={{ background: user?.name ? "var(--color-ginos-red)" : "var(--color-ink-3)" }}
+                >
+                  {user?.name?.charAt(0) ?? "?"}
                 </div>
-                <span className="font-mono" style={{ color: "var(--color-ink-3)" }}>
-                  {new Date(c.called_at as string).toLocaleString()}
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium">{user?.name ?? "Unknown"}</div>
+                  <div className="flex items-center gap-2 text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+                    <span className="capitalize">{c.page_context as string}</span>
+                    {tokens > 0 && <span className="font-mono">{tokens} tokens</span>}
+                  </div>
+                </div>
+                <span className="font-mono text-[11px] shrink-0" style={{ color: "var(--color-ink-3)" }}>
+                  {new Date(c.called_at as string).toLocaleDateString()} {new Date(c.called_at as string).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
               </div>
             );
