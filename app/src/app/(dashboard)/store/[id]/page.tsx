@@ -36,6 +36,11 @@ export default async function StoreDetailPage({ params }: PageProps) {
 
   if (!store) notFound();
 
+  // DSM users can only view their assigned stores
+  if (user.role === "dsm" && store.dsm_id !== user.dsm_id) {
+    redirect("/stores");
+  }
+
   // Fetch all metrics for this store (all weeks)
   const metrics = await fetchMetrics({ storeId: id });
 

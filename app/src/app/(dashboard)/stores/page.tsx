@@ -38,11 +38,13 @@ export default async function StoresPage({ searchParams }: PageProps) {
     ? Number(weekParam)
     : latestWeek ?? undefined;
 
+  const dsmFilter = user.role === "dsm" ? user.dsm_id : params.dsm;
+
   const filters = {
     week,
     year: selectedYear,
     brand: params.brand,
-    dsm: params.dsm,
+    dsm: dsmFilter,
   };
 
   const [metrics, weeks, years, brands, dsms] = await Promise.all([

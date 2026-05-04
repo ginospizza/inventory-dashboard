@@ -38,10 +38,13 @@ export default async function ComparePage({ searchParams }: PageProps) {
     getAvailableWeeks(yearB),
   ]);
 
+  // DSM users only see their own stores
+  const dsmFilter = user.role === "dsm" ? user.dsm_id : undefined;
+
   // Fetch metrics for both periods
   const [metricsA, metricsB] = await Promise.all([
-    fetchMetrics({ year: yearA, week: weekA }),
-    fetchMetrics({ year: yearB, week: weekB }),
+    fetchMetrics({ year: yearA, week: weekA, dsm: dsmFilter }),
+    fetchMetrics({ year: yearB, week: weekB, dsm: dsmFilter }),
   ]);
 
   // Deduplicate by store
