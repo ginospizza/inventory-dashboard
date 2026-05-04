@@ -165,12 +165,17 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json();
     const insight = data.choices?.[0]?.message?.content ?? "No insight generated.";
+    const promptTokens = data.usage?.prompt_tokens ?? 0;
+    const completionTokens = data.usage?.completion_tokens ?? 0;
     const tokensUsed = data.usage?.total_tokens ?? 0;
 
-    // Track the call
+    // Track the call with cost estimate
+    // GPT-4o-mini pricing: $0.15/1M input, $0.60/1M output
+    const costEstimate = (promptTokens * 0.15 + completionTokens * 0.60) / 1_000_000;
+
     await admin.from("ai_calls").insert({
       user_id: userId,
-      page_context: page,
+      page_context: `${page} | ${promptTokens}in/${completionTokens}out | $${costEstimate.toFixed(6)}`,
       tokens_used: tokensUsed,
       model,
     });

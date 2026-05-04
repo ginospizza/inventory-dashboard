@@ -685,11 +685,24 @@ function ActivityTab({ profiles }: { profiles: Record<string, unknown>[] }) {
 
 function AiTab({ config, calls }: { config: Record<string, unknown>; calls: Record<string, unknown>[] }) {
   const cap = config.monthly_call_cap as number ?? 200;
-  const thisMonth = calls.filter((c) => {
+  const monthCalls = calls.filter((c) => {
     const d = new Date(c.called_at as string);
     const now = new Date();
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  }).length;
+  });
+  const thisMonth = monthCalls.length;
+  const totalTokens = monthCalls.reduce((sum, c) => sum + ((c.tokens_used as number) ?? 0), 0);
+  // GPT-4o-mini: ~$0.15/1M input + $0.60/1M output. Approx avg $0.35/1M total
+  const estMonthlyCost = (totalTokens * 0.35) / 1_000_000;
+
+  // Parse per-call cost from page_context if available
+  function parseCallInfo(context: string) {
+    const parts = (context ?? "").split(" | ");
+    const page = parts[0] ?? "unknown";
+    const tokenBreakdown = parts[1] ?? "";
+    const cost = parts[2] ?? "";
+    return { page, tokenBreakdown, cost };
+  }
 
   return (
     <div className="p-[18px] grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -707,34 +720,49 @@ function AiTab({ config, calls }: { config: Record<string, unknown>; calls: Reco
             }}
           />
         </div>
-        <p className="text-[11px] mt-2" style={{ color: "var(--color-ink-3)" }}>
-          Model: {config.default_model as string ?? "openai/gpt-4o-mini"}
-        </p>
+        <div className="flex flex-col gap-1 mt-3">
+          <p className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+            Model: {config.default_model as string ?? "openai/gpt-4o-mini"}
+          </p>
+          <p className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+            Tokens this month: <span className="font-mono">{totalTokens.toLocaleString()}</span>
+          </p>
+          <p className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+            Est. cost this month: <span className="font-mono">${estMonthlyCost.toFixed(4)}</span>
+          </p>
+        </div>
       </div>
 
       <div>
         <h4 className="text-[14px] font-semibold mb-3">Recent Calls</h4>
-        <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
-          {calls.slice(0, 15).map((c) => {
+        <div className="flex flex-col gap-1 max-h-[350px] overflow-y-auto">
+          {calls.slice(0, 20).map((c) => {
             const user = c.profiles as { name: string } | null;
             const tokens = c.tokens_used as number ?? 0;
+            const info = parseCallInfo(c.page_context as string);
+            // Estimate per-call cost from tokens
+            const perCallCost = info.cost || `$${((tokens * 0.35) / 1_000_000).toFixed(6)}`;
+
             return (
-              <div key={c.id as string} className="flex items-center gap-3 text-[12px] py-2" style={{ borderBottom: "1px solid var(--color-line)" }}>
+              <div key={c.id as string} className="flex items-center gap-3 text-[12px] py-2.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
                 <div
-                  className="w-6 h-6 rounded-full grid place-items-center text-white font-bold text-[9px] shrink-0"
+                  className="w-7 h-7 rounded-full grid place-items-center text-white font-bold text-[10px] shrink-0"
                   style={{ background: user?.name ? "var(--color-ginos-red)" : "var(--color-ink-3)" }}
                 >
                   {user?.name?.charAt(0) ?? "?"}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium">{user?.name ?? "Unknown"}</div>
-                  <div className="flex items-center gap-2 text-[11px]" style={{ color: "var(--color-ink-3)" }}>
-                    <span className="capitalize">{c.page_context as string}</span>
-                    {tokens > 0 && <span className="font-mono">{tokens} tokens</span>}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+                    <span className="capitalize">{info.page}</span>
+                    <span className="font-mono">{tokens} tkn</span>
+                    {info.tokenBreakdown && <span className="font-mono">{info.tokenBreakdown}</span>}
+                    <span className="font-mono" style={{ color: "var(--color-mustard)" }}>{perCallCost}</span>
                   </div>
                 </div>
-                <span className="font-mono text-[11px] shrink-0" style={{ color: "var(--color-ink-3)" }}>
-                  {new Date(c.called_at as string).toLocaleDateString()} {new Date(c.called_at as string).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                <span className="font-mono text-[10px] shrink-0 text-right leading-tight" style={{ color: "var(--color-ink-3)" }}>
+                  {new Date(c.called_at as string).toLocaleDateString()}<br />
+                  {new Date(c.called_at as string).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
               </div>
             );
