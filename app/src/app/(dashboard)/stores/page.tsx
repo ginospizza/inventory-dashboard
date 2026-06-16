@@ -38,7 +38,7 @@ export default async function StoresPage({ searchParams }: PageProps) {
     ? Number(weekParam)
     : latestWeek ?? undefined;
 
-  const dsmFilter = user.role === "dsm" ? user.dsm_id : params.dsm;
+  const dsmFilter = user.role === "dsm" ? user.dsm_id ?? undefined : params.dsm;
 
   const filters = {
     week,

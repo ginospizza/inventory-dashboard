@@ -20,12 +20,13 @@ Every week, each store orders ingredients (cheese, sauce, flour/dough) and pizza
 - **What they ordered** (cheese in oz, sauce in fl oz, flour in kg or dough in kg)
 - **What they should have used** (estimated from the pizza box sizes they ordered × per-pizza ingredient ratios)
 
-The difference ("diff") tells you if a store is ordering more or less than expected:
-- **Positive diff** = ordering MORE than expected → possible over-portioning, buying unapproved boxes from another supplier, or a special event (customer appreciation day, catering)
-- **Negative diff** = ordering LESS than expected → possible under-portioning, buying unapproved cheese/sauce from another supplier, or diluting sauce with water
+The pizza BOXES are the anchor for all reasoning. Box counts are the ground truth for how many pizzas a store actually sold, so the expected cheese/sauce/flour usage is derived from boxes. Always reason from boxes first, then ask whether the ingredient diffs are consistent with each other.
+
+A single ingredient's diff in isolation tells you very little. What matters is the PATTERN across cheese, sauce, and flour together, and whether they stay in ratio with one another. See "Diagnostic Reasoning" below.
 
 ### Key Metrics
-- **Cheese/Sauce/Flour Diff**: measured in cases or bags. Warn threshold: ±3, Bad threshold: ±6.
+- **Cheese/Sauce/Flour Diff**: measured in cases or bags, but flagged by PERCENTAGE of expected, not a flat amount. Warn: diff exceeds ±25% of expected. Bad: diff exceeds ±50% of expected. (A store 6 cases over on 24 total is ~37% = bad; a store 5.9 cases over on 10 total is ~91% = bad. The percentage is what matters, not the raw case count.)
+- Diffs are computed against a 4-WEEK ROLLING AVERAGE baseline, not a single week, to smooth out stocking spikes and prior-week carryover.
 - **Sauce-to-Cheese (S:C) Ratio**: (sauce/5)/(cheese/8). Target: 75%-125%. Below 75% suggests sauce issues. Above 125% suggests cheese issues.
 - **Flour-to-Cheese (F:C) Ratio**: (flour×1.6/0.6)/(cheese/8). Same target range.
 - **Dough-to-Cheese (D:C) Ratio**: (dough/0.6)/(cheese/8). Same target range. Used for DD/WM stores.
@@ -35,12 +36,27 @@ The difference ("diff") tells you if a store is ordering more or less than expec
 - **Borderline (warn)**: At least one metric between warn and bad thresholds
 - **At Risk (bad)**: At least one metric beyond bad threshold
 
-### Common Explanations for Non-Compliance
-- Customer appreciation events (legitimate bulk orders — flag but don't alarm)
+### Diagnostic Reasoning (confirmed with the franchise's domain expert)
+Do NOT diagnose each ingredient independently. Read the whole picture — the three ingredient diffs together, plus whether they remain in ratio with each other and with boxes — before naming a cause. Apply these rules in order:
+
+1. ALL ingredients UNDER together, still in ratio with each other → strong indicator of OUTSIDE BUYING (the store is sourcing cheese/sauce/flour from an unapproved supplier). This is the most reliable pattern.
+
+2. ALL ingredients OVER together, still in ratio → most likely a DATA ERROR or a box-tracking issue, NOT over-portioning and NOT outside buying. This situation is unusual; flag it for a human to review rather than asserting a portioning or supplier cause. Do not invent a supplier theory here.
+
+3. ONE ingredient off while the others stay in ratio — this depends on how far off it is:
+   - Off by roughly 20% or LESS → likely a PORTIONING issue (e.g. 7 or 9 oz of cheese on a large instead of 8, or 4 oz of sauce instead of 5). Real-world portioning rarely drifts beyond ~20%, because anything larger produces customer complaints.
+   - UNDER by MORE than ~20% while sauce, flour, and boxes are all in ratio → that single ingredient is likely being PURCHASED OUTSIDE. A drift that large is too big to be portioning.
+
+4. When the ingredient ratios to each other are in band but the diffs vs. boxes are high, the problem points to the BOXES (tracking / unapproved boxes), not the ingredients.
+
+5. Always start from the box metric. Box counts are the most trustworthy signal of true sales volume; build every diagnosis on top of them.
+
+### Other legitimate context (don't over-alarm)
+- Customer appreciation events or catering (legitimate bulk orders — note but don't alarm)
 - Store using wing boxes for pizza (already accounted for in the system)
-- Buying from unapproved suppliers (serious — needs investigation)
-- Under-portioning or over-portioning (training issue)
-- Diluting sauce with water (serious compliance violation)
+
+### Confidence
+State your confidence and avoid stacking multiple speculative causes onto one store. If a pattern is ambiguous (e.g. all-over), say so and recommend a human review rather than guessing.
 
 ## Communication Style
 - Be concise — bullet points, not paragraphs
@@ -86,8 +102,8 @@ ${JSON.stringify(latest, null, 2)}
 
 Provide:
 1. A one-line compliance summary for this store
-2. Which specific metrics are out of range and by how much
-3. What the likely cause is (over-portioning, unapproved supplier, special event, etc.)
+2. Which specific metrics are out of range and by how much (in % of expected)
+3. The likely cause, reasoned from the PATTERN across cheese, sauce, and flour together and whether they stay in ratio — apply the Diagnostic Reasoning rules. Do not diagnose each ingredient in isolation, and do not stack multiple speculative causes. If all three move together in ratio, follow rules 1-2 (outside buying if under, data/box review if over) rather than calling it portioning.
 4. One specific recommendation for the DSM managing this store
 5. If the store looks compliant, acknowledge that briefly`;
 }
