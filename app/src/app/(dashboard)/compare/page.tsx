@@ -39,7 +39,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
   ]);
 
   // DSM users only see their own stores
-  const dsmFilter = user.role === "dsm" ? user.dsm_id : undefined;
+  const dsmFilter = user.role === "dsm" ? user.dsm_id ?? undefined : undefined;
 
   // Fetch metrics for both periods
   const [metricsA, metricsB] = await Promise.all([

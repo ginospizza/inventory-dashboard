@@ -43,7 +43,7 @@ export default async function OverviewPage({ searchParams }: PageProps) {
     : latestWeek ?? undefined;
 
   // DSM users only see their own stores
-  const dsmFilter = user.role === "dsm" ? user.dsm_id : params.dsm;
+  const dsmFilter = user.role === "dsm" ? user.dsm_id ?? undefined : params.dsm;
 
   const filters = {
     week,

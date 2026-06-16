@@ -64,7 +64,10 @@ function makeAgg(opts: {
     boxes_party_20: opts.party_20 ?? 0,
     boxes_party_21x15: opts.party_21x15 ?? 0,
     boxes_clamshell: opts.clamshell ?? 0,
-    wing_boxes: 0,
+    wing_8: 0,
+    wing_10: 0,
+    wing_12: 0,
+    wing_14: 0,
   };
 }
 
@@ -105,10 +108,12 @@ describe("Estimated cheese (no clamshell)", () => {
 
 describe("Estimated cheese (with clamshell)", () => {
   it("adds clamshell contribution for GINOS stores", () => {
-    const agg = makeAgg({ large: 10, clamshell: 5 });
+    // boxes_clamshell stores individual pieces (not cases), so the ratio applies per piece.
+    const clamPieces = 5 * BOXES_PER_CASE;
+    const agg = makeAgg({ large: 10, clamshell: clamPieces });
     const withoutClam = estimatedCheeseOz(agg, false);
     const withClam = estimatedCheeseOz(agg, true);
-    const clamContrib = 5 * BOXES_PER_CASE * BOX_RATIOS.clamshell.cheese_oz;
+    const clamContrib = clamPieces * BOX_RATIOS.clamshell.cheese_oz;
     expect(withClam - withoutClam).toBeCloseTo(clamContrib, 2);
   });
 });
@@ -148,7 +153,6 @@ describe("Party 21x15 box ratios", () => {
 describe("Cheese diff", () => {
   it("uses dominant cheese SKU weight as divisor", () => {
     const agg = makeAgg({
-      cheese_oz: G27.cheese_oz,
       cheese_by_sku: new Map([["20103", { qty: 140, weight_kg: 10 }]]),
       ...G27,
     });
