@@ -53,7 +53,7 @@ Once you have confirmed something is actually out of range, apply these rules in
 
 1. ALL ingredients UNDER together by a MATERIAL amount (each beyond ~25%), still in ratio with each other → strong indicator of OUTSIDE BUYING (the store is sourcing cheese/sauce/flour from an unapproved supplier). This is the most reliable pattern. (Do not invoke this when the under-amounts are small/within band — that is just a compliant store.)
 
-2. ALL THREE ingredients OVER together (each beyond ~25%), still in ratio → most likely a DATA ERROR or a box-tracking issue, NOT over-portioning and NOT outside buying. This situation is unusual; flag it for a human to review rather than asserting a portioning or supplier cause. Do not invent a supplier theory here. (This rule requires ALL THREE to be over. A SINGLE ingredient over while the others are fine is NOT this case — see the note below on a lone over-ingredient.)
+2. ALL THREE ingredients OVER together (each beyond ~25%), still in ratio → most likely a DATA ERROR or a box-tracking issue, NOT over-portioning and NOT outside buying. This situation is unusual; flag it for a human to review rather than asserting a portioning or supplier cause. Do not invent a supplier theory here. (This rule requires ALL THREE to be over. A SINGLE ingredient over while the others are fine is NOT this case — see the note below on a lone over-ingredient.) IMPORTANT: this applies to a SUSTAINED all-over pattern. A SINGLE week where all three are over but ratios stay in band — within an otherwise-compliant multi-week history — is normal ordering lumpiness (a restocking / bulk-order week), NOT a data error. Do not flag it; note it at most in passing. Only treat all-over as a review concern when it persists across multiple weeks.
 
 3. ONE ingredient off while the others stay in ratio — this depends on how far off it is:
    - Off by roughly 20% or LESS → likely a PORTIONING issue (e.g. 7 or 9 oz of cheese on a large instead of 8, or 4 oz of sauce instead of 5). Real-world portioning rarely drifts beyond ~20%, because anything larger produces customer complaints.
@@ -66,6 +66,13 @@ Once you have confirmed something is actually out of range, apply these rules in
 When sauce is in ratio (close to box-implied expectation) but cheese is well under, lean toward cheese being purchased outside: the sauce is brand-supplied with the brand recipe, whereas cheese and flour are the easiest items to swap for generics. Of the three main items, sauce is the LEAST likely to be sourced from an outside supplier, so an on-target sauce is a useful signal that the box/sales data is sound and the problem is the off ingredient.
 
 A single ingredient being OVER on its own (e.g. flour consistently high with frequent week-to-week spikes) points to wastage, portioning, or overstocking rather than outside buying — operators sometimes over-order shelf-stable items like flour unevenly. Treat that as a usage/training issue separate from any outside-supplier finding, and it can co-occur with one.
+
+### Week-to-week pattern (when a multi-week history is provided)
+When given a series of recent weeks, do NOT read only the latest week — look at how each ingredient's diff behaves across the weeks:
+- A SUSTAINED under (cheese below expected in most weeks) is the clear, high-confidence outside-buying case.
+- An EPISODIC pattern — the cheese diff spiking DOWN in some weeks and then snapping back to roughly in-ratio in others (returning to normal, not swinging way over) — is a subtler outside-buying tell. Stores testing an unapproved supplier tend to "test the waters," go clean for a stretch to see whether they get caught, then try again, producing an intermittent sawtooth rather than a steady deviation. Flag this as a WATCH item with explicitly stated low/medium confidence — surface it for human judgment rather than asserting it, because the multi-week average can look only mildly off even when the weekly pattern is suspicious.
+- MATERIALITY GATE for the episodic pattern (critical — do not skip): a down-dip only counts toward a probing pattern if it is MATERIAL in that week — the cheese diff is substantially under, enough to push that week's S:C or F:C ratio above the 1.25 band (or a clearly large negative cheese diff). Mild negative weeks where the ratios stay within 0.75–1.25 are NORMAL variation, not probing. If the store's S:C and F:C ratios stay within band across essentially the whole history and cheese only dips mildly, the store is COMPLIANT — do NOT raise an episodic watch. Requiring real probes to actually move the ratios is what keeps clean stores clean.
+- Distinguish the probing pattern from ordinary week-to-week noise. Flour especially is ordered unevenly because it is shelf-stable, so its swings are usually noise (no consistent direction). The probing tell is specifically repeated, MATERIAL DOWN dips in cheese that recover toward ratio — a directional, recurring, band-breaking pattern, not random scatter.
 
 ### Other legitimate context (don't over-alarm)
 - Customer appreciation events or catering (legitimate bulk orders — note but don't alarm)
@@ -109,17 +116,24 @@ Focus on:
 export function buildStorePrompt(context: Record<string, unknown>): string {
   const store = context.store as string;
   const latest = context.latest as Record<string, unknown> | null;
+  const history = context.history as Record<string, unknown>[] | undefined;
+
+  const historyBlock =
+    history && history.length > 0
+      ? `\n**Recent weekly history (oldest → newest, for trend/pattern analysis):**\n${JSON.stringify(history, null, 2)}\n`
+      : "";
 
   return `Analyze this individual store's compliance data. Be specific about what's going well and what needs attention.
 
 **Store:** ${store}
 **Latest Week Data:**
 ${JSON.stringify(latest, null, 2)}
-
+${historyBlock}
 Provide:
 1. A one-line compliance summary for this store
 2. Which specific metrics are out of range and by how much (in % of expected)
 3. The likely cause, reasoned from the PATTERN across cheese, sauce, and flour together and whether they stay in ratio — apply the Diagnostic Reasoning rules. Do not diagnose each ingredient in isolation, and do not stack multiple speculative causes. If all three move together in ratio, follow rules 1-2 (outside buying if under, data/box review if over) rather than calling it portioning.
-4. One specific recommendation for the DSM managing this store
-5. If the store looks compliant, acknowledge that briefly`;
+4. If a weekly history is provided, examine the week-to-week trend — not just the latest week. Call out any sustained deviation or any EPISODIC down-spike-then-recover pattern in the cheese diff (the "testing the waters" outside-buying tell), per the Week-to-week pattern rules. Flag subtle/episodic cases as a WATCH item with stated confidence rather than asserting them.
+5. One specific recommendation for the DSM managing this store
+6. If the store looks compliant, acknowledge that briefly`;
 }

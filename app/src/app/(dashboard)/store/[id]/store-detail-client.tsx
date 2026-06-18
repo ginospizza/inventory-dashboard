@@ -47,10 +47,24 @@ export function StoreDetailClient({
   async function handleAiInsight() {
     setAiLoading(true);
     try {
+      // Send recent weekly history (oldest → newest) so the AI can spot
+      // sustained vs. episodic ("testing the waters") patterns, not just one week.
+      const history = [...metrics]
+        .slice(0, 12)
+        .reverse()
+        .map((m) => ({
+          week: m.week_number,
+          cheese_diff: m.cheese_diff,
+          sauce_diff: m.sauce_diff,
+          flour_diff: m.flour_diff,
+          sc_ratio: m.sauce_cheese_ratio,
+          fc_ratio: m.flour_cheese_ratio,
+          status: m.overall_status,
+        }));
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ page: "store", context: { store: storeCode, latest } }),
+        body: JSON.stringify({ page: "store", context: { store: storeCode, latest, history } }),
       });
       const data = await res.json();
       setAiInsight(data.insight ?? "No insights available.");

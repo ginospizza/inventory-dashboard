@@ -15,7 +15,7 @@
 import XLSX from "xlsx";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { SYSTEM_PROMPT } from "../src/lib/ai/prompts.ts";
+import { SYSTEM_PROMPT, buildStorePrompt } from "../src/lib/ai/prompts.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const XLSX_PATH =
@@ -81,42 +81,41 @@ function buildStoreContext(wb, sheetName) {
   const totSauceNeed = data.reduce((a, r) => a + num(r, "sauceNeeded"), 0);
   const pct = (ord, need) => (need ? round(((ord - need) / need) * 100, 1) : null);
 
+  // Per-week history (chronological), matching the shape the live store page sends.
+  const history = data.map((r) => ({
+    week: num(r, "week"),
+    cheese_diff: round(num(r, "cheeseDiffCase")),
+    sauce_diff: round(num(r, "sauceDiffCase")),
+    flour_diff: round(num(r, "flourDiffBag")),
+    sc_ratio: round(num(r, "sc"), 3),
+    fc_ratio: round(num(r, "fc"), 3),
+  }));
+
+  // "Latest week" = the most recent row, mirroring the live app's `latest`.
+  const lastRow = data[data.length - 1];
+  const latest = {
+    week_number: num(lastRow, "week"),
+    cheese_diff: round(num(lastRow, "cheeseDiffCase")),
+    sauce_diff: round(num(lastRow, "sauceDiffCase")),
+    flour_diff: round(num(lastRow, "flourDiffBag")),
+    sauce_cheese_ratio: round(num(lastRow, "sc"), 3),
+    flour_cheese_ratio: round(num(lastRow, "fc"), 3),
+  };
+
   return {
     store: `TTD ${sheetName.toUpperCase()}`,
     weeks_of_data: data.length,
-    baseline: "averaged across all available weeks (5 months)",
-    cheese: {
-      avg_diff_cases: round(avg("cheeseDiffCase")),
-      diff_pct_of_expected: pct(totCheeseOrd, totCheeseNeed),
+    // aggregates kept only for the console summary line, not sent to the model
+    summary: {
+      cheese_pct: pct(totCheeseOrd, totCheeseNeed),
+      sauce_pct: pct(totSauceOrd, totSauceNeed),
+      flour_avg_bags: round(avg("flourDiffBag")),
+      sc_avg: round(avg("sc"), 3),
+      fc_avg: round(avg("fc"), 3),
     },
-    sauce: {
-      avg_diff_cases: round(avg("sauceDiffCase")),
-      diff_pct_of_expected: pct(totSauceOrd, totSauceNeed),
-    },
-    flour: {
-      avg_diff_bags: round(avg("flourDiffBag")),
-      weekly_diff_bags_series: data.map((r) => round(num(r, "flourDiffBag"))),
-    },
-    ratios: {
-      sauce_to_cheese_avg: round(avg("sc"), 3),
-      flour_to_cheese_avg: round(avg("fc"), 3),
-      target_band: "0.75 – 1.25",
-    },
+    latest,
+    history,
   };
-}
-
-function buildEvalUserPrompt(ctx) {
-  return `Analyze this store's compliance data. It is aggregated over ~5 months (not a single week), so reason about the overall pattern and the week-to-week flour series.
-
-**Store:** ${ctx.store}
-**Data:**
-${JSON.stringify(ctx, null, 2)}
-
-Provide:
-1. A one-line compliance summary.
-2. Which metrics are out of range (in % / ratio terms).
-3. The likely cause, reasoned from the PATTERN across cheese, sauce, and flour together and whether they stay in ratio — apply the Diagnostic Reasoning rules. Do not diagnose ingredients in isolation or stack speculative causes.
-4. One specific recommendation for the regional/district manager.`;
 }
 
 async function callModel(userPrompt) {
@@ -153,14 +152,21 @@ async function main() {
 
   for (const sheet of sheets) {
     const ctx = buildStoreContext(wb, sheet);
-    const aiOutput = await callModel(buildEvalUserPrompt(ctx));
+    // Use the PRODUCTION prompt builder with the live {store, latest, history} shape.
+    const userPrompt = buildStorePrompt({
+      store: ctx.store,
+      latest: ctx.latest,
+      history: ctx.history,
+    });
+    const aiOutput = await callModel(userPrompt);
     const key = ANSWER_KEY[sheet];
+    const s = ctx.summary;
 
     console.log("============================================================");
     console.log(`STORE: ${ctx.store}   (${ctx.weeks_of_data} weeks)`);
     console.log("============================================================");
     console.log(
-      `metrics: cheese ${ctx.cheese.diff_pct_of_expected}% | sauce ${ctx.sauce.diff_pct_of_expected}% | flour avg ${ctx.flour.avg_diff_bags} bags | S:C ${ctx.ratios.sauce_to_cheese_avg} | F:C ${ctx.ratios.flour_to_cheese_avg}`
+      `aggregate: cheese ${s.cheese_pct}% | sauce ${s.sauce_pct}% | flour avg ${s.flour_avg_bags} bags | S:C ${s.sc_avg} | F:C ${s.fc_avg}`
     );
     console.log(`\n--- JAMES (expected: ${key.label}) ---`);
     console.log(key.expected);
