@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Supabase CLI
+app/supabase/.temp/
+
+# Local dev notes & client data (keep out of repo)
+conversation-log.md
+Data Flags for Review.xlsx
+*.xlsx
+
+# Env
+.env
+.env.local
+.env*.local
+
+# Dependencies / build (in case not already ignored)
+node_modules/
+.next/
