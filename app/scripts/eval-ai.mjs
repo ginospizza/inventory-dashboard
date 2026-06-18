@@ -15,7 +15,8 @@
 import XLSX from "xlsx";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { SYSTEM_PROMPT, buildStorePrompt } from "../src/lib/ai/prompts.ts";
+import { existsSync } from "node:fs";
+import { SYSTEM_PROMPT, buildStorePrompt, buildOverviewPrompt } from "../src/lib/ai/prompts.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const XLSX_PATH =
@@ -42,6 +43,39 @@ const ANSWER_KEY = {
       "Cheese purchased from an outside supplier (ratios indicate it, sauce in ratio). ALSO flour consumption too high with weekly spikes -> wastage / portioning / overstocking. Recommend: inspect for unauthorized cheese AND review flour usage on site / retrain.",
   },
 };
+
+// ── Synthetic OVERVIEW regression cases ─────────────────────────────────────
+// These exercise the overview prompt path (the network "AI Insights" button),
+// which is where the STORE 070 "in ratio" miss happened: the worstStores payload
+// must now carry sc_ratio / fc_ratio so the model can SEE that a ratio is out of
+// band. Each case is a hand-built network context plus the answer it must reach.
+const OVERVIEW_CASES = [
+  {
+    name: "STORE 070 — cheese under, S:C blown out of band",
+    // Mirrors the live worstStores payload shape after the ratio-enrichment fix.
+    context: {
+      compliance_pct: 13.6,
+      avg_cheese_diff: 3.0,
+      avg_sauce_diff: 0.4,
+      currentWeek: 15,
+      worstStores: [
+        {
+          store: "STORE 070",
+          cheese_diff: -9.5,
+          sauce_diff: -1.6,
+          flour_diff: -0.4,
+          sc_ratio: 2.091, // 209.1% — far ABOVE the 1.25 band
+          fc_ratio: 1.74,
+          status: "bad",
+        },
+      ],
+      anomalyCount: 14,
+      anomalySummary: { critical: 9, warning: 3, info: 2 },
+    },
+    expected:
+      "STORE 070's S:C ratio (209%) and F:C (174%) are well ABOVE the 0.75-1.25 band — cheese is under-ordered relative to sauce/flour. Sauce is roughly on-target, so the box baseline is sound. Diagnosis: cheese specifically is being purchased OUTSIDE. The model must NOT call cheese and sauce 'in ratio with each other' (a 209% ratio is out of band), and must NOT lump 'over-portioning' onto a cheese-UNDER store.",
+  },
+];
 
 // ── Parse a store pivot sheet into aggregated metrics ───────────────────────
 function colIdx(header, name) {
@@ -146,6 +180,30 @@ async function main() {
   console.log(`\nAI Insights accuracy eval`);
   console.log(`Model: ${MODEL}`);
   console.log(`Dataset: ${XLSX_PATH}\n`);
+
+  // ── Synthetic overview regression cases (no xlsx required) ────────────────
+  for (const c of OVERVIEW_CASES) {
+    const userPrompt = buildOverviewPrompt(c.context);
+    const aiOutput = await callModel(userPrompt);
+    console.log("============================================================");
+    console.log(`OVERVIEW CASE: ${c.name}`);
+    console.log("============================================================");
+    console.log(`\n--- EXPECTED ---`);
+    console.log(c.expected);
+    console.log(`\n--- AI OUTPUT ---`);
+    console.log(aiOutput.trim());
+    console.log("");
+  }
+
+  // ── James's labeled store dataset (requires the xlsx) ─────────────────────
+  if (!existsSync(XLSX_PATH)) {
+    console.log(
+      `\n(Skipping labeled store eval — xlsx not found at ${XLSX_PATH}. ` +
+        `Pass a path as argv[2] to run it.)\n`
+    );
+    console.log("Done.\n");
+    return;
+  }
 
   const wb = XLSX.readFile(XLSX_PATH);
   const sheets = ["Welland", "St Cath", "Milton"];
