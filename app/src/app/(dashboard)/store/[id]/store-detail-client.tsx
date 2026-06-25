@@ -10,6 +10,7 @@ import {
 import { StatusPill, DiffCell, RatioCell } from "@/components/dashboard";
 import { AlertTriangle, AlertCircle, Info } from "lucide-react";
 import type { AppUser, Flag, ComplianceStatus, Anomaly } from "@/lib/types";
+import { signedPct } from "@/lib/ai/prompts";
 
 interface StoreDetailClientProps {
   user: AppUser;
@@ -49,6 +50,17 @@ export function StoreDetailClient({
     try {
       // Send recent weekly history (oldest → newest) so the AI can spot
       // sustained vs. episodic ("testing the waters") patterns, not just one week.
+      // Attach the signed % vs box-expected for each ingredient, computed the
+      // same way the dashboard does, so the AI uses it directly instead of
+      // trying to back a percentage out of raw case counts (which it gets wrong).
+      const withPct = (m: Record<string, unknown>) => ({
+        cheese_pct: signedPct(m.cheese_ordered_oz, m.cheese_estimated_oz),
+        sauce_pct: signedPct(m.sauce_ordered_floz, m.sauce_estimated_floz),
+        flour_pct:
+          m.store_type === "dough"
+            ? signedPct(m.dough_ordered_kg, m.dough_estimated_kg)
+            : signedPct(m.flour_ordered_kg, m.flour_estimated_kg),
+      });
       const history = [...metrics]
         .slice(0, 12)
         .reverse()
@@ -57,14 +69,16 @@ export function StoreDetailClient({
           cheese_diff: m.cheese_diff,
           sauce_diff: m.sauce_diff,
           flour_diff: m.flour_diff,
+          ...withPct(m),
           sc_ratio: m.sauce_cheese_ratio,
           fc_ratio: m.flour_cheese_ratio,
           status: m.overall_status,
         }));
+      const latestWithPct = latest ? { ...latest, ...withPct(latest) } : latest;
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ page: "store", context: { store: storeCode, latest, history } }),
+        body: JSON.stringify({ page: "store", context: { store: storeCode, latest: latestWithPct, history } }),
       });
       const data = await res.json();
       setAiInsight(data.insight ?? "No insights available.");

@@ -27,6 +27,7 @@ A single ingredient's diff in isolation tells you very little. What matters is t
 
 ### Key Metrics
 - **Cheese/Sauce/Flour Diff**: measured in cases or bags, but flagged by PERCENTAGE of expected, not a flat amount. Warn: diff exceeds ±25% of expected. Bad: diff exceeds ±50% of expected. (A store 6 cases over on 24 total is ~37% = bad; a store 5.9 cases over on 10 total is ~91% = bad. The percentage is what matters, not the raw case count.)
+- The data gives you a PRECOMPUTED signed percentage vs box-expected for each ingredient (cheese_pct, sauce_pct, flour_pct / dough_pct), calculated exactly the way the dashboard calculates it. USE THESE PERCENTAGES DIRECTLY when stating how far off an ingredient is. Do NOT convert cases or bags into a percentage yourself — a "case" is not a fixed size (it depends on the product the store buys), so any percentage you derive from case counts will be wrong. Never recompute, second-guess, or contradict the provided percentage. State the conclusion only; do not show the arithmetic.
 - Diffs are computed against a 4-WEEK ROLLING AVERAGE baseline, not a single week, to smooth out stocking spikes and prior-week carryover.
 - **Sauce-to-Cheese (S:C) Ratio**: (sauce/5)/(cheese/8). Target: 75%-125%. Below 75% suggests sauce issues. Above 125% suggests cheese issues.
 - **Flour-to-Cheese (F:C) Ratio**: (flour×1.6/0.6)/(cheese/8). Same target range.
@@ -92,6 +93,7 @@ State your confidence and avoid stacking multiple speculative causes onto one st
 - Suggest specific actions: "Review GINOS032's cheese supplier" not "look into it"
 - When overall compliance is low, focus on the worst offenders rather than summarizing everything
 - Be helpful and professional — you're advising franchise managers, not auditing them
+- Give the conclusion only. Do NOT narrate your reasoning steps, show calculations, or re-derive a number that is already provided in the data. Never present two different versions of the same figure or talk yourself out of a number on screen — decide, then state it once.
 
 ## CRITICAL FORMATTING RULES
 - Do NOT use markdown formatting (no **, ##, ###, *, etc.)
@@ -100,6 +102,21 @@ State your confidence and avoid stacking multiple speculative causes onto one st
 - Use ALL CAPS sparingly for emphasis instead of bold
 - Keep each insight to 2-3 lines max
 - Separate sections with a blank line`;
+
+/**
+ * Signed percentage of an ordered amount vs its box-expected estimate, the same
+ * way the dashboard computes it: (ordered - estimated) / estimated * 100.
+ * Returned as a rounded integer (e.g. 52 means +52%, -33 means 33% under).
+ * Returns null when there is no usable estimate, so callers can omit it rather
+ * than feed the model a misleading 0. Handing the AI this number directly is
+ * what stops it from trying (and failing) to back a percentage out of raw cases.
+ */
+export function signedPct(ordered: unknown, estimated: unknown): number | null {
+  const o = Number(ordered);
+  const e = Number(estimated);
+  if (!Number.isFinite(o) || !Number.isFinite(e) || e <= 0) return null;
+  return Math.round(((o - e) / e) * 100);
+}
 
 export function buildOverviewPrompt(context: Record<string, unknown>): string {
   return `Here is the current network-wide compliance data. Provide 3-5 key insights with specific, actionable recommendations. Prioritize the most impactful findings.

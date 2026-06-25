@@ -6,6 +6,7 @@ import { ChevronRight, Sparkles, RefreshCw, Flag, TrendingUp, TrendingDown, Aler
 import { FilterBar, StatusPill, DiffCell, RatioCell } from "@/components/dashboard";
 import { DonutChart, ComplianceTrend, Sparkline } from "@/components/charts";
 import type { AppUser, NetworkStats, BrandStats, WeeklyTrend, Flag as FlagType, Anomaly } from "@/lib/types";
+import { signedPct } from "@/lib/ai/prompts";
 
 interface OverviewClientProps {
   user: AppUser;
@@ -60,6 +61,14 @@ export function OverviewClient({
               cheese_diff: m.cheese_diff,
               sauce_diff: m.sauce_diff,
               flour_diff: m.flour_diff,
+              // Precomputed signed % vs box-expected — the AI should use these
+              // directly rather than deriving a percentage from raw cases.
+              cheese_pct: signedPct(m.cheese_ordered_oz, m.cheese_estimated_oz),
+              sauce_pct: signedPct(m.sauce_ordered_floz, m.sauce_estimated_floz),
+              flour_pct:
+                m.store_type === "dough"
+                  ? signedPct(m.dough_ordered_kg, m.dough_estimated_kg)
+                  : signedPct(m.flour_ordered_kg, m.flour_estimated_kg),
               sc_ratio: m.sauce_cheese_ratio,
               fc_ratio: m.flour_cheese_ratio,
               status: m.overall_status,

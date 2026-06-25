@@ -16,7 +16,7 @@ import XLSX from "xlsx";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
-import { SYSTEM_PROMPT, buildStorePrompt, buildOverviewPrompt } from "../src/lib/ai/prompts.ts";
+import { SYSTEM_PROMPT, buildStorePrompt, buildOverviewPrompt, signedPct } from "../src/lib/ai/prompts.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const XLSX_PATH =
@@ -64,6 +64,9 @@ const OVERVIEW_CASES = [
           cheese_diff: -9.5,
           sauce_diff: -1.6,
           flour_diff: -0.4,
+          cheese_pct: -48, // cheese far under box-expected
+          sauce_pct: 3, // sauce roughly on-target -> box baseline is sound
+          flour_pct: -6,
           sc_ratio: 2.091, // 209.1% — far ABOVE the 1.25 band
           fc_ratio: 1.74,
           status: "bad",
@@ -116,11 +119,17 @@ function buildStoreContext(wb, sheetName) {
   const pct = (ord, need) => (need ? round(((ord - need) / need) * 100, 1) : null);
 
   // Per-week history (chronological), matching the shape the live store page sends.
+  // Includes the precomputed signed % vs box-expected (same signedPct the live app
+  // uses) so the eval tests the exact payload production now sends. The eval xlsx
+  // carries cheese/sauce ordered+needed per week but not flour, so flour_pct is null.
   const history = data.map((r) => ({
     week: num(r, "week"),
     cheese_diff: round(num(r, "cheeseDiffCase")),
     sauce_diff: round(num(r, "sauceDiffCase")),
     flour_diff: round(num(r, "flourDiffBag")),
+    cheese_pct: signedPct(num(r, "cheeseOrdered"), num(r, "cheeseNeeded")),
+    sauce_pct: signedPct(num(r, "sauceOrdered"), num(r, "sauceNeeded")),
+    flour_pct: null,
     sc_ratio: round(num(r, "sc"), 3),
     fc_ratio: round(num(r, "fc"), 3),
   }));
@@ -132,6 +141,9 @@ function buildStoreContext(wb, sheetName) {
     cheese_diff: round(num(lastRow, "cheeseDiffCase")),
     sauce_diff: round(num(lastRow, "sauceDiffCase")),
     flour_diff: round(num(lastRow, "flourDiffBag")),
+    cheese_pct: signedPct(num(lastRow, "cheeseOrdered"), num(lastRow, "cheeseNeeded")),
+    sauce_pct: signedPct(num(lastRow, "sauceOrdered"), num(lastRow, "sauceNeeded")),
+    flour_pct: null,
     sauce_cheese_ratio: round(num(lastRow, "sc"), 3),
     flour_cheese_ratio: round(num(lastRow, "fc"), 3),
   };
@@ -167,7 +179,7 @@ async function callModel(userPrompt) {
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userPrompt },
       ],
-      max_tokens: 700,
+      max_tokens: 1500,
       temperature: 0.3,
     }),
   });
