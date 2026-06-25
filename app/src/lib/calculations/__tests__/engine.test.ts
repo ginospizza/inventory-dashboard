@@ -25,10 +25,50 @@ import {
   generateFlags,
   detectBrand,
   defaultStoreType,
+  smoothedDiffStatuses,
+  type RollingWeek,
 } from "../engine";
 
 import { FLOUR_YIELD_FACTOR, BOX_RATIOS, BOXES_PER_CASE } from "../constants";
 import type { Product, RawOrderRow, WeeklyMetrics } from "@/lib/types";
+
+// ── Rolling-average smoothing (both sides) ───────────────────
+describe("smoothedDiffStatuses — 4-week rolling average, both sides", () => {
+  const wk = (orderedMult: number): RollingWeek => ({
+    // ordered = multiplier × the box-expected; estimated held steady at the same base
+    cheese_ordered_oz: 100 * orderedMult, cheese_estimated_oz: 100,
+    sauce_ordered_floz: 100 * orderedMult, sauce_estimated_floz: 100,
+    flour_ordered_kg: 100 * orderedMult, flour_estimated_kg: 100,
+    dough_ordered_kg: 0, dough_estimated_kg: 0,
+  });
+
+  it("a single stock-up spike is smoothed away by the prior weeks", () => {
+    // This week +110% over (would be At Risk in isolation), but the 3 prior weeks
+    // were on-target, so the 4-week average is only ~+28% -> Borderline, not At Risk.
+    const s = smoothedDiffStatuses(wk(2.1), [wk(1), wk(1), wk(1)], "flour");
+    expect(s.cheese_status).toBe("warn");
+  });
+
+  it("a sustained over-order stays At Risk (smoothing does not rescue it)", () => {
+    // Over by +100% every week -> average is still +100% -> At Risk. This is the
+    // GINOS014 case: a chronic over-order is not a spike and must not be smoothed away.
+    const s = smoothedDiffStatuses(wk(2), [wk(2), wk(2), wk(2)], "flour");
+    expect(s.cheese_status).toBe("bad");
+  });
+
+  it("with no prior weeks, grades the week in isolation", () => {
+    const s = smoothedDiffStatuses(wk(2), [], "flour");
+    expect(s.cheese_status).toBe("bad");
+  });
+
+  it("smooths box-expected too: a boxes dip with steady orders is not flagged", () => {
+    // Orders steady at 100; this week's boxes dipped so single-week looks +100% over,
+    // but averaging estimated across the window pulls it back into band.
+    const spikeWeek: RollingWeek = { ...wk(1), cheese_estimated_oz: 50 };
+    const s = smoothedDiffStatuses(spikeWeek, [wk(1), wk(1), wk(1)], "flour");
+    expect(s.cheese_status).toBe("ok");
+  });
+});
 
 // ── Helper to build aggregates for testing ───────────────────
 

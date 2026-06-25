@@ -397,12 +397,72 @@ export function generateFlags(metrics: WeeklyMetrics): Flag[] {
 
 // ── Main computation entry point ─────────────────────────────
 
-/** Prior weeks' ordered amounts for rolling average */
-export interface PriorWeekData {
+/**
+ * One week's ordered amounts AND box-expected estimates, used for rolling-window
+ * smoothing. Both sides are carried so we can average orders and box-expected
+ * together — see smoothedDiffStatuses.
+ */
+export interface RollingWeek {
   cheese_ordered_oz: number;
   sauce_ordered_floz: number;
   flour_ordered_kg: number;
   dough_ordered_kg: number;
+  cheese_estimated_oz: number;
+  sauce_estimated_floz: number;
+  flour_estimated_kg: number;
+  dough_estimated_kg: number;
+}
+
+/** @deprecated use RollingWeek (carries estimates too, for both-sides smoothing) */
+export type PriorWeekData = RollingWeek;
+
+/**
+ * Compute the four ingredient diff statuses for a week using a 4-week rolling
+ * window (the current week plus up to 3 prior weeks), smoothing BOTH the ordered
+ * amounts and the box-expected estimates.
+ *
+ * Smoothing both sides is the fix for the "stocked up one week, ordered light the
+ * next" problem: grading a single week in isolation lets a stock-up spike trip
+ * At Risk even though the store evens out over a month. We average orders AND
+ * box-expected across the window, then compare the two averages.
+ *
+ * The within-week ingredient ratios (S:C, F:C, D:C) are a same-week relationship
+ * and are deliberately NOT smoothed here — their statuses are computed separately.
+ *
+ * `prior` is the up-to-3 immediately preceding weeks (order within the array does
+ * not matter — it's an average). Pass [] to grade the week in isolation.
+ *
+ * This is the single source of truth for rolling-average status. The upload path,
+ * the historical importer, and the re-score backfill all call it so the smoothing
+ * can never drift between them again.
+ */
+export function smoothedDiffStatuses(
+  current: RollingWeek,
+  prior: RollingWeek[],
+  storeType: StoreType
+): {
+  cheese_status: ComplianceStatus;
+  sauce_status: ComplianceStatus;
+  flour_status: ComplianceStatus;
+  dough_status: ComplianceStatus;
+} {
+  const window = [current, ...prior];
+  const n = window.length;
+  const avg = (sel: (w: RollingWeek) => number) =>
+    window.reduce((s, w) => s + (sel(w) || 0), 0) / n;
+
+  return {
+    cheese_status: diffStatusPct(avg((w) => w.cheese_ordered_oz), avg((w) => w.cheese_estimated_oz)),
+    sauce_status: diffStatusPct(avg((w) => w.sauce_ordered_floz), avg((w) => w.sauce_estimated_floz)),
+    flour_status:
+      storeType === "flour"
+        ? diffStatusPct(avg((w) => w.flour_ordered_kg), avg((w) => w.flour_estimated_kg))
+        : ("ok" as ComplianceStatus),
+    dough_status:
+      storeType === "dough"
+        ? diffStatusPct(avg((w) => w.dough_ordered_kg), avg((w) => w.dough_estimated_kg))
+        : ("ok" as ComplianceStatus),
+  };
 }
 
 export function computeWeeklyMetrics(
@@ -411,7 +471,7 @@ export function computeWeeklyMetrics(
   year: number,
   storeType: StoreType = "flour",
   storeIsClamshell = false,
-  priorWeeks?: PriorWeekData[] // last 3 weeks (not including current) for 4-week rolling avg
+  priorWeeks?: RollingWeek[] // last 3 weeks (not including current) for 4-week rolling avg
 ): Omit<WeeklyMetrics, "id"> {
   const agg = aggregateStoreWeek(rows, productLookup, year);
   const inclClam = storeIsClamshell;
@@ -422,11 +482,7 @@ export function computeWeeklyMetrics(
   const doughEst = estimatedDoughKg(agg, inclClam);
   const flourEst = doughEst / FLOUR_YIELD_FACTOR;
 
-  // If prior weeks available, use 4-week rolling average of estimated
-  // (current + 3 prior weeks averaged) as baseline for comparison
-  // This smooths out stocking spikes
-
-  // Diffs
+  // Diffs (always reported for the single week — only the STATUS is smoothed)
   const cDiff = cheeseDiff(agg, cheeseEst);
   const sDiff = sauceDiff(agg.total_sauce_floz, sauceEst);
   const fDiff = storeType === "flour" ? flourDiff(agg.total_flour_kg, flourEst) : 0;
@@ -437,30 +493,21 @@ export function computeWeeklyMetrics(
   const fcRatio = storeType === "flour" ? flourCheeseRatio(agg.total_flour_kg, agg.total_cheese_oz) : 0;
   const dcRatio = storeType === "dough" ? doughCheeseRatio(agg.total_dough_kg, agg.total_cheese_oz) : 0;
 
-  // Status
-  // Percentage-based thresholds: compare ordered vs estimated
-  // If rolling average data available, use averaged ordered for status (smooths spikes)
-  let cheeseForStatus = agg.total_cheese_oz;
-  let sauceForStatus = agg.total_sauce_floz;
-  let flourForStatus = agg.total_flour_kg;
-  let doughForStatus = agg.total_dough_kg;
-
-  if (priorWeeks && priorWeeks.length > 0) {
-    const allWeeks = [
-      { cheese_ordered_oz: agg.total_cheese_oz, sauce_ordered_floz: agg.total_sauce_floz, flour_ordered_kg: agg.total_flour_kg, dough_ordered_kg: agg.total_dough_kg },
-      ...priorWeeks,
-    ];
-    const n = allWeeks.length;
-    cheeseForStatus = allWeeks.reduce((s, w) => s + w.cheese_ordered_oz, 0) / n;
-    sauceForStatus = allWeeks.reduce((s, w) => s + w.sauce_ordered_floz, 0) / n;
-    flourForStatus = allWeeks.reduce((s, w) => s + w.flour_ordered_kg, 0) / n;
-    doughForStatus = allWeeks.reduce((s, w) => s + w.dough_ordered_kg, 0) / n;
-  }
-
-  const cStatus = diffStatusPct(cheeseForStatus, cheeseEst);
-  const sStatus = diffStatusPct(sauceForStatus, sauceEst);
-  const fStatus = storeType === "flour" ? diffStatusPct(flourForStatus, flourEst) : "ok" as ComplianceStatus;
-  const dStatus = storeType === "dough" ? diffStatusPct(doughForStatus, doughEst) : "ok" as ComplianceStatus;
+  // Status — diff statuses use the 4-week rolling window (current + up to 3 prior
+  // weeks), smoothing both orders and box-expected. With no prior weeks supplied
+  // this grades the week in isolation (window of 1). Ratios are within-week.
+  const current: RollingWeek = {
+    cheese_ordered_oz: agg.total_cheese_oz,
+    sauce_ordered_floz: agg.total_sauce_floz,
+    flour_ordered_kg: agg.total_flour_kg,
+    dough_ordered_kg: agg.total_dough_kg,
+    cheese_estimated_oz: cheeseEst,
+    sauce_estimated_floz: sauceEst,
+    flour_estimated_kg: flourEst,
+    dough_estimated_kg: doughEst,
+  };
+  const { cheese_status: cStatus, sauce_status: sStatus, flour_status: fStatus, dough_status: dStatus } =
+    smoothedDiffStatuses(current, priorWeeks ?? [], storeType);
   const scStatus = ratioStatus(scRatio);
   const fcStatus = storeType === "flour" ? ratioStatus(fcRatio) : "ok" as ComplianceStatus;
   const dcStatus = storeType === "dough" ? ratioStatus(dcRatio) : "ok" as ComplianceStatus;
