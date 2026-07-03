@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  aggregateStoreWeek,
   estimatedCheeseOz,
   estimatedSauceFloz,
   estimatedDoughKg,
@@ -162,6 +163,67 @@ describe("Estimated sauce", () => {
   it("matches G27", () => {
     const agg = makeAgg(G27);
     expect(estimatedSauceFloz(agg, false)).toBeCloseTo(G27_EST_SAUCE, 0);
+  });
+});
+
+// ── Clamshell SKU mapping (GINOS103 W15 2026 regression) ─────
+// James's report, July 3 2026: 9 cases of G060511A (100 pieces/case) were
+// dropped from the estimate because the SKU was missing from the product
+// table. With the product mapped, the estimate must include 9 x 100 x 2 oz.
+
+const CLAMSHELL_PRODUCT: Product = {
+  id: "p-clam",
+  code: "G060511A",
+  description: "Ginos Clamshell Box - 100/CS BOX LOCK CORNER",
+  type: "Packaging",
+  classification: "primary",
+  pack_size: "100/cs",
+  weight: 100, // pieces per case
+  weight_unit: "each",
+};
+
+const XL_BOX_PRODUCT: Product = {
+  id: "p-xl",
+  code: "G010314",
+  description: 'Ginos X-Large Pizza Box 16" (40)',
+  type: "Packaging",
+  classification: "primary",
+  pack_size: "40/cs",
+  weight: 40,
+  weight_unit: "each",
+};
+
+function orderRow(code: string, description: string, qty: number): RawOrderRow {
+  return { company_name: "GINOS103", week_number: 15, product_code: code, description, total_qty: qty };
+}
+
+describe("Clamshell aggregation and totals", () => {
+  const lookup = new Map<string, Product>([
+    [CLAMSHELL_PRODUCT.code, CLAMSHELL_PRODUCT],
+    [XL_BOX_PRODUCT.code, XL_BOX_PRODUCT],
+  ]);
+
+  it("converts clamshell cases to pieces via the product's units-per-case", () => {
+    const agg = aggregateStoreWeek([orderRow("G060511A", CLAMSHELL_PRODUCT.description, 9)], lookup, 2026);
+    expect(agg.boxes_clamshell).toBe(900);
+  });
+
+  it("matches James's GINOS103 W15 cheese estimate (10,640 without clamshell, 12,440 with)", () => {
+    const agg = makeAgg({ xl: 10, large: 20, medium: 1, clamshell: 900 });
+    expect(estimatedCheeseOz(agg, false)).toBeCloseTo(10640, 2);
+    expect(estimatedCheeseOz(agg, true)).toBeCloseTo(12440, 2);
+  });
+
+  it("counts clamshell pieces once (no x40) in boxes_total and pizza sales", () => {
+    const rows = [
+      orderRow("G010314", XL_BOX_PRODUCT.description, 10),
+      orderRow("G060511A", CLAMSHELL_PRODUCT.description, 9),
+    ];
+    const m = computeWeeklyMetrics(rows, lookup, 2026, "flour", true);
+    expect(m.boxes_clamshell).toBe(900);
+    expect(m.boxes_total).toBe(10 * 40 + 900);
+    // 10 XL cases x 40 x 17 pizzas + 900 clamshell pieces x 1 slice
+    expect(m.estimated_pizza_sales).toBe(10 * 40 * 17 + 900);
   });
 });
 
