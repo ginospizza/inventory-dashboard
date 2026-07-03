@@ -517,10 +517,12 @@ export function computeWeeklyMetrics(
     : [cStatus, sStatus, dStatus, scStatus, dcStatus];
   const overall = overallStatus(relevantStatuses);
 
-  // Box totals
+  // Box totals — boxes_clamshell is already individual pieces (aggregation
+  // multiplies cases x units/case), so it joins the totals after the x40.
   const totalBoxesCases =
     agg.boxes_small + agg.boxes_medium + agg.boxes_large +
-    agg.boxes_xl + agg.boxes_party_20 + agg.boxes_party_21x15 + agg.boxes_clamshell;
+    agg.boxes_xl + agg.boxes_party_20 + agg.boxes_party_21x15;
+  const totalBoxUnits = totalBoxesCases * BOXES_PER_CASE + agg.boxes_clamshell;
 
   const estPizzaSales =
     agg.boxes_small * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.small +
@@ -528,7 +530,8 @@ export function computeWeeklyMetrics(
     agg.boxes_large * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.large +
     agg.boxes_xl * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.xl +
     agg.boxes_party_20 * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.party_20 +
-    agg.boxes_party_21x15 * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.party_21x15;
+    agg.boxes_party_21x15 * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.party_21x15 +
+    agg.boxes_clamshell * PIZZA_SALES_PER_CASE.clamshell;
 
   return {
     store_id: "",
@@ -548,8 +551,8 @@ export function computeWeeklyMetrics(
     boxes_xl: agg.boxes_xl * BOXES_PER_CASE,
     boxes_party: agg.boxes_party_20 * BOXES_PER_CASE,
     boxes_party_21x15: agg.boxes_party_21x15 * BOXES_PER_CASE,
-    boxes_clamshell: agg.boxes_clamshell * BOXES_PER_CASE,
-    boxes_total: totalBoxesCases * BOXES_PER_CASE,
+    boxes_clamshell: agg.boxes_clamshell,
+    boxes_total: totalBoxUnits,
 
     cheese_estimated_oz: round2(cheeseEst),
     sauce_estimated_floz: round2(sauceEst),
@@ -565,7 +568,7 @@ export function computeWeeklyMetrics(
     flour_cheese_ratio: round4(fcRatio),
     dough_cheese_ratio: round4(dcRatio),
 
-    total_boxes_ordered: totalBoxesCases * BOXES_PER_CASE,
+    total_boxes_ordered: totalBoxUnits,
     estimated_pizza_sales: estPizzaSales,
     weekly_pizza_sales: Math.round(estPizzaSales / 4),
 

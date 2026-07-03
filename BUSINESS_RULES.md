@@ -63,9 +63,11 @@ These ratios are **universal across all brands**. Confirmed by James on April 28
 | XL (16") | 10 | 6 | 0.775 | 40 |
 | Party 20" | 16 | 10 | 1.2 | 40 |
 | Party 21x15 | 20 | 13 | 1.5 | 40 |
-| Clamshell (Slice) | 2 | 0.75 | 0.097 | varies |
+| Clamshell (Slice) | 2 | 1.25 | 0.15 | varies — see below |
 
 **Important:** The "Dough KG" column is kilograms of **dough**, not flour. For Flour stores, divide by 1.6 to get flour equivalent.
+
+**Clamshell per-piece usage** (revised by James, July 3, 2026): 2 oz cheese, 1.25 fl oz sauce, 150 g dough (= 93.75 g flour) per piece. Clamshell SKUs and units per case: G060511A "Ginos Clamshell Box - 100/CS BOX LOCK CORNER" = 100/case; G060511 "Ginos Clamshell Box - 200/cs" = 200/case; 60511 "Generic Clamshells - 200/cs" = 200/case. The units-per-case lives in the product's `weight` field.
 
 ---
 
@@ -163,7 +165,7 @@ Party_20_cases x 40 x 10
 + Large_cases x 40 x 5
 + Medium_cases x 40 x 4
 + Small_cases x 40 x 2.5
-+ Clamshell_cases x units_per_case x 0.75  [GINOS only]
++ Clamshell_cases x units_per_case x 1.25  [GINOS only]
 ```
 
 **Estimated Dough (kg):**
@@ -174,7 +176,7 @@ Party_20_cases x 40 x 1.2
 + Large_cases x 40 x 0.6
 + Medium_cases x 40 x 0.45
 + Small_cases x 40 x 0.3
-+ Clamshell_cases x units_per_case x 0.097  [GINOS only]
++ Clamshell_cases x units_per_case x 0.15  [GINOS only]
 ```
 
 **Estimated Flour (kg):** [Flour stores only]

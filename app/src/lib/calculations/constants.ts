@@ -2,6 +2,9 @@
  * Conversion constants and default thresholds for the Gino's compliance engine.
  *
  * Box ratios confirmed by James on April 28, 2026.
+ * Clamshell per-piece usage revised by James on July 3, 2026:
+ *   100 pieces/case (G060511A), 2 oz cheese, 1.25 fl oz sauce,
+ *   150 g dough (= 93.75 g flour) per piece.
  * See BUSINESS_RULES.md for full documentation.
  */
 
@@ -22,7 +25,7 @@ export const BOX_RATIOS = {
   xl:           { cheese_oz: 10,  sauce_oz: 6,    dough_kg: 0.775 },
   party_20:     { cheese_oz: 16,  sauce_oz: 10,   dough_kg: 1.2 },
   party_21x15:  { cheese_oz: 20,  sauce_oz: 13,   dough_kg: 1.5 },
-  clamshell:    { cheese_oz: 2,   sauce_oz: 0.75, dough_kg: 0.097 },
+  clamshell:    { cheese_oz: 2,   sauce_oz: 1.25, dough_kg: 0.15 },  // per piece, not per case
 } as const;
 
 // Wing box ratios — some stores use wing boxes for pizza (confirmed by James)
