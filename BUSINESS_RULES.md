@@ -12,7 +12,7 @@ This document captures every business rule confirmed by James (finance manager) 
 | TTD | `TTD` | Twice the Deal Pizza | Flour |
 | DD | `DD`, `STORE` | Double Double Pizza and Chicken | Dough |
 | WM | `WM` | Wing Machine | Dough |
-| PP/WM | `PP/WM`, `PP` | Multi-branded (Gino's + Wing Machine) | Admin assigns per store |
+| PP/WM | `PP/WM`, `PP` | Multi-branded (Gino's + Wing Machine) | Dough (confirmed July 6, 2026) |
 
 **Ignore:** SAPUTO, SUNDRY, and any other one-off entries in the raw data.
 
@@ -24,7 +24,7 @@ This document captures every business rule confirmed by James (finance manager) 
 
 Every store falls into one of two categories that determines how the dough/flour metric is calculated.
 
-### Flour Stores (GINOS, TTD, some PP/WM)
+### Flour Stores (GINOS, TTD)
 
 These stores mix their own dough in-store using flour.
 
@@ -35,7 +35,7 @@ These stores mix their own dough in-store using flour.
 - **Formula:** `flour_diff = (flour_ordered_kg - estimated_flour_kg) / 20`
 - **Where estimated flour:** `(sum of boxes_per_size x dough_kg_per_pizza) / 1.6`
 
-### Dough Stores (DD, WM, some PP/WM)
+### Dough Stores (DD, WM, PP — all commissary-dough brands, confirmed July 6, 2026)
 
 These stores use pre-portioned dough made at the commissary.
 
@@ -47,7 +47,7 @@ These stores use pre-portioned dough made at the commissary.
 
 ### PP/WM Store Assignment
 
-Each PP/WM store is assigned as either Flour-type or Dough-type by a super admin in the admin panel. This is a static setting, not auto-detected per upload.
+All PP/WM stores are Dough-type by default: DD, PP, and WM purchase pre-portioned dough from the commissary instead of flour (James, July 6, 2026). Admin override remains possible if a store is later confirmed to mix its own dough.
 
 ---
 
@@ -62,11 +62,13 @@ These ratios are **universal across all brands**. Confirmed by James on April 28
 | Large (14") | 8 | 5 | 0.6 | 40 |
 | XL (16") | 10 | 6 | 0.775 | 40 |
 | Party 20" | 16 | 10 | 1.2 | 40 |
-| Party 21x15 | 20 | 13 | 1.5 | 40 |
+| Party 21x15 | 16 | 10 | 1.2 | 40 |
 | Clamshell (Slice) | 2 | 1.25 | 0.15 | varies — see below |
 | Paper Plate (Slice) | 2 | 1.25 | 0.15 | 1200 (12x100) |
 
 **Important:** The "Dough KG" column is kilograms of **dough**, not flour. For Flour stores, divide by 1.6 to get flour equivalent.
+
+**Party 21x15** (revised July 6, 2026): counts the same as Party 20" — 21x15 = 315 sq in ≈ 20" round (314 sq in). James's GINOS058 reconciliation uses 16 oz cheese; previously 20/13/1.5.
 
 **Clamshell per-piece usage** (revised by James, July 3, 2026): 2 oz cheese, 1.25 fl oz sauce, 150 g dough (= 93.75 g flour) per piece. **Applies to ALL brands.** Clamshell SKUs and units per case: G060511A "Ginos Clamshell Box - 100/CS BOX LOCK CORNER" = 100/case; G060511 "Ginos Clamshell Box - 200/cs" = 200/case; 60511 "Generic Clamshells - 200/cs" = 200/case. The units-per-case lives in the product's `weight` field.
 
@@ -97,8 +99,9 @@ All cheese is converted to **ounces** using: weight_kg x 35.27
 |------|-------------|-----------------|
 | G040114 | Ginos Pizza Sauce 6x100 fl.oz | 600 fl oz |
 | 40114 | V Food Premium Pizza Sauce 6x2.84L | ~576.2 fl oz |
+| P1250 | CRUSHED TOMATOES & SPICE - CASE 6/100 ML | 600 fl oz |
 
-GINOS uses G040114, TTD uses 40114. Both tracked in **fl oz**.
+GINOS uses G040114, TTD uses 40114, PP/WM use P1250 (James, July 6, 2026 — treated as 6x100 fl oz cans like G040114; the catalog's "ML" is assumed to mean oz). All tracked in **fl oz**.
 
 **Flour (2 SKUs) — Flour stores only:**
 
@@ -109,7 +112,7 @@ GINOS uses G040114, TTD uses 40114. Both tracked in **fl oz**.
 
 GINOS uses G050106, TTD uses T050106.
 
-**Dough (5 SKUs) — Dough stores only:**
+**Dough (7 SKUs) — Dough stores only (case weights confirmed by James, July 6, 2026):**
 
 | Code | Description | Portions x Grams | Weight per Case (kg) |
 |------|-------------|-------------------|---------------------|
@@ -118,6 +121,10 @@ GINOS uses G050106, TTD uses T050106.
 | 50122 | Large Dough PT (36x550) | 36 large portions | 19.8 |
 | 50123 | X-Large Dough PT (24x800) | 24 XL portions | 19.2 |
 | 50124 | Party Dough PT (20x1000) | 20 party portions | 20.0 |
+| 50125 | Whole Wheat Dough L (36x550) | 36 large portions | 19.8 |
+| P1352 | SLICE DOUGH - CASE OF 14/32oz | 14 slice portions | 12.7 |
+
+**Excluded:** P1300 "PANZEROTTO DOUGH - 30 LB" — panzerotti are side items (same ruling as the panzerotti box, July 6, 2026).
 
 **Packaging — Pizza Boxes (14 SKUs):** Across GINOS, TTD, DD brands. Each case = 40 boxes. Sizes: Small (10"), Medium (12"), Large (14"), XL (16"), Party (20" and 21x15).
 
