@@ -177,7 +177,9 @@ export async function getAvailableYears(): Promise<number[]> {
 }
 
 /**
- * Get all brands that have stores.
+ * Get all brands that have stores, for the Brand filter dropdown.
+ * "OTHER" is excluded — it's the unclassified bucket, not a real brand
+ * (James, July 6, 2026). Those stores remain visible under "All Brands".
  */
 export async function getAvailableBrands(): Promise<string[]> {
   const supabase = createAdminClient();
@@ -187,7 +189,9 @@ export async function getAvailableBrands(): Promise<string[]> {
     .order("brand");
 
   if (!data) return [];
-  return [...new Set(data.map((d: { brand: string }) => d.brand))];
+  return [...new Set(data.map((d: { brand: string }) => d.brand))].filter(
+    (b) => b !== "OTHER"
+  );
 }
 
 /**

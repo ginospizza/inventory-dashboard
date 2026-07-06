@@ -6,6 +6,7 @@ import { ChevronRight, Sparkles, RefreshCw, Flag, TrendingUp, TrendingDown, Aler
 import { FilterBar, StatusPill, DiffCell, RatioCell } from "@/components/dashboard";
 import { DonutChart, ComplianceTrend, Sparkline } from "@/components/charts";
 import type { AppUser, NetworkStats, BrandStats, WeeklyTrend, Flag as FlagType, Anomaly } from "@/lib/types";
+import { brandLabel } from "@/lib/types";
 import { signedPct } from "@/lib/ai/prompts";
 
 interface OverviewClientProps {
@@ -308,7 +309,7 @@ export function OverviewClient({
               brandStats.map((b) => (
                 <div key={b.brand} className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-[12.5px]">
-                    <span className="font-medium">{b.brand}</span>
+                    <span className="font-medium">{brandLabel(b.brand)}</span>
                     <span className="font-mono text-[12px]" style={{ color: "var(--color-ink-3)" }}>
                       {b.store_count} stores &middot; {b.compliance_pct}%
                     </span>
