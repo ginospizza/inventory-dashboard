@@ -21,6 +21,20 @@ export interface DSM {
 
 export type Brand = "GINOS" | "TTD" | "PP" | "STORE" | "DD" | "WM" | "OTHER";
 
+/**
+ * Display labels for brands. The stored value stays as the raw Brand code
+ * (so filtering/queries are unaffected); this only changes what the user sees.
+ * PP is shown as "PP/WM" — PP is mostly phased out and the stores are now
+ * referred to as WM (James, July 6, 2026).
+ */
+export const BRAND_LABELS: Record<string, string> = {
+  PP: "PP/WM",
+};
+
+export function brandLabel(brand: string): string {
+  return BRAND_LABELS[brand] ?? brand;
+}
+
 /** Flour stores mix dough in-store; Dough stores use commissary dough */
 export type StoreType = "flour" | "dough";
 

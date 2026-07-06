@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 import type { AppUser, ComplianceStatus } from "@/lib/types";
+import { brandLabel } from "@/lib/types";
 
 interface FilterBarProps {
   user: AppUser;
@@ -116,7 +117,7 @@ export function FilterBar({
         <option value="all">All Brands</option>
         {brands.map((b) => (
           <option key={b} value={b}>
-            {b}
+            {brandLabel(b)}
           </option>
         ))}
       </select>

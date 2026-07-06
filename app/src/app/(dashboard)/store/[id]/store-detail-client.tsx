@@ -10,6 +10,7 @@ import {
 import { StatusPill, DiffCell, RatioCell } from "@/components/dashboard";
 import { AlertTriangle, AlertCircle, Info } from "lucide-react";
 import type { AppUser, Flag, ComplianceStatus, Anomaly } from "@/lib/types";
+import { brandLabel } from "@/lib/types";
 import { signedPct } from "@/lib/ai/prompts";
 
 interface StoreDetailClientProps {
@@ -39,7 +40,7 @@ export function StoreDetailClient({
 
   const storeCode = store.code as string;
   const storeCity = store.city as string;
-  const storeBrand = store.brand as string;
+  const storeBrand = brandLabel(store.brand as string);
   const dsm = store.dsms as { name: string; region: string } | null;
 
   const last5 = metrics.slice(0, 5);
