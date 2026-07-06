@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import {
   aggregateStoreWeek,
   estimatedCheeseOz,
+  platesCountForBrand,
   estimatedSauceFloz,
   estimatedDoughKg,
   estimatedFlourKg,
@@ -85,6 +86,7 @@ function makeAgg(opts: {
   party_20?: number;
   party_21x15?: number;
   clamshell?: number;
+  plates?: number;
   cheese_by_sku?: Map<string, { qty: number; weight_kg: number }>;
   dough_by_sku?: Map<string, { qty: number; weight_kg: number }>;
 }) {
@@ -105,6 +107,7 @@ function makeAgg(opts: {
     boxes_party_20: opts.party_20 ?? 0,
     boxes_party_21x15: opts.party_21x15 ?? 0,
     boxes_clamshell: opts.clamshell ?? 0,
+    boxes_plates: opts.plates ?? 0,
     wing_8: 0,
     wing_10: 0,
     wing_12: 0,
@@ -148,14 +151,36 @@ describe("Estimated cheese (no clamshell)", () => {
 });
 
 describe("Estimated cheese (with clamshell)", () => {
-  it("adds clamshell contribution for GINOS stores", () => {
-    // boxes_clamshell stores individual pieces (not cases), so the ratio applies per piece.
+  it("adds clamshell contribution for every brand (James, July 3 2026)", () => {
+    // boxes_clamshell stores individual pieces (not cases), so the ratio applies
+    // per piece — and it is no longer gated by brand.
     const clamPieces = 5 * BOXES_PER_CASE;
     const agg = makeAgg({ large: 10, clamshell: clamPieces });
-    const withoutClam = estimatedCheeseOz(agg, false);
-    const withClam = estimatedCheeseOz(agg, true);
     const clamContrib = clamPieces * BOX_RATIOS.clamshell.cheese_oz;
-    expect(withClam - withoutClam).toBeCloseTo(clamContrib, 2);
+    const boxesOnly = 10 * BOXES_PER_CASE * BOX_RATIOS.large.cheese_oz;
+    expect(estimatedCheeseOz(agg, false)).toBeCloseTo(boxesOnly + clamContrib, 2);
+    expect(estimatedCheeseOz(agg, true)).toBeCloseTo(boxesOnly + clamContrib, 2);
+  });
+});
+
+describe("Estimated cheese (paper plates — TTD/PP/WM only)", () => {
+  it("adds plate contribution only when the brand counts plates", () => {
+    // 2 cases of 60501 = 2 x 1200 pieces; same per-piece usage as clamshells.
+    const platePieces = 2 * 1200;
+    const agg = makeAgg({ large: 10, plates: platePieces });
+    const boxesOnly = 10 * BOXES_PER_CASE * BOX_RATIOS.large.cheese_oz;
+    const plateContrib = platePieces * BOX_RATIOS.plate.cheese_oz;
+    expect(estimatedCheeseOz(agg, true)).toBeCloseTo(boxesOnly + plateContrib, 2);  // TTD/PP/WM
+    expect(estimatedCheeseOz(agg, false)).toBeCloseTo(boxesOnly, 2);                // GINOS/DD
+  });
+
+  it("platesCountForBrand gates exactly TTD, PP, WM", () => {
+    expect(platesCountForBrand("TTD")).toBe(true);
+    expect(platesCountForBrand("PP")).toBe(true);
+    expect(platesCountForBrand("WM")).toBe(true);
+    expect(platesCountForBrand("GINOS")).toBe(false);
+    expect(platesCountForBrand("DD")).toBe(false);
+    expect(platesCountForBrand("STORE")).toBe(false);
   });
 });
 
@@ -193,6 +218,17 @@ const XL_BOX_PRODUCT: Product = {
   weight_unit: "each",
 };
 
+const PLATE_PRODUCT: Product = {
+  id: "p-plate",
+  code: "60501",
+  description: "9 Paper Plates - 12x100",
+  type: "Packaging",
+  classification: "primary",
+  pack_size: "12x100",
+  weight: 1200, // pieces per case
+  weight_unit: "each",
+};
+
 function orderRow(code: string, description: string, qty: number): RawOrderRow {
   return { company_name: "GINOS103", week_number: 15, product_code: code, description, total_qty: qty };
 }
@@ -208,9 +244,10 @@ describe("Clamshell aggregation and totals", () => {
     expect(agg.boxes_clamshell).toBe(900);
   });
 
-  it("matches James's GINOS103 W15 cheese estimate (10,640 without clamshell, 12,440 with)", () => {
+  it("matches James's GINOS103 W15 cheese estimate (12,440 with clamshells)", () => {
     const agg = makeAgg({ xl: 10, large: 20, medium: 1, clamshell: 900 });
-    expect(estimatedCheeseOz(agg, false)).toBeCloseTo(10640, 2);
+    // Clamshells count regardless of the plates flag.
+    expect(estimatedCheeseOz(agg, false)).toBeCloseTo(12440, 2);
     expect(estimatedCheeseOz(agg, true)).toBeCloseTo(12440, 2);
   });
 
@@ -219,11 +256,31 @@ describe("Clamshell aggregation and totals", () => {
       orderRow("G010314", XL_BOX_PRODUCT.description, 10),
       orderRow("G060511A", CLAMSHELL_PRODUCT.description, 9),
     ];
-    const m = computeWeeklyMetrics(rows, lookup, 2026, "flour", true);
+    const m = computeWeeklyMetrics(rows, lookup, 2026, "flour", "GINOS");
     expect(m.boxes_clamshell).toBe(900);
     expect(m.boxes_total).toBe(10 * 40 + 900);
     // 10 XL cases x 40 x 17 pizzas + 900 clamshell pieces x 1 slice
     expect(m.estimated_pizza_sales).toBe(10 * 40 * 17 + 900);
+  });
+
+  it("counts paper plates for TTD but not for GINOS in metrics", () => {
+    const plateLookup = new Map<string, Product>([
+      [XL_BOX_PRODUCT.code, XL_BOX_PRODUCT],
+      [PLATE_PRODUCT.code, PLATE_PRODUCT],
+    ]);
+    const rows = [
+      orderRow("G010314", XL_BOX_PRODUCT.description, 10),
+      orderRow("60501", PLATE_PRODUCT.description, 2),
+    ];
+    const ttd = computeWeeklyMetrics(rows, plateLookup, 2026, "flour", "TTD");
+    expect(ttd.boxes_plates).toBe(2400);
+    expect(ttd.boxes_total).toBe(10 * 40 + 2400);
+    expect(ttd.cheese_estimated_oz).toBeCloseTo(10 * 40 * 10 + 2400 * 2, 2);
+
+    const ginos = computeWeeklyMetrics(rows, plateLookup, 2026, "flour", "GINOS");
+    expect(ginos.boxes_plates).toBe(0);
+    expect(ginos.boxes_total).toBe(10 * 40);
+    expect(ginos.cheese_estimated_oz).toBeCloseTo(10 * 40 * 10, 2);
   });
 });
 
@@ -410,7 +467,7 @@ describe("computeWeeklyMetrics — Flour store (G27)", () => {
       { company_name: "G27", week_number: 50, product_code: "T010315", description: "TTD SMALL BOX 10 Yellow -40/cs", total_qty: 5 },
     ];
 
-    const m = computeWeeklyMetrics(rows, products, 2025, "flour", false);
+    const m = computeWeeklyMetrics(rows, products, 2025, "flour", "TTD");
 
     expect(m.store_type).toBe("flour");
     expect(m.cheese_ordered_oz).toBeCloseTo(G27.cheese_oz, 0);
@@ -433,7 +490,7 @@ describe("computeWeeklyMetrics — Dough store", () => {
       { company_name: "DD01", week_number: 10, product_code: "T010313B", description: "Large Pizza Box", total_qty: 10 },
     ];
 
-    const m = computeWeeklyMetrics(rows, products, 2026, "dough", false);
+    const m = computeWeeklyMetrics(rows, products, 2026, "dough", "DD");
 
     expect(m.store_type).toBe("dough");
     expect(m.flour_ordered_kg).toBe(0);
@@ -456,7 +513,7 @@ function makeMetrics(overrides: Partial<WeeklyMetrics>): WeeklyMetrics {
     week_number: 1, year: 2026,
     cheese_ordered_oz: 0, sauce_ordered_floz: 0, flour_ordered_kg: 0, dough_ordered_kg: 0,
     boxes_small: 0, boxes_medium: 0, boxes_large: 0, boxes_xl: 0, boxes_party: 0,
-    boxes_party_21x15: 0, boxes_clamshell: 0, boxes_total: 0,
+    boxes_party_21x15: 0, boxes_clamshell: 0, boxes_plates: 0, boxes_total: 0,
     cheese_estimated_oz: 0, sauce_estimated_floz: 0, flour_estimated_kg: 0, dough_estimated_kg: 0,
     cheese_diff: 0, sauce_diff: 0, flour_diff: 0, dough_diff: 0,
     sauce_cheese_ratio: 1, flour_cheese_ratio: 1, dough_cheese_ratio: 0,

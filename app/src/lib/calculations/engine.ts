@@ -24,6 +24,7 @@ import type {
 import {
   KG_TO_OZ,
   BOXES_PER_CASE,
+  PLATES_PER_CASE,
   BOX_RATIOS,
   WING_BOX_RATIOS,
   WING_BOXES_PER_CASE,
@@ -62,6 +63,7 @@ interface StoreWeekAggregates {
   boxes_party_20: number;
   boxes_party_21x15: number;
   boxes_clamshell: number;
+  boxes_plates: number;
 
   // Wing box cases by size (used as pizza boxes in some stores)
   wing_8: number;
@@ -76,6 +78,10 @@ type BoxSize = keyof typeof BOX_RATIOS;
 
 function getBoxSize(product: Product): BoxSize | null {
   const desc = product.description.toLowerCase();
+
+  // Paper plates (slice vehicle for TTD/PP/WM) — must check before sizes
+  // ("9 Paper Plates - 12x100" would otherwise never match a size).
+  if (desc.includes("paper plate")) return "plate";
 
   // Clamshell / slice
   if (desc.includes("clamshell") || desc.includes("slice")) return "clamshell";
@@ -139,6 +145,7 @@ export function aggregateStoreWeek(
     boxes_party_20: 0,
     boxes_party_21x15: 0,
     boxes_clamshell: 0,
+    boxes_plates: 0,
     wing_8: 0,
     wing_10: 0,
     wing_12: 0,
@@ -190,6 +197,7 @@ export function aggregateStoreWeek(
               case "party_20": agg.boxes_party_20 += qty; break;
               case "party_21x15": agg.boxes_party_21x15 += qty; break;
               case "clamshell": agg.boxes_clamshell += qty * (product.weight || BOXES_PER_CASE); break; // store individual units (weight = units/case)
+              case "plate": agg.boxes_plates += qty * (product.weight || PLATES_PER_CASE); break; // store individual units (weight = units/case)
             }
           }
         }
@@ -210,7 +218,7 @@ export function aggregateStoreWeek(
 
 // ── Estimated usage from box orders ──────────────────────────
 
-function sumEstimated(agg: StoreWeekAggregates, field: "cheese_oz" | "sauce_oz" | "dough_kg", includeClamshell: boolean): number {
+function sumEstimated(agg: StoreWeekAggregates, field: "cheese_oz" | "sauce_oz" | "dough_kg", includePlates: boolean): number {
   let total =
     agg.boxes_small * BOXES_PER_CASE * BOX_RATIOS.small[field] +
     agg.boxes_medium * BOXES_PER_CASE * BOX_RATIOS.medium[field] +
@@ -219,9 +227,14 @@ function sumEstimated(agg: StoreWeekAggregates, field: "cheese_oz" | "sauce_oz" 
     agg.boxes_party_20 * BOXES_PER_CASE * BOX_RATIOS.party_20[field] +
     agg.boxes_party_21x15 * BOXES_PER_CASE * BOX_RATIOS.party_21x15[field];
 
-  if (includeClamshell && agg.boxes_clamshell > 0) {
-    // boxes_clamshell stores individual units (not cases), so multiply directly by ratio
-    total += agg.boxes_clamshell * BOX_RATIOS.clamshell[field];
+  // Clamshells count for ALL brands (James, July 3 2026).
+  // boxes_clamshell stores individual units (not cases), so multiply directly by ratio.
+  total += agg.boxes_clamshell * BOX_RATIOS.clamshell[field];
+
+  // Paper plates carry the same per-piece slice usage, but only for
+  // TTD/PP/WM stores. boxes_plates is individual units too.
+  if (includePlates && agg.boxes_plates > 0) {
+    total += agg.boxes_plates * BOX_RATIOS.plate[field];
   }
 
   // Wing boxes count as pizza boxes (some stores use them for pizza)
@@ -233,22 +246,27 @@ function sumEstimated(agg: StoreWeekAggregates, field: "cheese_oz" | "sauce_oz" 
   return total;
 }
 
-export function estimatedCheeseOz(agg: StoreWeekAggregates, includeClamshell: boolean): number {
-  return sumEstimated(agg, "cheese_oz", includeClamshell);
+export function estimatedCheeseOz(agg: StoreWeekAggregates, includePlates: boolean): number {
+  return sumEstimated(agg, "cheese_oz", includePlates);
 }
 
-export function estimatedSauceFloz(agg: StoreWeekAggregates, includeClamshell: boolean): number {
-  return sumEstimated(agg, "sauce_oz", includeClamshell);
+export function estimatedSauceFloz(agg: StoreWeekAggregates, includePlates: boolean): number {
+  return sumEstimated(agg, "sauce_oz", includePlates);
 }
 
 /** Estimated dough (kg) from box orders — before flour conversion */
-export function estimatedDoughKg(agg: StoreWeekAggregates, includeClamshell: boolean): number {
-  return sumEstimated(agg, "dough_kg", includeClamshell);
+export function estimatedDoughKg(agg: StoreWeekAggregates, includePlates: boolean): number {
+  return sumEstimated(agg, "dough_kg", includePlates);
 }
 
 /** Estimated flour (kg) for Flour stores = estimated dough / 1.6 */
-export function estimatedFlourKg(agg: StoreWeekAggregates, includeClamshell: boolean): number {
-  return estimatedDoughKg(agg, includeClamshell) / FLOUR_YIELD_FACTOR;
+export function estimatedFlourKg(agg: StoreWeekAggregates, includePlates: boolean): number {
+  return estimatedDoughKg(agg, includePlates) / FLOUR_YIELD_FACTOR;
+}
+
+/** Paper plates count toward slice usage for TTD/PP/WM only (James, July 3 2026). */
+export function platesCountForBrand(brand: Brand): boolean {
+  return brand === "TTD" || brand === "PP" || brand === "WM";
 }
 
 // ── Diff calculations ────────────────────────────────────────
@@ -470,16 +488,17 @@ export function computeWeeklyMetrics(
   productLookup: Map<string, Product>,
   year: number,
   storeType: StoreType = "flour",
-  storeIsClamshell = false,
+  brand: Brand = "GINOS",
   priorWeeks?: RollingWeek[] // last 3 weeks (not including current) for 4-week rolling avg
 ): Omit<WeeklyMetrics, "id"> {
   const agg = aggregateStoreWeek(rows, productLookup, year);
-  const inclClam = storeIsClamshell;
+  // Clamshells count for every brand; paper plates only for TTD/PP/WM.
+  const inclPlates = platesCountForBrand(brand);
 
   // Estimated usage (from this week's box orders)
-  const cheeseEst = estimatedCheeseOz(agg, inclClam);
-  const sauceEst = estimatedSauceFloz(agg, inclClam);
-  const doughEst = estimatedDoughKg(agg, inclClam);
+  const cheeseEst = estimatedCheeseOz(agg, inclPlates);
+  const sauceEst = estimatedSauceFloz(agg, inclPlates);
+  const doughEst = estimatedDoughKg(agg, inclPlates);
   const flourEst = doughEst / FLOUR_YIELD_FACTOR;
 
   // Diffs (always reported for the single week — only the STATUS is smoothed)
@@ -517,12 +536,15 @@ export function computeWeeklyMetrics(
     : [cStatus, sStatus, dStatus, scStatus, dcStatus];
   const overall = overallStatus(relevantStatuses);
 
-  // Box totals — boxes_clamshell is already individual pieces (aggregation
-  // multiplies cases x units/case), so it joins the totals after the x40.
+  // Box totals — boxes_clamshell/boxes_plates are already individual pieces
+  // (aggregation multiplies cases x units/case), so they join after the x40.
+  // Plates only count where they count toward usage, so a GINOS store's
+  // plate order doesn't inflate its box total without moving its estimate.
+  const platePieces = inclPlates ? agg.boxes_plates : 0;
   const totalBoxesCases =
     agg.boxes_small + agg.boxes_medium + agg.boxes_large +
     agg.boxes_xl + agg.boxes_party_20 + agg.boxes_party_21x15;
-  const totalBoxUnits = totalBoxesCases * BOXES_PER_CASE + agg.boxes_clamshell;
+  const totalBoxUnits = totalBoxesCases * BOXES_PER_CASE + agg.boxes_clamshell + platePieces;
 
   const estPizzaSales =
     agg.boxes_small * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.small +
@@ -531,7 +553,8 @@ export function computeWeeklyMetrics(
     agg.boxes_xl * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.xl +
     agg.boxes_party_20 * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.party_20 +
     agg.boxes_party_21x15 * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.party_21x15 +
-    agg.boxes_clamshell * PIZZA_SALES_PER_CASE.clamshell;
+    agg.boxes_clamshell * PIZZA_SALES_PER_CASE.clamshell +
+    platePieces * PIZZA_SALES_PER_CASE.plate;
 
   return {
     store_id: "",
@@ -552,6 +575,7 @@ export function computeWeeklyMetrics(
     boxes_party: agg.boxes_party_20 * BOXES_PER_CASE,
     boxes_party_21x15: agg.boxes_party_21x15 * BOXES_PER_CASE,
     boxes_clamshell: agg.boxes_clamshell,
+    boxes_plates: platePieces,
     boxes_total: totalBoxUnits,
 
     cheese_estimated_oz: round2(cheeseEst),

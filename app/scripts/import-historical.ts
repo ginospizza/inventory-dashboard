@@ -487,7 +487,6 @@ async function computeAndWriteMetrics(
     }
 
     let actualYear = year;
-    const isClamshell = storeInfo.brand === "GINOS";
 
     try {
       // First pass: compute without rolling average
@@ -496,7 +495,7 @@ async function computeAndWriteMetrics(
         productMap,
         actualYear,
         storeInfo.storeType,
-        isClamshell
+        storeInfo.brand
       );
 
       rawMetrics.set(`${storeInfo.id}::${actualYear}::${weekNumber}`, {

@@ -64,10 +64,13 @@ These ratios are **universal across all brands**. Confirmed by James on April 28
 | Party 20" | 16 | 10 | 1.2 | 40 |
 | Party 21x15 | 20 | 13 | 1.5 | 40 |
 | Clamshell (Slice) | 2 | 1.25 | 0.15 | varies — see below |
+| Paper Plate (Slice) | 2 | 1.25 | 0.15 | 1200 (12x100) |
 
 **Important:** The "Dough KG" column is kilograms of **dough**, not flour. For Flour stores, divide by 1.6 to get flour equivalent.
 
-**Clamshell per-piece usage** (revised by James, July 3, 2026): 2 oz cheese, 1.25 fl oz sauce, 150 g dough (= 93.75 g flour) per piece. Clamshell SKUs and units per case: G060511A "Ginos Clamshell Box - 100/CS BOX LOCK CORNER" = 100/case; G060511 "Ginos Clamshell Box - 200/cs" = 200/case; 60511 "Generic Clamshells - 200/cs" = 200/case. The units-per-case lives in the product's `weight` field.
+**Clamshell per-piece usage** (revised by James, July 3, 2026): 2 oz cheese, 1.25 fl oz sauce, 150 g dough (= 93.75 g flour) per piece. **Applies to ALL brands.** Clamshell SKUs and units per case: G060511A "Ginos Clamshell Box - 100/CS BOX LOCK CORNER" = 100/case; G060511 "Ginos Clamshell Box - 200/cs" = 200/case; 60511 "Generic Clamshells - 200/cs" = 200/case. The units-per-case lives in the product's `weight` field.
+
+**Paper plate per-piece usage** (James, July 3, 2026): same as clamshell — 2 oz cheese, 1.25 fl oz sauce, 150 g dough per piece. SKU 60501 "9 Paper Plates - 12x100" = 1200/case. **Counts toward estimated usage for TTD, PP, and WM stores only — NOT GINOS** (Gino's serves slices in clamshells) **and NOT DD** (not named by James).
 
 ---
 
@@ -116,15 +119,17 @@ GINOS uses G050106, TTD uses T050106.
 
 **Packaging — Pizza Boxes (14 SKUs):** Across GINOS, TTD, DD brands. Each case = 40 boxes. Sizes: Small (10"), Medium (12"), Large (14"), XL (16"), Party (20" and 21x15).
 
-**Packaging — Clamshells:** Used in GINOS stores only. Counted WITH pizza boxes for estimated usage calculations (using the Clamshell row from the box ratios table).
+**Packaging — Clamshells:** Counted WITH pizza boxes for estimated usage calculations in ALL brands (using the Clamshell row from the box ratios table). Revised by James July 3, 2026 — previously GINOS only.
+
+**Packaging — Paper Plates (60501):** Counted WITH pizza boxes for estimated usage in TTD, PP, and WM stores only (using the Paper Plate row from the box ratios table). Not counted for GINOS or DD.
 
 **Packaging — Wing Boxes (4 SKUs):** 8/10/12/14 wing boxes, 50 per case. **Volume tracking only — NOT included in estimated usage calculations.**
 
 ### Secondary Products (tracked for volume, no ratios)
 
-Wings, chicken topping, hot peppers, olives, pineapple, jalapenos, pepperoni, bacon, ham, sausage, paper plates.
+Wings, chicken topping, hot peppers, olives, pineapple, jalapenos, pepperoni, bacon, ham, sausage.
 
-**Paper plates:** Used in TTD and DD stores. Secondary item — track volume only.
+**Paper plates:** promoted to primary July 3, 2026 — see "Packaging — Paper Plates" above. Counts toward slice usage for TTD/PP/WM.
 
 ### Neither (background data)
 
@@ -142,7 +147,7 @@ For each store-week, sum all orders by product type:
 - **Total Sauce (fl oz):** Sum of (qty x weight_floz) for all sauce SKUs
 - **Total Flour (kg):** Sum of (qty x 20) for all flour SKUs [Flour stores only]
 - **Total Dough (kg):** Sum of (qty x case_weight_kg) for all dough SKUs [Dough stores only]
-- **Boxes by size:** Sum of (qty) for each box size, including clamshells for GINOS stores
+- **Boxes by size:** Sum of (qty) for each box size, including clamshells (all brands) and paper plates (TTD/PP/WM)
 
 ### Step 2: Estimated Usage (from box orders)
 
@@ -154,7 +159,8 @@ Party_20_cases x 40 x 16
 + Large_cases x 40 x 8
 + Medium_cases x 40 x 6
 + Small_cases x 40 x 4
-+ Clamshell_cases x units_per_case x 2    [GINOS only]
++ Clamshell_cases x units_per_case x 2    [all brands]
++ Plate_cases x 1200 x 2    [TTD/PP/WM only]
 ```
 
 **Estimated Sauce (fl oz):**
@@ -165,7 +171,8 @@ Party_20_cases x 40 x 10
 + Large_cases x 40 x 5
 + Medium_cases x 40 x 4
 + Small_cases x 40 x 2.5
-+ Clamshell_cases x units_per_case x 1.25  [GINOS only]
++ Clamshell_cases x units_per_case x 1.25  [all brands]
++ Plate_cases x 1200 x 1.25  [TTD/PP/WM only]
 ```
 
 **Estimated Dough (kg):**
@@ -176,7 +183,8 @@ Party_20_cases x 40 x 1.2
 + Large_cases x 40 x 0.6
 + Medium_cases x 40 x 0.45
 + Small_cases x 40 x 0.3
-+ Clamshell_cases x units_per_case x 0.15  [GINOS only]
++ Clamshell_cases x units_per_case x 0.15  [all brands]
++ Plate_cases x 1200 x 0.15  [TTD/PP/WM only]
 ```
 
 **Estimated Flour (kg):** [Flour stores only]
