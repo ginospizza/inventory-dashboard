@@ -29,7 +29,9 @@ export const BOX_RATIOS = {
   large:        { cheese_oz: 8,   sauce_oz: 5,    dough_kg: 0.6 },
   xl:           { cheese_oz: 10,  sauce_oz: 6,    dough_kg: 0.775 },
   party_20:     { cheese_oz: 16,  sauce_oz: 10,   dough_kg: 1.2 },
-  party_21x15:  { cheese_oz: 20,  sauce_oz: 13,   dough_kg: 1.5 },
+  // 21x15 = 315 sq in ≈ a 20" round (314 sq in) — same usage as party_20.
+  // James's July 6 2026 GINOS058 math uses 16 oz cheese (was 20/13/1.5).
+  party_21x15:  { cheese_oz: 16,  sauce_oz: 10,   dough_kg: 1.2 },
   clamshell:    { cheese_oz: 2,   sauce_oz: 1.25, dough_kg: 0.15 },  // per piece, not per case
   plate:        { cheese_oz: 2,   sauce_oz: 1.25, dough_kg: 0.15 },  // per piece — same slice usage as clamshell
 } as const;
@@ -38,15 +40,10 @@ export const BOX_RATIOS = {
 // Fallback only — the real units/case lives in the product's weight field.
 export const PLATES_PER_CASE = 1200;
 
-// Wing box ratios — some stores use wing boxes for pizza (confirmed by James)
-// 8-wing = Small, 10-wing = Medium, 12-wing = Large, 14-wing = XL
-export const WING_BOX_RATIOS = {
-  wing_8:  { cheese_oz: 4,  sauce_oz: 2.5, dough_kg: 0.3 },   // = Small
-  wing_10: { cheese_oz: 6,  sauce_oz: 4,   dough_kg: 0.45 },  // = Medium
-  wing_12: { cheese_oz: 8,  sauce_oz: 5,   dough_kg: 0.6 },   // = Large
-  wing_14: { cheese_oz: 10, sauce_oz: 6,   dough_kg: 0.775 }, // = XL
-} as const;
-
+// Wing boxes are VOLUME TRACKING ONLY — never included in estimated usage.
+// James's July 6 2026 GINOS058 reconciliation excludes them (they hold
+// wings, not pizza), matching BUSINESS_RULES.md. The engine previously
+// counted them as pizza boxes; that inflated estimates for PP/WM stores.
 export const WING_BOXES_PER_CASE = 50;
 
 // Flour-to-dough yield factor

@@ -128,13 +128,14 @@ const G27 = {
   party_21x15: 5, xl: 29, large: 36, medium: 26, small: 5,
 };
 
-// G27 uses T010316 = TTD 15x21 Party Box -> party_21x15 (20oz/13oz/1.5kg)
+// G27 uses T010316 = TTD 15x21 Party Box -> party_21x15, which counts the
+// same as party_20 (16oz/10oz/1.2kg) since July 6 2026 — 315 sq in ≈ 20" round.
 const G27_EST_CHEESE =
-  5 * 40 * 20 + 29 * 40 * 10 + 36 * 40 * 8 + 26 * 40 * 6 + 5 * 40 * 4;
+  5 * 40 * 16 + 29 * 40 * 10 + 36 * 40 * 8 + 26 * 40 * 6 + 5 * 40 * 4;
 const G27_EST_SAUCE =
-  5 * 40 * 13 + 29 * 40 * 6 + 36 * 40 * 5 + 26 * 40 * 4 + 5 * 40 * 2.5;
+  5 * 40 * 10 + 29 * 40 * 6 + 36 * 40 * 5 + 26 * 40 * 4 + 5 * 40 * 2.5;
 const G27_EST_DOUGH =
-  5 * 40 * 1.5 + 29 * 40 * 0.775 + 36 * 40 * 0.6 + 26 * 40 * 0.45 + 5 * 40 * 0.3;
+  5 * 40 * 1.2 + 29 * 40 * 0.775 + 36 * 40 * 0.6 + 26 * 40 * 0.45 + 5 * 40 * 0.3;
 const G27_EST_FLOUR = G27_EST_DOUGH / 1.6;
 
 // ── Estimated usage tests ────────────────────────────────────
@@ -319,11 +320,41 @@ describe("Estimated flour (Flour stores)", () => {
 });
 
 describe("Party 21x15 box ratios", () => {
-  it("uses 20oz cheese, 13oz sauce, 1.5kg dough", () => {
+  it("counts the same as party_20: 16oz cheese, 10oz sauce, 1.2kg dough", () => {
     const agg = makeAgg({ party_21x15: 1 });
-    expect(estimatedCheeseOz(agg, false)).toBe(1 * 40 * 20);
-    expect(estimatedSauceFloz(agg, false)).toBe(1 * 40 * 13);
-    expect(estimatedDoughKg(agg, false)).toBe(1 * 40 * 1.5);
+    expect(estimatedCheeseOz(agg, false)).toBe(1 * 40 * 16);
+    expect(estimatedSauceFloz(agg, false)).toBe(1 * 40 * 10);
+    expect(estimatedDoughKg(agg, false)).toBeCloseTo(1 * 40 * 1.2, 6);
+  });
+});
+
+describe("Wing boxes — volume only, never in estimates", () => {
+  it("excludes wing box cases from estimated usage (James, July 6 2026)", () => {
+    const agg = makeAgg({ large: 10 });
+    const withWings = { ...agg, wing_8: 2, wing_10: 3, wing_12: 1, wing_14: 4 };
+    expect(estimatedCheeseOz(withWings, false)).toBe(estimatedCheeseOz(agg, false));
+    expect(estimatedSauceFloz(withWings, false)).toBe(estimatedSauceFloz(agg, false));
+    expect(estimatedDoughKg(withWings, false)).toBe(estimatedDoughKg(agg, false));
+  });
+});
+
+describe("PP41/WM2 GINOS058 W15 2026 regression (James, July 6 2026)", () => {
+  it("matches James's 5,760 oz: party@16, wing boxes excluded, clamshells in", () => {
+    // 1 small, 3 medium, 5 large, 2 XL, 2 party 21x15, 600 clamshell pieces;
+    // the 2 cases of 8-wing boxes the store ordered must contribute nothing.
+    const agg = makeAgg({ small: 1, medium: 3, large: 5, xl: 2, party_21x15: 2, clamshell: 600 });
+    const withWings = { ...agg, wing_8: 2 };
+    expect(estimatedCheeseOz(withWings, true)).toBeCloseTo(5760, 2);
+  });
+});
+
+describe("Store type defaults — DD/PP/WM buy commissary dough", () => {
+  it("PP defaults to dough (James, July 6 2026)", () => {
+    expect(defaultStoreType("PP")).toBe("dough");
+    expect(defaultStoreType("WM")).toBe("dough");
+    expect(defaultStoreType("DD")).toBe("dough");
+    expect(defaultStoreType("GINOS")).toBe("flour");
+    expect(defaultStoreType("TTD")).toBe("flour");
   });
 });
 
@@ -468,7 +499,7 @@ describe("defaultStoreType", () => {
   it("dough for DD", () => expect(defaultStoreType("DD")).toBe("dough"));
   it("dough for WM", () => expect(defaultStoreType("WM")).toBe("dough"));
   it("dough for STORE", () => expect(defaultStoreType("STORE")).toBe("dough"));
-  it("flour for PP (default)", () => expect(defaultStoreType("PP")).toBe("flour"));
+  it("dough for PP (commissary dough, July 6 2026)", () => expect(defaultStoreType("PP")).toBe("dough"));
 });
 
 // ── Integration: computeWeeklyMetrics ────────────────────────

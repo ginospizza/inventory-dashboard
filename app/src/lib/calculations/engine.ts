@@ -26,8 +26,6 @@ import {
   BOXES_PER_CASE,
   PLATES_PER_CASE,
   BOX_RATIOS,
-  WING_BOX_RATIOS,
-  WING_BOXES_PER_CASE,
   FLOUR_YIELD_FACTOR,
   PIZZA_SALES_PER_CASE,
   SAUCE_CASE_FLOZ,
@@ -237,11 +235,8 @@ function sumEstimated(agg: StoreWeekAggregates, field: "cheese_oz" | "sauce_oz" 
     total += agg.boxes_plates * BOX_RATIOS.plate[field];
   }
 
-  // Wing boxes count as pizza boxes (some stores use them for pizza)
-  total += agg.wing_8 * WING_BOXES_PER_CASE * WING_BOX_RATIOS.wing_8[field] +
-    agg.wing_10 * WING_BOXES_PER_CASE * WING_BOX_RATIOS.wing_10[field] +
-    agg.wing_12 * WING_BOXES_PER_CASE * WING_BOX_RATIOS.wing_12[field] +
-    agg.wing_14 * WING_BOXES_PER_CASE * WING_BOX_RATIOS.wing_14[field];
+  // Wing boxes are deliberately NOT counted — volume tracking only
+  // (James, July 6 2026: they hold wings, not pizza).
 
   return total;
 }
@@ -707,12 +702,15 @@ export function detectBrand(storeCode: string): Brand {
   return "OTHER";
 }
 
-/** Default store type from brand. PP/WM stores are assigned by admin. */
+/**
+ * Default store type from brand. DD, PP, and WM all buy pre-portioned
+ * dough from the commissary rather than flour (James, July 6 2026), so
+ * PP now defaults to dough like the rest.
+ */
 export function defaultStoreType(brand: Brand): StoreType {
   switch (brand) {
     case "GINOS": case "TTD": return "flour";
-    case "DD": case "WM": case "STORE": return "dough";
-    case "PP": return "flour"; // default until admin assigns
+    case "DD": case "WM": case "STORE": case "PP": return "dough";
     default: return "flour";
   }
 }
