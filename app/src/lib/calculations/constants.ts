@@ -4,7 +4,10 @@
  * Box ratios confirmed by James on April 28, 2026.
  * Clamshell per-piece usage revised by James on July 3, 2026:
  *   100 pieces/case (G060511A), 2 oz cheese, 1.25 fl oz sauce,
- *   150 g dough (= 93.75 g flour) per piece.
+ *   150 g dough (= 93.75 g flour) per piece. Applies to ALL brands.
+ * Paper plates (60501, 1200/case) carry the same per-piece usage for
+ *   TTD/PP/WM stores only — they serve slices on plates instead of
+ *   clamshells. Not counted for GINOS or DD (James, July 3, 2026).
  * See BUSINESS_RULES.md for full documentation.
  */
 
@@ -26,7 +29,12 @@ export const BOX_RATIOS = {
   party_20:     { cheese_oz: 16,  sauce_oz: 10,   dough_kg: 1.2 },
   party_21x15:  { cheese_oz: 20,  sauce_oz: 13,   dough_kg: 1.5 },
   clamshell:    { cheese_oz: 2,   sauce_oz: 1.25, dough_kg: 0.15 },  // per piece, not per case
+  plate:        { cheese_oz: 2,   sauce_oz: 1.25, dough_kg: 0.15 },  // per piece — same slice usage as clamshell
 } as const;
+
+// Paper plates: 9" Paper Plates (60501) come 12x100 = 1200 per case.
+// Fallback only — the real units/case lives in the product's weight field.
+export const PLATES_PER_CASE = 1200;
 
 // Wing box ratios — some stores use wing boxes for pizza (confirmed by James)
 // 8-wing = Small, 10-wing = Medium, 12-wing = Large, 14-wing = XL
@@ -53,6 +61,7 @@ export const PIZZA_SALES_PER_CASE = {
   party_20: 20,
   party_21x15: 20,
   clamshell: 1, // per unit, not per case
+  plate: 1,     // per unit, not per case
 } as const;
 
 // ── Diff divisors ────────────────────────────────────────────

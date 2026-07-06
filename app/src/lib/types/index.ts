@@ -123,7 +123,8 @@ export interface WeeklyMetrics {
   boxes_xl: number;
   boxes_party: number;
   boxes_party_21x15: number;
-  boxes_clamshell: number;     // GINOS only
+  boxes_clamshell: number;     // pieces — counts toward usage for all brands
+  boxes_plates: number;        // pieces — counts toward usage for TTD/PP/WM only
   boxes_total: number;
 
   // Estimated usage (derived from box orders)

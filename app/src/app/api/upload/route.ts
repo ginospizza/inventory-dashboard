@@ -113,13 +113,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Load store lookup (or create new stores). We need brand + store_type
-    //    (drives the flour/dough calc path and clamshell handling) and the store
-    //    id (to fetch prior weeks for the rolling average).
+    //    (drives the flour/dough calc path and paper-plate handling) and the
+    //    store id (to fetch prior weeks for the rolling average).
     interface StoreInfo {
       id: string;
       brand: Brand;
       storeType: StoreType;
-      isClamshell: boolean;
     }
     const storeMap = new Map<string, StoreInfo>();
     const { data: existingStores } = await admin
@@ -133,7 +132,6 @@ export async function POST(request: NextRequest) {
         // Respect an admin-assigned store_type (e.g. PP/WM stores); otherwise
         // fall back to the brand default.
         storeType: (s.store_type as StoreType) ?? defaultStoreType(brand),
-        isClamshell: brand === "GINOS",
       });
     }
 
@@ -158,7 +156,6 @@ export async function POST(request: NextRequest) {
           id: s.id,
           brand,
           storeType: (s.store_type as StoreType) ?? defaultStoreType(brand),
-          isClamshell: brand === "GINOS",
         });
       }
     }
@@ -232,8 +229,8 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Compute metrics with the store's actual type + clamshell handling.
-      const metrics = computeWeeklyMetrics(rows, productLookup, year, info.storeType, info.isClamshell);
+      // Compute metrics with the store's actual type + brand (plate handling).
+      const metrics = computeWeeklyMetrics(rows, productLookup, year, info.storeType, info.brand);
       const { store_id: _sid, store_code: _sc, ...metricFields } = metrics;
       computed.push({
         storeId,
