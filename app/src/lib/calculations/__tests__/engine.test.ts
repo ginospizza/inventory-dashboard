@@ -174,13 +174,33 @@ describe("Estimated cheese (paper plates — TTD/PP/WM only)", () => {
     expect(estimatedCheeseOz(agg, false)).toBeCloseTo(boxesOnly, 2);                // GINOS/DD
   });
 
-  it("platesCountForBrand gates exactly TTD, PP, WM", () => {
+  it("platesCountForBrand: every brand except GINOS (DD confirmed July 6)", () => {
     expect(platesCountForBrand("TTD")).toBe(true);
     expect(platesCountForBrand("PP")).toBe(true);
     expect(platesCountForBrand("WM")).toBe(true);
+    expect(platesCountForBrand("DD")).toBe(true);
+    expect(platesCountForBrand("STORE")).toBe(true);
     expect(platesCountForBrand("GINOS")).toBe(false);
-    expect(platesCountForBrand("DD")).toBe(false);
-    expect(platesCountForBrand("STORE")).toBe(false);
+  });
+
+  it("slice tray (G060510) classifies as clamshell-class at 500 pieces/case", () => {
+    const tray: Product = {
+      id: "p-tray",
+      code: "G060510",
+      description: "Ginos Pizza Slice Tray - 500/cs",
+      type: "Packaging",
+      classification: "primary",
+      pack_size: "500/cs",
+      weight: 500,
+      weight_unit: "each",
+    };
+    const lookup = new Map<string, Product>([[tray.code, tray]]);
+    const agg = aggregateStoreWeek(
+      [{ company_name: "GINOS002", week_number: 15, product_code: "G060510", description: tray.description, total_qty: 2 }],
+      lookup,
+      2026
+    );
+    expect(agg.boxes_clamshell).toBe(1000);
   });
 });
 

@@ -6,8 +6,10 @@
  *   100 pieces/case (G060511A), 2 oz cheese, 1.25 fl oz sauce,
  *   150 g dough (= 93.75 g flour) per piece. Applies to ALL brands.
  * Paper plates (60501, 1200/case) carry the same per-piece usage for
- *   TTD/PP/WM stores only — they serve slices on plates instead of
- *   clamshells. Not counted for GINOS or DD (James, July 3, 2026).
+ *   every brand EXCEPT Gino's, which serves slices in clamshells
+ *   (James, July 3, 2026; DD confirmed included July 6, 2026).
+ * Slice trays (G060510, 500/case) count like clamshells — the "slice"
+ *   in the description routes them to the clamshell bucket.
  * See BUSINESS_RULES.md for full documentation.
  */
 

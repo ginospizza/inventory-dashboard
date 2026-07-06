@@ -264,9 +264,13 @@ export function estimatedFlourKg(agg: StoreWeekAggregates, includePlates: boolea
   return estimatedDoughKg(agg, includePlates) / FLOUR_YIELD_FACTOR;
 }
 
-/** Paper plates count toward slice usage for TTD/PP/WM only (James, July 3 2026). */
+/**
+ * Paper plates count toward slice usage for every brand EXCEPT Gino's
+ * (Gino's serves slices in clamshells). James, July 3 2026; DD confirmed
+ * included July 6 2026.
+ */
 export function platesCountForBrand(brand: Brand): boolean {
-  return brand === "TTD" || brand === "PP" || brand === "WM";
+  return brand !== "GINOS";
 }
 
 // ── Diff calculations ────────────────────────────────────────
