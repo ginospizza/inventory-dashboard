@@ -19,7 +19,7 @@ import {
   aggregateStoreWeek,
   computeWeeklyMetrics,
   detectBrand,
-  defaultStoreType,
+  resolveStoreType,
 } from "../src/lib/calculations/engine";
 import type { Product, RawOrderRow, Brand, StoreType } from "../src/lib/types";
 
@@ -169,7 +169,7 @@ async function importStores(
     const dsmName = String(row["DSM"] ?? "").trim();
     const dsmId = dsmMap.get(dsmName) ?? null;
     const brand = detectBrand(code);
-    const storeType = defaultStoreType(brand);
+    const storeType = resolveStoreType(code, brand);
 
     const { data: existing } = await supabase
       .from("stores")
@@ -428,7 +428,7 @@ async function computeAndWriteMetrics(
     const normCode = normalizeStoreCode(rows[0].company_name);
     if (!storeMap.has(normCode)) {
       const brand = detectBrand(normCode);
-      const storeType = defaultStoreType(brand);
+      const storeType = resolveStoreType(normCode, brand);
 
       const { data, error } = await supabase
         .from("stores")

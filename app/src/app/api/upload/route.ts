@@ -4,7 +4,7 @@ import { parseExcelFile, getUploadPreview } from "@/lib/excel-parser";
 import {
   computeWeeklyMetrics,
   detectBrand,
-  defaultStoreType,
+  resolveStoreType,
   smoothedDiffStatuses,
   overallStatus,
   type RollingWeek,
@@ -123,15 +123,15 @@ export async function POST(request: NextRequest) {
     const storeMap = new Map<string, StoreInfo>();
     const { data: existingStores } = await admin
       .from("stores")
-      .select("id, code, brand, store_type");
+      .select("id, code, brand");
     for (const s of existingStores ?? []) {
       const brand = (s.brand as Brand) ?? detectBrand(s.code);
       storeMap.set(s.code, {
         id: s.id,
         brand,
-        // Respect an admin-assigned store_type (e.g. PP/WM stores); otherwise
-        // fall back to the brand default.
-        storeType: (s.store_type as StoreType) ?? defaultStoreType(brand),
+        // resolveStoreType honors the flour-method hybrid overrides (some PP/WM
+        // stores make dough from flour like Gino's), else the brand default.
+        storeType: resolveStoreType(s.code, brand),
       });
     }
 
@@ -142,20 +142,20 @@ export async function POST(request: NextRequest) {
     if (newStores.length > 0) {
       const storesToInsert = newStores.map((code) => {
         const brand = detectBrand(code);
-        return { code, name: code, brand, store_type: defaultStoreType(brand) };
+        return { code, name: code, brand };
       });
 
       const { data: inserted } = await admin
         .from("stores")
         .insert(storesToInsert)
-        .select("id, code, brand, store_type");
+        .select("id, code, brand");
 
       for (const s of inserted ?? []) {
         const brand = (s.brand as Brand) ?? detectBrand(s.code);
         storeMap.set(s.code, {
           id: s.id,
           brand,
-          storeType: (s.store_type as StoreType) ?? defaultStoreType(brand),
+          storeType: resolveStoreType(s.code, brand),
         });
       }
     }
