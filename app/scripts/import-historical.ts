@@ -572,7 +572,10 @@ async function computeAndWriteMetrics(
 
       const cStatus = diffStatusPct(cheeseForStatus, cheeseEst);
       const sStatus = diffStatusPct(sauceForStatus, sauceEst);
-      const fStatus = storeType === "flour" ? diffStatusPct(flourForStatus, flourEst) : "ok";
+      // flour_status computed for all store types: dough stores carry a
+      // flour-equivalent in flour_ordered_kg, so this colors their Flour tile
+      // (equals dough_status). Overall grading for dough still uses dStatus.
+      const fStatus = diffStatusPct(flourForStatus, flourEst);
       const dStatus = storeType === "dough" ? diffStatusPct(doughForStatus, doughEst) : "ok";
 
       const statuses = [cStatus, sStatus, metrics.sauce_cheese_status, metrics.flour_cheese_status];

@@ -471,10 +471,11 @@ export function smoothedDiffStatuses(
   return {
     cheese_status: diffStatusPct(avg((w) => w.cheese_ordered_oz), avg((w) => w.cheese_estimated_oz)),
     sauce_status: diffStatusPct(avg((w) => w.sauce_ordered_floz), avg((w) => w.sauce_estimated_floz)),
-    flour_status:
-      storeType === "flour"
-        ? diffStatusPct(avg((w) => w.flour_ordered_kg), avg((w) => w.flour_estimated_kg))
-        : ("ok" as ComplianceStatus),
+    // Computed for all store types: dough stores carry a flour-equivalent in
+    // flour_ordered_kg (dough / 1.6), so this colors their displayed Flour tile
+    // and equals their dough_status. Overall grading for dough stores still uses
+    // dough_status, so this is display-only.
+    flour_status: diffStatusPct(avg((w) => w.flour_ordered_kg), avg((w) => w.flour_estimated_kg)),
     dough_status:
       storeType === "dough"
         ? diffStatusPct(avg((w) => w.dough_ordered_kg), avg((w) => w.dough_estimated_kg))
@@ -511,13 +512,27 @@ export function computeWeeklyMetrics(
   const fcRatio = storeType === "flour" ? flourCheeseRatio(agg.total_flour_kg, agg.total_cheese_oz) : 0;
   const dcRatio = storeType === "dough" ? doughCheeseRatio(agg.total_dough_kg, agg.total_cheese_oz) : 0;
 
+  // Flour-equivalent display for dough stores. DD/PP/WM buy commissary dough,
+  // not flour, but the UI shows one universal "Flour" column set for cross-brand
+  // comparability, so a dough store's flour figures were all 0 (James, July 7
+  // 2026: "show the equivalent of the dough ordered as if it were bags of
+  // flour"). Convert their dough to a flour-bag equivalent with the same 1.6
+  // yield factor used for flour stores. Grading and network stats keep reading
+  // the dough_* fields (keyed on store_type), so this only changes what's shown.
+  //   flour-equivalent %-diff == dough %-diff (both scale by 1/1.6), and
+  //   flour-equivalent F:C == D:C, so no compliance number moves.
+  const isDough = storeType === "dough";
+  const flourOrdered = isDough ? agg.total_dough_kg / FLOUR_YIELD_FACTOR : agg.total_flour_kg;
+  const flourDiffVal = isDough ? flourDiff(flourOrdered, flourEst) : fDiff;
+  const flourCheeseRatioVal = isDough ? dcRatio : fcRatio;
+
   // Status — diff statuses use the 4-week rolling window (current + up to 3 prior
   // weeks), smoothing both orders and box-expected. With no prior weeks supplied
   // this grades the week in isolation (window of 1). Ratios are within-week.
   const current: RollingWeek = {
     cheese_ordered_oz: agg.total_cheese_oz,
     sauce_ordered_floz: agg.total_sauce_floz,
-    flour_ordered_kg: agg.total_flour_kg,
+    flour_ordered_kg: flourOrdered, // flour-equivalent for dough stores
     dough_ordered_kg: agg.total_dough_kg,
     cheese_estimated_oz: cheeseEst,
     sauce_estimated_floz: sauceEst,
@@ -527,7 +542,9 @@ export function computeWeeklyMetrics(
   const { cheese_status: cStatus, sauce_status: sStatus, flour_status: fStatus, dough_status: dStatus } =
     smoothedDiffStatuses(current, priorWeeks ?? [], storeType);
   const scStatus = ratioStatus(scRatio);
-  const fcStatus = storeType === "flour" ? ratioStatus(fcRatio) : "ok" as ComplianceStatus;
+  // flour_cheese_status mirrors the flour-equivalent ratio so the displayed F:C
+  // tile is colored for dough stores too; for dough it equals dough_cheese_status.
+  const fcStatus = ratioStatus(flourCheeseRatioVal);
   const dcStatus = storeType === "dough" ? ratioStatus(dcRatio) : "ok" as ComplianceStatus;
 
   const relevantStatuses = storeType === "flour"
@@ -564,7 +581,7 @@ export function computeWeeklyMetrics(
 
     cheese_ordered_oz: round2(agg.total_cheese_oz),
     sauce_ordered_floz: round2(agg.total_sauce_floz),
-    flour_ordered_kg: round2(agg.total_flour_kg),
+    flour_ordered_kg: round2(flourOrdered), // flour-equivalent for dough stores
     dough_ordered_kg: round2(agg.total_dough_kg),
 
     boxes_small: agg.boxes_small * BOXES_PER_CASE,
@@ -584,11 +601,11 @@ export function computeWeeklyMetrics(
 
     cheese_diff: round2(cDiff),
     sauce_diff: round2(sDiff),
-    flour_diff: round2(fDiff),
+    flour_diff: round2(flourDiffVal), // flour-equivalent bags for dough stores
     dough_diff: round2(dDiff),
 
     sauce_cheese_ratio: round4(scRatio),
-    flour_cheese_ratio: round4(fcRatio),
+    flour_cheese_ratio: round4(flourCheeseRatioVal), // = dough:cheese for dough stores
     dough_cheese_ratio: round4(dcRatio),
 
     total_boxes_ordered: totalBoxUnits,
