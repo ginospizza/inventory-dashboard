@@ -544,15 +544,40 @@ describe("computeWeeklyMetrics — Dough store", () => {
     const m = computeWeeklyMetrics(rows, products, 2026, "dough", "DD");
 
     expect(m.store_type).toBe("dough");
-    expect(m.flour_ordered_kg).toBe(0);
     expect(m.dough_ordered_kg).toBeCloseTo(8 * 19.8, 1);
-    expect(m.flour_diff).toBe(0);
     expect(m.dough_diff).not.toBe(0);
     // Dough:Cheese ratio should use dough/0.6 formula (no *1.6)
     expect(m.dough_cheese_ratio).toBeCloseTo(
       (m.dough_ordered_kg / 0.6) / (m.cheese_ordered_oz / 8), 3
     );
-    expect(m.flour_cheese_ratio).toBe(0);
+    // Flour columns show the flour-EQUIVALENT of dough (dough / 1.6) for
+    // comparability, not 0 (James, July 7 2026). Grading still uses dough_*.
+    expect(m.flour_ordered_kg).toBeCloseTo(m.dough_ordered_kg / 1.6, 2);
+    expect(m.flour_diff).not.toBe(0);
+    expect(m.flour_cheese_ratio).toBeCloseTo(m.dough_cheese_ratio, 4);
+  });
+
+  it("shows dough as flour-bag equivalent (James's WM3/PP11 GINOS097 table)", () => {
+    // James's numbers: dough ordered totals 634.4 kg -> 396.5 kg flour
+    // (634.4 / 1.6) -> 19.8 flour bags (396.5 / 20).
+    const products = new Map<string, Product>([
+      ["50120", { id: "s", code: "50120", description: "Small Dough PT (72x300)", type: "Dough", classification: "primary", pack_size: "72x300g", weight: 21.6, weight_unit: "kg" }],
+      ["50121", { id: "m", code: "50121", description: "Medium Dough PT (40x410)", type: "Dough", classification: "primary", pack_size: "40x410g", weight: 16.4, weight_unit: "kg" }],
+      ["50122", { id: "l", code: "50122", description: "Large Dough PT (36x550)", type: "Dough", classification: "primary", pack_size: "36x550g", weight: 19.8, weight_unit: "kg" }],
+      ["50123", { id: "xl", code: "50123", description: "X-Large Dough PT (24x800)", type: "Dough", classification: "primary", pack_size: "24x800g", weight: 19.2, weight_unit: "kg" }],
+      ["50124", { id: "p", code: "50124", description: "Party Dough PT(20x1000)", type: "Dough", classification: "primary", pack_size: "20x1000g", weight: 20, weight_unit: "kg" }],
+    ]);
+    const rows: RawOrderRow[] = [
+      { company_name: "WM3", week_number: 15, product_code: "50122", description: "Large Dough PT (36x550)", total_qty: 10 },
+      { company_name: "WM3", week_number: 15, product_code: "50121", description: "Medium Dough PT (40x410)", total_qty: 3 },
+      { company_name: "WM3", week_number: 15, product_code: "50124", description: "Party Dough PT(20x1000)", total_qty: 1 },
+      { company_name: "WM3", week_number: 15, product_code: "50120", description: "Small Dough PT (72x300)", total_qty: 1 },
+      { company_name: "WM3", week_number: 15, product_code: "50123", description: "X-Large Dough PT (24x800)", total_qty: 18 },
+    ];
+    const m = computeWeeklyMetrics(rows, products, 2026, "dough", "WM");
+    expect(m.dough_ordered_kg).toBeCloseTo(634.4, 1);
+    expect(m.flour_ordered_kg).toBeCloseTo(396.5, 1);       // 634.4 / 1.6
+    expect(m.flour_ordered_kg / 20).toBeCloseTo(19.825, 2); // flour-bag equivalent
   });
 });
 
