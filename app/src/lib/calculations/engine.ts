@@ -504,27 +504,24 @@ export function computeWeeklyMetrics(
   // Diffs (always reported for the single week — only the STATUS is smoothed)
   const cDiff = cheeseDiff(agg, cheeseEst);
   const sDiff = sauceDiff(agg.total_sauce_floz, sauceEst);
-  const fDiff = storeType === "flour" ? flourDiff(agg.total_flour_kg, flourEst) : 0;
   const dDiff = storeType === "dough" ? doughDiff(agg, doughEst) : 0;
 
   // Ratios
   const scRatio = sauceCheeseRatio(agg.total_sauce_floz, agg.total_cheese_oz);
-  const fcRatio = storeType === "flour" ? flourCheeseRatio(agg.total_flour_kg, agg.total_cheese_oz) : 0;
   const dcRatio = storeType === "dough" ? doughCheeseRatio(agg.total_dough_kg, agg.total_cheese_oz) : 0;
 
-  // Flour-equivalent display for dough stores. DD/PP/WM buy commissary dough,
-  // not flour, but the UI shows one universal "Flour" column set for cross-brand
-  // comparability, so a dough store's flour figures were all 0 (James, July 7
-  // 2026: "show the equivalent of the dough ordered as if it were bags of
-  // flour"). Convert their dough to a flour-bag equivalent with the same 1.6
-  // yield factor used for flour stores. Grading and network stats keep reading
-  // the dough_* fields (keyed on store_type), so this only changes what's shown.
-  //   flour-equivalent %-diff == dough %-diff (both scale by 1/1.6), and
-  //   flour-equivalent F:C == D:C, so no compliance number moves.
-  const isDough = storeType === "dough";
-  const flourOrdered = isDough ? agg.total_dough_kg / FLOUR_YIELD_FACTOR : agg.total_flour_kg;
-  const flourDiffVal = isDough ? flourDiff(flourOrdered, flourEst) : fDiff;
-  const flourCheeseRatioVal = isDough ? dcRatio : fcRatio;
+  // Universal flour metric = total flour input expressed in flour bags:
+  // real flour ordered PLUS any pre-portioned dough converted back to flour
+  // (dough / 1.6). This makes the one "Flour" column correct for every store —
+  // pure-flour (Gino's/TTD), pure-dough (DD/WM, most PP/WM), and the PP/WM
+  // hybrids that buy some of each (James, July 7-8 2026: show dough as a flour
+  // equivalent, and evaluate flour + dough combined for PP/WM). When dough is 0
+  // this is just the flour ordered; when flour is 0 it is the dough equivalent.
+  //   flourCheeseRatio(flour + dough/1.6) collapses to D:C when flour is 0 and
+  //   to the normal F:C when dough is 0, so pure-dough grades are unchanged.
+  const flourOrdered = agg.total_flour_kg + agg.total_dough_kg / FLOUR_YIELD_FACTOR;
+  const flourDiffVal = flourDiff(flourOrdered, flourEst);
+  const flourCheeseRatioVal = flourCheeseRatio(flourOrdered, agg.total_cheese_oz);
 
   // Status — diff statuses use the 4-week rolling window (current + up to 3 prior
   // weeks), smoothing both orders and box-expected. With no prior weeks supplied
@@ -730,6 +727,23 @@ export function defaultStoreType(brand: Brand): StoreType {
     case "DD": case "WM": case "STORE": case "PP": return "dough";
     default: return "flour";
   }
+}
+
+// A handful of PP/WM stores are hybrids that buy flour and make their own dough
+// in-store, exactly like Gino's, so they must be graded on the flour method even
+// though PP/WM defaults to dough (James, July 8 2026). Identified by their
+// WM-number prefix; the GINOS suffix in the full code varies.
+export const FLOUR_METHOD_STORE_PREFIXES = ["PP/WM27", "PP/WM33", "PP/WM35", "PP/WM79"];
+
+/**
+ * Store type for a specific store: honors the flour-method hybrid overrides
+ * above, otherwise falls back to the brand default. Use this everywhere a
+ * store's type is resolved so the backfill and live uploads stay in sync.
+ */
+export function resolveStoreType(code: string, brand: Brand): StoreType {
+  const c = code.toUpperCase();
+  if (FLOUR_METHOD_STORE_PREFIXES.some((p) => c.startsWith(p))) return "flour";
+  return defaultStoreType(brand);
 }
 
 // ── Helpers ──────────────────────────────────────────────────

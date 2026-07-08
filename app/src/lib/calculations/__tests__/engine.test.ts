@@ -10,6 +10,7 @@ import {
   aggregateStoreWeek,
   estimatedCheeseOz,
   platesCountForBrand,
+  resolveStoreType,
   estimatedSauceFloz,
   estimatedDoughKg,
   estimatedFlourKg,
@@ -502,6 +503,24 @@ describe("defaultStoreType", () => {
   it("dough for PP (commissary dough, July 6 2026)", () => expect(defaultStoreType("PP")).toBe("dough"));
 });
 
+describe("resolveStoreType — PP/WM flour-method hybrids (July 8 2026)", () => {
+  it("forces flour for the named hybrid stores that buy flour", () => {
+    expect(resolveStoreType("PP/WM27 GINOS057", "PP")).toBe("flour");
+    expect(resolveStoreType("PP/WM33 GINOS083", "PP")).toBe("flour");
+    expect(resolveStoreType("PP/WM35 GINOS069", "PP")).toBe("flour");
+    expect(resolveStoreType("PP/WM79 GINOS079", "PP")).toBe("flour");
+  });
+  it("leaves other PP/WM stores on the brand default (dough)", () => {
+    expect(resolveStoreType("PP/WM51 GINOS078", "PP")).toBe("dough");
+    expect(resolveStoreType("PP41/WM2 GINOS058", "PP")).toBe("dough");
+    expect(resolveStoreType("WM3/PP11 GINOS097", "PP")).toBe("dough");
+  });
+  it("does not disturb non-PP brands", () => {
+    expect(resolveStoreType("GINOS103", "GINOS")).toBe("flour");
+    expect(resolveStoreType("STORE 055", "STORE")).toBe("dough");
+  });
+});
+
 // ── Integration: computeWeeklyMetrics ────────────────────────
 
 describe("computeWeeklyMetrics — Flour store (G27)", () => {
@@ -578,6 +597,24 @@ describe("computeWeeklyMetrics — Dough store", () => {
     expect(m.dough_ordered_kg).toBeCloseTo(634.4, 1);
     expect(m.flour_ordered_kg).toBeCloseTo(396.5, 1);       // 634.4 / 1.6
     expect(m.flour_ordered_kg / 20).toBeCloseTo(19.825, 2); // flour-bag equivalent
+  });
+
+  it("combines flour + dough for a flour-method hybrid that buys both (PP/WM, July 8 2026)", () => {
+    // A PP/WM store graded on the flour method that also bought a case of
+    // pre-portioned dough: flour_ordered = real flour + dough / 1.6.
+    const products = new Map<string, Product>([
+      ["G050106", { id: "f", code: "G050106", description: "Ginos Flour (20 Kg)", type: "Flour", classification: "primary", pack_size: "20kg", weight: 20, weight_unit: "kg" }],
+      ["50122", { id: "d", code: "50122", description: "Large Dough PT (36x550)", type: "Dough", classification: "primary", pack_size: "36x550g", weight: 19.8, weight_unit: "kg" }],
+      ["20103", { id: "c", code: "20103", description: "IQF CHEESE", type: "Cheese", classification: "primary", pack_size: "2x5KG", weight: 10, weight_unit: "kg" }],
+    ]);
+    const rows: RawOrderRow[] = [
+      { company_name: "PP/WM35", week_number: 15, product_code: "G050106", description: "Ginos Flour (20 Kg)", total_qty: 5 },   // 100 kg flour
+      { company_name: "PP/WM35", week_number: 15, product_code: "50122", description: "Large Dough PT (36x550)", total_qty: 1 }, // 19.8 kg dough
+      { company_name: "PP/WM35", week_number: 15, product_code: "20103", description: "IQF CHEESE", total_qty: 10 },
+    ];
+    const m = computeWeeklyMetrics(rows, products, 2026, "flour", "PP");
+    // 100 kg flour + 19.8 kg dough / 1.6 = 100 + 12.375 = 112.375 kg
+    expect(m.flour_ordered_kg).toBeCloseTo(112.375, 2);
   });
 });
 
