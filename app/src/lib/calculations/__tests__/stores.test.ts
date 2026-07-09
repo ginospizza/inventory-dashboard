@@ -43,4 +43,16 @@ describe("shouldIgnoreStore", () => {
     expect(shouldIgnoreStore("WM3/PP11 GINOS097")).toBe(false);
     expect(shouldIgnoreStore("DD01")).toBe(false);
   });
+
+  it("counts TTD Woolwich Head Office as a real store (James, July 9 2026)", () => {
+    // It went back to being a functioning corporate-operated store in 2026,
+    // distinct from the un-ignored "TTD WOOLWICH" store proper.
+    expect(shouldIgnoreStore("TTD WOOLWICH HEAD OFFICE")).toBe(false);
+    expect(shouldIgnoreStore("TTD WOOLWICH")).toBe(false);
+  });
+
+  it("still ignores the other named head offices", () => {
+    expect(shouldIgnoreStore("TWICE THE DEAL HEAD OFFICE")).toBe(true);
+    expect(shouldIgnoreStore("DOUBLE DOUBLE PIZZA CHICKEN HEAD OFFICE")).toBe(true);
+  });
 });
