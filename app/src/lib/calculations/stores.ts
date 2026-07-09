@@ -23,10 +23,15 @@ export function normalizeStoreCode(raw: string): string {
 
 // Non-store entries per James: head offices, wholesalers, anything without a
 // brand prefix.
+//
+// TTD WOOLWICH HEAD OFFICE is deliberately NOT here: it went back to being a
+// functioning corporate-operated store in 2026 (James, July 9 2026) — real
+// order data starting week 12/2026 (0 rows in all of 2025, when it really was
+// just a head office). It's a distinct store from "TTD WOOLWICH".
 export const IGNORE_STORES = new Set([
   "SAPUTO", "SUNDRY", "GRAND TOTAL",
   "GINOS HEAD OFFICE", "DOUBLE DOUBLE PIZZA CHICKEN HEAD OFFICE",
-  "TWICE THE DEAL HEAD OFFICE", "TTD WOOLWICH HEAD OFFICE",
+  "TWICE THE DEAL HEAD OFFICE",
   "WING MACHINE INC", "IGG INTERNATIONAL INC", "PANZEROTTO PIZZA INC",
   "SKYBLUE WHOLESALE", "MURRAY WHOLESALE", "NR FUELS CONVENIENCE INC",
   "DOUBLE TASTE PIZZA AND SHAWARMA", "DOUBLE TASTE PIZZA AND SHAWARMA 2",
