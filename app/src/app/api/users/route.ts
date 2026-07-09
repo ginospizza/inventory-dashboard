@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createAuthClient } from "@supabase/supabase-js";
+import { requireSuperAdminApi } from "@/lib/supabase/auth";
 
 /**
  * POST /api/users — Create a new user (admin only)
  * Body: { email, name, role, dsm_id, password }
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireSuperAdminApi();
+  if (auth.error) return auth.error;
+
   const admin = createAdminClient();
   const body = await request.json();
   const { email, name, role, dsm_id, new_dsm_name, password } = body;
@@ -82,6 +86,9 @@ export async function POST(request: NextRequest) {
  * Body: { user_id }
  */
 export async function DELETE(request: NextRequest) {
+  const auth = await requireSuperAdminApi();
+  if (auth.error) return auth.error;
+
   const admin = createAdminClient();
   const body = await request.json();
   const { user_id } = body;
