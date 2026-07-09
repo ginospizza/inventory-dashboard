@@ -5,6 +5,8 @@ import {
   computeWeeklyMetrics,
   detectBrand,
   resolveStoreType,
+  normalizeStoreCode,
+  shouldIgnoreStore,
   smoothedDiffStatuses,
   overallStatus,
   type RollingWeek,
@@ -64,7 +66,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Preview mode — just return stats
+  // Preview mode — stats plus the safety checks the uploader must see before
+  // confirming: unknown SKUs (which would NOT count toward estimates — the
+  // root cause of the July clamshell discrepancy), brand-new stores, and rows
+  // for ignored non-store entries (head offices, wholesalers).
   const isPreview = request.nextUrl.searchParams.get("preview") === "true";
   if (isPreview) {
     const admin = createAdminClient();
@@ -82,11 +87,33 @@ export async function POST(request: NextRequest) {
     let secondary = 0;
     let unclassified = 0;
 
+    // Unknown SKUs, aggregated: code -> description + total qty ordered.
+    const unknownSkus = new Map<string, { description: string; total_qty: number; stores: Set<string> }>();
+
     for (const row of parseResult.rows) {
       const cls = productMap.get(row.product_code);
       if (cls === "primary") primary++;
       else if (cls === "secondary") secondary++;
-      else unclassified++;
+      else {
+        unclassified++;
+        if (!productMap.has(row.product_code)) {
+          const u = unknownSkus.get(row.product_code) ?? { description: row.description, total_qty: 0, stores: new Set<string>() };
+          u.total_qty += row.total_qty;
+          u.stores.add(normalizeStoreCode(row.company_name));
+          unknownSkus.set(row.product_code, u);
+        }
+      }
+    }
+
+    // Store checks against the normalized code, same rules as processing.
+    const { data: dbStores } = await admin.from("stores").select("code");
+    const knownCodes = new Set((dbStores ?? []).map((s: { code: string }) => s.code));
+    const newStores = new Set<string>();
+    const ignoredStores = new Set<string>();
+    for (const raw of new Set(parseResult.rows.map((r) => r.company_name))) {
+      const code = normalizeStoreCode(raw);
+      if (shouldIgnoreStore(code)) ignoredStores.add(code);
+      else if (!knownCodes.has(code)) newStores.add(code);
     }
 
     const preview = getUploadPreview(parseResult);
@@ -95,6 +122,14 @@ export async function POST(request: NextRequest) {
       primary_count: primary,
       secondary_count: secondary,
       unclassified_count: unclassified,
+      unmapped_skus: [...unknownSkus.entries()].map(([code, u]) => ({
+        code,
+        description: u.description,
+        total_qty: u.total_qty,
+        store_count: u.stores.size,
+      })),
+      new_stores: [...newStores].sort(),
+      ignored_stores: [...ignoredStores].sort(),
     });
   }
 
@@ -121,12 +156,15 @@ export async function POST(request: NextRequest) {
       storeType: StoreType;
     }
     const storeMap = new Map<string, StoreInfo>();
+    // Keyed by NORMALIZED store code — the raw export writes names
+    // inconsistently ("GINOS002 NEW"); without normalizing, an upload would
+    // create duplicate stores next to the canonical ones.
     const { data: existingStores } = await admin
       .from("stores")
       .select("id, code, brand");
     for (const s of existingStores ?? []) {
       const brand = (s.brand as Brand) ?? detectBrand(s.code);
-      storeMap.set(s.code, {
+      storeMap.set(normalizeStoreCode(s.code), {
         id: s.id,
         brand,
         // resolveStoreType honors the flour-method hybrid overrides (some PP/WM
@@ -135,9 +173,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Find new stores in the data
-    const uniqueStores = [...new Set(parseResult.rows.map((r) => r.company_name))];
-    const newStores = uniqueStores.filter((code) => !storeMap.has(code));
+    // Find genuinely new stores in the data (normalized, non-ignored)
+    const uniqueStores = [
+      ...new Set(parseResult.rows.map((r) => normalizeStoreCode(r.company_name))),
+    ];
+    const newStores = uniqueStores.filter(
+      (code) => !storeMap.has(code) && !shouldIgnoreStore(code)
+    );
 
     if (newStores.length > 0) {
       const storesToInsert = newStores.map((code) => {
@@ -152,7 +194,7 @@ export async function POST(request: NextRequest) {
 
       for (const s of inserted ?? []) {
         const brand = (s.brand as Brand) ?? detectBrand(s.code);
-        storeMap.set(s.code, {
+        storeMap.set(normalizeStoreCode(s.code), {
           id: s.id,
           brand,
           storeType: resolveStoreType(s.code, brand),
@@ -179,10 +221,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to create upload record" }, { status: 500 });
     }
 
-    // 4. Group rows by store + week
+    // 4. Group rows by normalized store + week, dropping ignored non-store
+    // entries (head offices, wholesalers, SAPUTO/SUNDRY summary rows).
     const grouped = new Map<string, RawOrderRow[]>();
+    let ignoredRowCount = 0;
     for (const row of parseResult.rows) {
-      const key = `${row.company_name}__${row.week_number}`;
+      const normCode = normalizeStoreCode(row.company_name);
+      if (shouldIgnoreStore(normCode)) {
+        ignoredRowCount++;
+        continue;
+      }
+      const key = `${normCode}__${row.week_number}`;
       const existing = grouped.get(key) ?? [];
       existing.push(row);
       grouped.set(key, existing);
@@ -196,8 +245,8 @@ export async function POST(request: NextRequest) {
     // Each computed metric, kept with the context the rolling-average pass needs.
     const computed: { storeId: string; weekNum: number; storeType: StoreType; metric: Record<string, unknown> }[] = [];
 
-    for (const [, rows] of grouped) {
-      const storeCode = rows[0].company_name;
+    for (const [key, rows] of grouped) {
+      const storeCode = key.split("__")[0]; // normalized
       const weekNum = rows[0].week_number;
       const info = storeMap.get(storeCode);
 
@@ -230,8 +279,19 @@ export async function POST(request: NextRequest) {
       }
 
       // Compute metrics with the store's actual type + brand (plate handling).
+      // Strip fields that exist on the metrics object but NOT as weekly_metrics
+      // columns (boxes_clamshell / boxes_plates / boxes_party_21x15 — their
+      // contribution is already folded into boxes_total and the estimates);
+      // PostgREST rejects the whole upsert on any unknown key.
       const metrics = computeWeeklyMetrics(rows, productLookup, year, info.storeType, info.brand);
-      const { store_id: _sid, store_code: _sc, ...metricFields } = metrics;
+      const {
+        store_id: _sid,
+        store_code: _sc,
+        boxes_clamshell: _bc,
+        boxes_plates: _bp,
+        boxes_party_21x15: _b21,
+        ...metricFields
+      } = metrics;
       computed.push({
         storeId,
         weekNum,
@@ -342,6 +402,7 @@ export async function POST(request: NextRequest) {
       success: true,
       upload_id: upload.id,
       rows_processed: parseResult.rows.length,
+      rows_ignored: ignoredRowCount,
       stores_processed: grouped.size,
       weeks_processed: weeks,
       primary_count: primaryCount,
