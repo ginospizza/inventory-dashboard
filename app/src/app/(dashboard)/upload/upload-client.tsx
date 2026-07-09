@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X } from "lucide-react";
 
@@ -37,8 +37,24 @@ export function UploadClient({ recentUploads }: { recentUploads: Record<string, 
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState("");
+  const [showAllUnmapped, setShowAllUnmapped] = useState(false);
+  const [copied, setCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  const sortedUnmapped = useMemo(
+    () => [...(preview?.unmapped_skus ?? [])].sort((a, b) => b.total_qty - a.total_qty),
+    [preview?.unmapped_skus]
+  );
+
+  const copyUnmappedList = useCallback(async () => {
+    const text = sortedUnmapped
+      .map((u) => `${u.code}\t${u.description}\t${u.total_qty}\t${u.store_count}`)
+      .join("\n");
+    await navigator.clipboard.writeText(`Code\tDescription\tQty\tStores\n${text}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [sortedUnmapped]);
 
   const handleFile = useCallback(async (f: File) => {
     setFile(f);
@@ -100,6 +116,7 @@ export function UploadClient({ recentUploads }: { recentUploads: Record<string, 
     setProgress(0);
     setResult(null);
     setError("");
+    setShowAllUnmapped(false);
   };
 
   return (
@@ -174,26 +191,33 @@ export function UploadClient({ recentUploads }: { recentUploads: Record<string, 
               )}
 
               {/* Unknown SKUs — these will NOT count toward estimated usage */}
-              {(preview.unmapped_skus?.length ?? 0) > 0 && (
+              {sortedUnmapped.length > 0 && (
                 <div className="p-3 rounded-lg mb-4 text-[12px]" style={{ background: "var(--color-mustard-soft)", border: "1px solid var(--color-mustard)" }}>
-                  <div className="font-semibold mb-2 flex items-center gap-1.5" style={{ color: "var(--color-mustard)" }}>
-                    <AlertCircle className="w-4 h-4" />
-                    {preview.unmapped_skus.length} unknown product{preview.unmapped_skus.length !== 1 ? "s" : ""} — these will NOT count toward estimated usage until classified in Admin &rarr; Product Classification
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="font-semibold flex items-center gap-1.5" style={{ color: "var(--color-mustard)" }}>
+                      <AlertCircle className="w-4 h-4" />
+                      {sortedUnmapped.length} unknown product{sortedUnmapped.length !== 1 ? "s" : ""} — these will NOT count toward estimated usage until classified in Admin &rarr; Product Classification
+                    </div>
+                    <button
+                      onClick={copyUnmappedList}
+                      className="shrink-0 px-2 py-1 rounded-md text-[11px] font-medium"
+                      style={{ border: "1px solid var(--color-mustard)", color: "var(--color-mustard)" }}
+                    >
+                      {copied ? "Copied!" : "Copy full list"}
+                    </button>
                   </div>
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr style={{ color: "var(--color-ink-3)" }}>
-                        <th className="pr-3 py-1 font-medium">Code</th>
-                        <th className="pr-3 py-1 font-medium">Description</th>
-                        <th className="pr-3 py-1 font-medium text-right">Qty</th>
-                        <th className="py-1 font-medium text-right">Stores</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...preview.unmapped_skus]
-                        .sort((a, b) => b.total_qty - a.total_qty)
-                        .slice(0, 12)
-                        .map((u) => (
+                  <div className={showAllUnmapped ? "max-h-[400px] overflow-y-auto" : ""}>
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr style={{ color: "var(--color-ink-3)" }}>
+                          <th className="pr-3 py-1 font-medium">Code</th>
+                          <th className="pr-3 py-1 font-medium">Description</th>
+                          <th className="pr-3 py-1 font-medium text-right">Qty</th>
+                          <th className="py-1 font-medium text-right">Stores</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(showAllUnmapped ? sortedUnmapped : sortedUnmapped.slice(0, 12)).map((u) => (
                           <tr key={u.code}>
                             <td className="pr-3 py-[3px] font-mono">{u.code}</td>
                             <td className="pr-3 py-[3px]">{u.description}</td>
@@ -201,12 +225,17 @@ export function UploadClient({ recentUploads }: { recentUploads: Record<string, 
                             <td className="py-[3px] text-right font-mono">{u.store_count}</td>
                           </tr>
                         ))}
-                    </tbody>
-                  </table>
-                  {preview.unmapped_skus.length > 12 && (
-                    <div className="mt-2" style={{ color: "var(--color-ink-3)" }}>
-                      …and {preview.unmapped_skus.length - 12} more (showing highest quantities first)
-                    </div>
+                      </tbody>
+                    </table>
+                  </div>
+                  {sortedUnmapped.length > 12 && (
+                    <button
+                      onClick={() => setShowAllUnmapped((v) => !v)}
+                      className="mt-2 font-medium underline"
+                      style={{ color: "var(--color-mustard)" }}
+                    >
+                      {showAllUnmapped ? "Show fewer" : `Show all ${sortedUnmapped.length}`}
+                    </button>
                   )}
                 </div>
               )}
