@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { createClient } from "./server";
 import { createAdminClient } from "./admin";
 import type { AppUser } from "@/lib/types";
@@ -84,4 +85,29 @@ export async function getDsmFilter(): Promise<string | null> {
   if (!user) throw new Error("Not authenticated");
   if (user.role === "super_admin") return null;
   return user.dsm_id;
+}
+
+/**
+ * API-route auth guard: verify the caller is an authenticated super_admin.
+ *
+ * MUST be used instead of hand-rolling `createAdminClient().auth.getUser()` —
+ * the admin client holds the service-role key and has no session, so calling
+ * .auth.getUser() on it always returns no user regardless of who's logged in
+ * in the browser (this broke /api/upload's auth check until fixed). Session
+ * state only exists on the cookie-based client from ./server, which is what
+ * getCurrentUser() (used here) reads from.
+ *
+ * Usage: `const auth = await requireSuperAdminApi(); if (auth.error) return auth.error;`
+ */
+export async function requireSuperAdminApi(): Promise<
+  { user: AppUser; error?: undefined } | { user?: undefined; error: NextResponse }
+> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: NextResponse.json({ error: "Not authenticated" }, { status: 401 }) };
+  }
+  if (user.role !== "super_admin") {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  return { user };
 }

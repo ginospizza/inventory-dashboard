@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireSuperAdminApi } from "@/lib/supabase/auth";
 
 /**
  * POST /api/dsms — Create a new DSM district
  * Body: { name, region? }
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireSuperAdminApi();
+  if (auth.error) return auth.error;
+
   const admin = createAdminClient();
   const { name, region } = await request.json();
 
@@ -31,6 +35,9 @@ export async function POST(request: NextRequest) {
  * Body: { id, name }
  */
 export async function PUT(request: NextRequest) {
+  const auth = await requireSuperAdminApi();
+  if (auth.error) return auth.error;
+
   const admin = createAdminClient();
   const { id, name } = await request.json();
 
@@ -52,6 +59,9 @@ export async function PUT(request: NextRequest) {
  * Body: { store_id, dsm_id }
  */
 export async function PATCH(request: NextRequest) {
+  const auth = await requireSuperAdminApi();
+  if (auth.error) return auth.error;
+
   const admin = createAdminClient();
   const { store_id, dsm_id } = await request.json();
 
@@ -77,6 +87,9 @@ export async function PATCH(request: NextRequest) {
  * Unassigns all stores and profiles first.
  */
 export async function DELETE(request: NextRequest) {
+  const auth = await requireSuperAdminApi();
+  if (auth.error) return auth.error;
+
   const admin = createAdminClient();
   const { id } = await request.json();
 

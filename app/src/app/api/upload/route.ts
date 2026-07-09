@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireSuperAdminApi } from "@/lib/supabase/auth";
 import { parseExcelFile, getUploadPreview } from "@/lib/excel-parser";
 import {
   computeWeeklyMetrics,
@@ -24,26 +25,12 @@ import type { Product, RawOrderRow, Brand, StoreType, ComplianceStatus } from "@
  * Body: multipart/form-data with a "file" field
  */
 export async function POST(request: NextRequest) {
-  // Auth check
-  const supabase = createAdminClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
-  // Check admin role
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile || profile.role !== "super_admin") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  // Auth check — reads the browser's session cookie. A prior version called
+  // .auth.getUser() on the service-role admin client, which has no session
+  // and always returned "Not authenticated" no matter who was logged in.
+  const auth = await requireSuperAdminApi();
+  if (auth.error) return auth.error;
+  const currentUser = auth.user;
 
   // Parse the file
   const formData = await request.formData();
@@ -208,7 +195,7 @@ export async function POST(request: NextRequest) {
       .from("uploads")
       .insert({
         filename: file.name,
-        uploaded_by: user.id,
+        uploaded_by: currentUser.id,
         week_number: weeks.length === 1 ? weeks[0] : null,
         year,
         status: "processing",

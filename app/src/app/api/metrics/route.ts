@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentUser } from "@/lib/supabase/auth";
 
 /**
  * GET /api/metrics
@@ -17,15 +18,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
  *   limit   — max rows (default 500)
  */
 export async function GET(request: NextRequest) {
-  const supabase = createAdminClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  // Auth check — reads the browser's session cookie. Any authenticated user
+  // may call this (RLS narrows DSMs to their own stores); a prior version
+  // called .auth.getUser() on the service-role admin client, which has no
+  // session and always returned "Not authenticated".
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
+  const supabase = createAdminClient();
   const params = request.nextUrl.searchParams;
   const week = params.get("week");
   const year = params.get("year") ?? String(new Date().getFullYear());
