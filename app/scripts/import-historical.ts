@@ -21,6 +21,7 @@ import {
   detectBrand,
   resolveStoreType,
 } from "../src/lib/calculations/engine";
+import { normalizeStoreCode, shouldIgnoreStore } from "../src/lib/calculations/stores";
 import type { Product, RawOrderRow, Brand, StoreType } from "../src/lib/types";
 
 // ── Config ──────────────────────────────────────────────────
@@ -37,35 +38,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const ROOT = path.resolve(__dirname, "../..");
 
 // ── Helpers ─────────────────────────────────────────────────
-
-function normalizeStoreCode(raw: string): string {
-  return raw
-    .trim()
-    .replace(/\s+/g, " ")
-    .toUpperCase()
-    .replace(/\s*OLD\s*\d*\s*$/i, "")  // strip OLD, OLD2, etc.
-    .replace(/\s*NEW\s*\d*\s*$/i, "")  // strip NEW, NEW2, etc.
-    .replace(/NEW$/, "")               // catch remaining NEW suffix
-    .trim();
-}
-
-// Stores to ignore per James: head offices, wholesalers, anything without a brand prefix
-const IGNORE_STORES = new Set([
-  "SAPUTO", "SUNDRY", "GRAND TOTAL",
-  "GINOS HEAD OFFICE", "DOUBLE DOUBLE PIZZA CHICKEN HEAD OFFICE",
-  "TWICE THE DEAL HEAD OFFICE", "TTD WOOLWICH HEAD OFFICE",
-  "WING MACHINE INC", "IGG INTERNATIONAL INC", "PANZEROTTO PIZZA INC",
-  "SKYBLUE WHOLESALE", "MURRAY WHOLESALE", "NR FUELS CONVENIENCE INC",
-  "DOUBLE TASTE PIZZA AND SHAWARMA", "DOUBLE TASTE PIZZA AND SHAWARMA 2",
-  "CRISPY SLICE PIZZA",
-]);
-
-function shouldIgnoreStore(code: string): boolean {
-  if (IGNORE_STORES.has(code)) return true;
-  // Ignore anything without a known brand prefix
-  const brandPrefixes = ["GINOS", "TTD", "PP", "WM", "STORE", "DD", "C "];
-  return !brandPrefixes.some(p => code.startsWith(p));
-}
+// normalizeStoreCode / shouldIgnoreStore now live in
+// src/lib/calculations/stores.ts, shared with the upload route so both
+// paths canonicalize store names identically.
 
 // Sheets to skip in 2025 file
 const SKIP_SHEETS = new Set([

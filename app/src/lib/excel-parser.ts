@@ -10,8 +10,8 @@ import type { RawOrderRow } from "@/lib/types";
 
 const REQUIRED_COLUMNS = ["CompanyName", "WeekNumber", "productcode", "description", "TotalQty"];
 
-// Some sheets have a "Products Sold" header row before the actual column headers
-const SKIP_PREFIXES = ["Products Sold", "products sold"];
+// Some sheets have a "Products Sold" title row before the actual column
+// headers — handled by retrying with the header on row 2 (see below).
 
 export interface ParseResult {
   rows: RawOrderRow[];
@@ -57,48 +57,35 @@ export function parseExcelFile(buffer: ArrayBuffer): ParseResult {
 
     if (jsonData.length === 0) continue;
 
-    // Find the header row — may need to skip "Products Sold" prefix
-    let dataRows = jsonData;
-    const firstRow = jsonData[0];
-    const firstKeys = Object.keys(firstRow);
+    // Find the header row. The weekly export puts a "Products Sold" title in
+    // A1 with the real headers on row 2 — when parsed with headers on row 1,
+    // the required columns won't be found. Validate row 1 first; if the
+    // columns are missing, retry with the header on row 2 before erroring.
+    const hasRequiredColumns = (rows: Record<string, unknown>[]): boolean => {
+      if (rows.length === 0) return false;
+      const lowerCols = Object.keys(rows[0]).map((c) => c.toLowerCase().trim());
+      return REQUIRED_COLUMNS.every((c) => lowerCols.includes(c.toLowerCase()));
+    };
 
-    // Check if first row is a "Products Sold" label
-    if (
-      firstKeys.length > 0 &&
-      SKIP_PREFIXES.some((p) =>
-        String(firstRow[firstKeys[0]] ?? "").startsWith(p)
-      )
-    ) {
-      // Re-parse with header at row 2
+    let dataRows = jsonData;
+    if (!hasRequiredColumns(dataRows)) {
       const sheetWithSkip = XLSX.utils.sheet_to_json<Record<string, unknown>>(
         sheet,
         { defval: null, raw: true, range: 1 }
       );
-      dataRows = sheetWithSkip;
-    }
-
-    if (dataRows.length === 0) continue;
-
-    // Validate columns exist
-    const sampleRow = dataRows[0];
-    const columns = Object.keys(sampleRow);
-    const missingCols = REQUIRED_COLUMNS.filter(
-      (c) => !columns.some((col) => col.trim() === c)
-    );
-
-    if (missingCols.length > 0) {
-      // Try case-insensitive match
-      const lowerCols = columns.map((c) => c.toLowerCase().trim());
-      const stillMissing = REQUIRED_COLUMNS.filter(
-        (c) => !lowerCols.includes(c.toLowerCase())
-      );
-      if (stillMissing.length > 0) {
+      if (hasRequiredColumns(sheetWithSkip)) {
+        dataRows = sheetWithSkip;
+      } else {
+        const lowerCols = Object.keys(dataRows[0] ?? {}).map((c) => c.toLowerCase().trim());
+        const missing = REQUIRED_COLUMNS.filter((c) => !lowerCols.includes(c.toLowerCase()));
         errors.push(
-          `Sheet "${sheetName}": missing columns ${stillMissing.join(", ")}`
+          `Sheet "${sheetName}": missing columns ${missing.join(", ")}`
         );
         continue;
       }
     }
+
+    if (dataRows.length === 0) continue;
 
     // Extract rows
     for (const row of dataRows) {

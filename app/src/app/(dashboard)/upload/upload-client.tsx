@@ -15,6 +15,9 @@ interface PreviewData {
   secondary_count: number;
   unclassified_count: number;
   errors: string[];
+  unmapped_skus: { code: string; description: string; total_qty: number; store_count: number }[];
+  new_stores: string[];
+  ignored_stores: string[];
 }
 
 interface UploadResult {
@@ -167,6 +170,59 @@ export function UploadClient({ recentUploads }: { recentUploads: Record<string, 
               {preview.errors.length > 0 && (
                 <div className="p-3 rounded-lg mb-4 text-[12px]" style={{ background: "var(--color-mustard-soft)", color: "var(--color-mustard)" }}>
                   {preview.errors.map((e, i) => <div key={i}>{e}</div>)}
+                </div>
+              )}
+
+              {/* Unknown SKUs — these will NOT count toward estimated usage */}
+              {(preview.unmapped_skus?.length ?? 0) > 0 && (
+                <div className="p-3 rounded-lg mb-4 text-[12px]" style={{ background: "var(--color-mustard-soft)", border: "1px solid var(--color-mustard)" }}>
+                  <div className="font-semibold mb-2 flex items-center gap-1.5" style={{ color: "var(--color-mustard)" }}>
+                    <AlertCircle className="w-4 h-4" />
+                    {preview.unmapped_skus.length} unknown product{preview.unmapped_skus.length !== 1 ? "s" : ""} — these will NOT count toward estimated usage until classified in Admin &rarr; Product Classification
+                  </div>
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr style={{ color: "var(--color-ink-3)" }}>
+                        <th className="pr-3 py-1 font-medium">Code</th>
+                        <th className="pr-3 py-1 font-medium">Description</th>
+                        <th className="pr-3 py-1 font-medium text-right">Qty</th>
+                        <th className="py-1 font-medium text-right">Stores</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...preview.unmapped_skus]
+                        .sort((a, b) => b.total_qty - a.total_qty)
+                        .slice(0, 12)
+                        .map((u) => (
+                          <tr key={u.code}>
+                            <td className="pr-3 py-[3px] font-mono">{u.code}</td>
+                            <td className="pr-3 py-[3px]">{u.description}</td>
+                            <td className="pr-3 py-[3px] text-right font-mono">{u.total_qty}</td>
+                            <td className="py-[3px] text-right font-mono">{u.store_count}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                  {preview.unmapped_skus.length > 12 && (
+                    <div className="mt-2" style={{ color: "var(--color-ink-3)" }}>
+                      …and {preview.unmapped_skus.length - 12} more (showing highest quantities first)
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* New stores that will be created */}
+              {(preview.new_stores?.length ?? 0) > 0 && (
+                <div className="p-3 rounded-lg mb-4 text-[12px]" style={{ background: "var(--color-crust)" }}>
+                  <span className="font-semibold">New stores that will be created: </span>
+                  {preview.new_stores.join(", ")}
+                </div>
+              )}
+
+              {/* Ignored non-store entries */}
+              {(preview.ignored_stores?.length ?? 0) > 0 && (
+                <div className="p-3 rounded-lg mb-4 text-[12px]" style={{ color: "var(--color-ink-3)", background: "var(--color-paper)" }}>
+                  Skipped (not stores): {preview.ignored_stores.join(", ")}
                 </div>
               )}
 
