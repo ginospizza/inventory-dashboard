@@ -8,9 +8,8 @@ import {
   resolveStoreType,
   normalizeStoreCode,
   shouldIgnoreStore,
-  smoothedDiffStatuses,
-  overallStatus,
-  type RollingWeek,
+  recomputeRollingStatuses,
+  type RollingStatusRow,
 } from "@/lib/calculations";
 import type { Product, RawOrderRow, Brand, StoreType, ComplianceStatus } from "@/lib/types";
 
@@ -287,79 +286,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 5b. PASS 2 — apply the 4-week rolling average to each uploaded week's STATUS.
-    // The window is the current week plus up to 3 prior weeks, drawn from BOTH this
-    // upload and weeks already in the database. Smoothing both orders and
-    // box-expected (inside smoothedDiffStatuses) is what stops a single stock-up
-    // week from tripping At Risk. Without this pass uploads were graded in isolation.
-    const toRollingWeek = (m: Record<string, unknown>): RollingWeek => ({
-      cheese_ordered_oz: Number(m.cheese_ordered_oz) || 0,
-      sauce_ordered_floz: Number(m.sauce_ordered_floz) || 0,
-      flour_ordered_kg: Number(m.flour_ordered_kg) || 0,
-      dough_ordered_kg: Number(m.dough_ordered_kg) || 0,
-      cheese_estimated_oz: Number(m.cheese_estimated_oz) || 0,
-      sauce_estimated_floz: Number(m.sauce_estimated_floz) || 0,
-      flour_estimated_kg: Number(m.flour_estimated_kg) || 0,
-      dough_estimated_kg: Number(m.dough_estimated_kg) || 0,
-    });
-
-    // Per store: week_number -> RollingWeek, seeded from prior DB weeks then
-    // overlaid with this batch's freshly computed weeks (batch wins on conflict).
-    const windowByStore = new Map<string, Map<number, RollingWeek>>();
-    const touchedStoreIds = [...new Set(computed.map((c) => c.storeId))];
-    if (touchedStoreIds.length > 0) {
-      const { data: priorRows } = await admin
-        .from("weekly_metrics")
-        .select(
-          "store_id, week_number, cheese_ordered_oz, sauce_ordered_floz, flour_ordered_kg, dough_ordered_kg, cheese_estimated_oz, sauce_estimated_floz, flour_estimated_kg, dough_estimated_kg"
-        )
-        .in("store_id", touchedStoreIds)
-        .eq("year", year);
-      for (const r of priorRows ?? []) {
-        const wk = windowByStore.get(r.store_id) ?? new Map<number, RollingWeek>();
-        wk.set(r.week_number as number, toRollingWeek(r as Record<string, unknown>));
-        windowByStore.set(r.store_id, wk);
-      }
-    }
-    for (const c of computed) {
-      const wk = windowByStore.get(c.storeId) ?? new Map<number, RollingWeek>();
-      wk.set(c.weekNum, toRollingWeek(c.metric));
-      windowByStore.set(c.storeId, wk);
-    }
-
-    const metricsToInsert: Record<string, unknown>[] = computed.map((c) => {
-      const weeks = windowByStore.get(c.storeId)!;
-      // Up to 3 most-recent weeks strictly before this one (gap-tolerant).
-      const prior = [...weeks.entries()]
-        .filter(([w]) => w < c.weekNum)
-        .sort((a, b) => b[0] - a[0])
-        .slice(0, 3)
-        .map(([, rw]) => rw);
-
-      const { cheese_status, sauce_status, flour_status, dough_status } = smoothedDiffStatuses(
-        toRollingWeek(c.metric),
-        prior,
-        c.storeType
-      );
-
-      const ratioStatuses: ComplianceStatus[] =
-        c.storeType === "flour"
-          ? [c.metric.sauce_cheese_status as ComplianceStatus, c.metric.flour_cheese_status as ComplianceStatus]
-          : [c.metric.sauce_cheese_status as ComplianceStatus, c.metric.dough_cheese_status as ComplianceStatus];
-      const diffStatuses: ComplianceStatus[] =
-        c.storeType === "flour"
-          ? [cheese_status, sauce_status, flour_status]
-          : [cheese_status, sauce_status, dough_status];
-
-      return {
-        ...c.metric,
-        cheese_status,
-        sauce_status,
-        flour_status,
-        dough_status,
-        overall_status: overallStatus([...diffStatuses, ...ratioStatuses]),
-      };
-    });
+    // 5b. Metrics rows to write. The diff/overall status values here reflect
+    // each week graded in ISOLATION (computeWeeklyMetrics's default when no
+    // priorWeeks are passed) — step 7b below immediately recomputes and
+    // overwrites the rolling-average status for every touched store from a
+    // fresh, fully-committed read, so these are never what gets displayed.
+    const metricsToInsert: Record<string, unknown>[] = computed.map((c) => c.metric);
 
     // 6. Batch insert orders (in chunks of 500)
     for (let i = 0; i < ordersToInsert.length; i += 500) {
@@ -372,6 +304,83 @@ export async function POST(request: NextRequest) {
       await admin
         .from("weekly_metrics")
         .upsert(m, { onConflict: "store_id,year,week_number" });
+    }
+
+    // 7b. Recompute rolling-average STATUS for every touched store from a
+    // fresh, fully-committed read of its whole year — one query in, one
+    // batched write out. This is the SAME canonical recompute
+    // (recomputeRollingStatuses) the rescore-metrics.ts backfill script
+    // uses, run here against real persisted data rather than an in-memory
+    // reconstruction of "prior weeks" — so upload-time and backfill-time
+    // status can never drift apart again. (A GINOS008 week-27 case, James,
+    // July 10 2026, showed the old in-memory windowing landing on "bad" when
+    // a fresh recompute against the same underlying data said "warn.")
+    // Re-scoring the WHOLE year (not just the uploaded weeks) also means a
+    // corrected re-upload of an OLDER week properly refreshes every later
+    // week whose rolling average depends on it.
+    const touchedStoreIds = [...new Set(computed.map((c) => c.storeId))];
+    if (touchedStoreIds.length > 0) {
+      const { data: yearRows } = await admin
+        .from("weekly_metrics")
+        .select(
+          "store_id, week_number, store_type, cheese_ordered_oz, sauce_ordered_floz, flour_ordered_kg, dough_ordered_kg, cheese_estimated_oz, sauce_estimated_floz, flour_estimated_kg, dough_estimated_kg, sauce_cheese_status, flour_cheese_status, dough_cheese_status, cheese_status, sauce_status, flour_status, dough_status, overall_status"
+        )
+        .in("store_id", touchedStoreIds)
+        .eq("year", year);
+
+      const rowsByStore = new Map<string, NonNullable<typeof yearRows>>();
+      for (const r of yearRows ?? []) {
+        const arr = rowsByStore.get(r.store_id) ?? [];
+        arr.push(r);
+        rowsByStore.set(r.store_id, arr);
+      }
+
+      const statusUpdates: Record<string, unknown>[] = [];
+      for (const [storeId, rows] of rowsByStore) {
+        rows.sort((a, b) => a.week_number - b.week_number);
+        const inputs: RollingStatusRow[] = rows.map((r) => ({
+          cheese_ordered_oz: r.cheese_ordered_oz || 0,
+          sauce_ordered_floz: r.sauce_ordered_floz || 0,
+          flour_ordered_kg: r.flour_ordered_kg || 0,
+          dough_ordered_kg: r.dough_ordered_kg || 0,
+          cheese_estimated_oz: r.cheese_estimated_oz || 0,
+          sauce_estimated_floz: r.sauce_estimated_floz || 0,
+          flour_estimated_kg: r.flour_estimated_kg || 0,
+          dough_estimated_kg: r.dough_estimated_kg || 0,
+          store_type: r.store_type as StoreType,
+          sauce_cheese_status: r.sauce_cheese_status as ComplianceStatus,
+          flour_cheese_status: r.flour_cheese_status as ComplianceStatus,
+          dough_cheese_status: r.dough_cheese_status as ComplianceStatus,
+        }));
+        const results = recomputeRollingStatuses(inputs);
+
+        rows.forEach((r, i) => {
+          const next = results[i];
+          const changed =
+            next.overall_status !== r.overall_status ||
+            next.cheese_status !== r.cheese_status ||
+            next.sauce_status !== r.sauce_status ||
+            next.flour_status !== r.flour_status ||
+            next.dough_status !== r.dough_status;
+          if (changed) {
+            statusUpdates.push({
+              store_id: storeId,
+              year,
+              week_number: r.week_number,
+              cheese_status: next.cheese_status,
+              sauce_status: next.sauce_status,
+              flour_status: next.flour_status,
+              dough_status: next.dough_status,
+              overall_status: next.overall_status,
+            });
+          }
+        });
+      }
+
+      for (let i = 0; i < statusUpdates.length; i += 500) {
+        const chunk = statusUpdates.slice(i, i + 500);
+        await admin.from("weekly_metrics").upsert(chunk, { onConflict: "store_id,year,week_number" });
+      }
     }
 
     // 8. Update upload record

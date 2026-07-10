@@ -483,6 +483,47 @@ export function smoothedDiffStatuses(
   };
 }
 
+/** One store-week's rolling inputs plus the same-week ratio statuses and
+ * store type needed to fully recompute overall_status alongside the diffs. */
+export interface RollingStatusRow extends RollingWeek {
+  store_type: StoreType;
+  sauce_cheese_status: ComplianceStatus;
+  flour_cheese_status: ComplianceStatus;
+  dough_cheese_status: ComplianceStatus;
+}
+
+/**
+ * Canonical rolling-average status recompute for a store's FULL chronological
+ * series of weeks (sorted by week_number ascending, gap-tolerant).
+ *
+ * This is the single source of truth for "what should week i's status be
+ * given its own data and the up-to-3 rows immediately before it." Both the
+ * historical rescore script and the upload route MUST call this instead of
+ * reimplementing the windowing — a GINOS008 week-27 case (James, July 10
+ * 2026) showed the upload-time computation and a fresh rescore disagreeing
+ * for a small number of stores, most likely from a data-availability quirk
+ * at the moment of upload. Centralizing the algorithm makes that class of
+ * drift structurally impossible: there is no second implementation left to
+ * disagree with.
+ */
+export function recomputeRollingStatuses(
+  rows: RollingStatusRow[]
+): { cheese_status: ComplianceStatus; sauce_status: ComplianceStatus; flour_status: ComplianceStatus; dough_status: ComplianceStatus; overall_status: ComplianceStatus }[] {
+  return rows.map((row, i) => {
+    const prior = rows.slice(Math.max(0, i - 3), i);
+    const diff = smoothedDiffStatuses(row, prior, row.store_type);
+    const ratio: ComplianceStatus[] =
+      row.store_type === "flour"
+        ? [row.sauce_cheese_status, row.flour_cheese_status]
+        : [row.sauce_cheese_status, row.dough_cheese_status];
+    const diffList: ComplianceStatus[] =
+      row.store_type === "flour"
+        ? [diff.cheese_status, diff.sauce_status, diff.flour_status]
+        : [diff.cheese_status, diff.sauce_status, diff.dough_status];
+    return { ...diff, overall_status: overallStatus([...diffList, ...ratio]) };
+  });
+}
+
 export function computeWeeklyMetrics(
   rows: RawOrderRow[],
   productLookup: Map<string, Product>,

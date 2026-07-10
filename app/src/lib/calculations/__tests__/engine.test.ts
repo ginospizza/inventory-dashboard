@@ -29,11 +29,13 @@ import {
   detectBrand,
   defaultStoreType,
   smoothedDiffStatuses,
+  recomputeRollingStatuses,
   type RollingWeek,
+  type RollingStatusRow,
 } from "../engine";
 
 import { FLOUR_YIELD_FACTOR, BOX_RATIOS, BOXES_PER_CASE } from "../constants";
-import type { Product, RawOrderRow, WeeklyMetrics } from "@/lib/types";
+import type { Product, RawOrderRow, WeeklyMetrics, ComplianceStatus } from "@/lib/types";
 
 // ── Rolling-average smoothing (both sides) ───────────────────
 describe("smoothedDiffStatuses — 4-week rolling average, both sides", () => {
@@ -70,6 +72,61 @@ describe("smoothedDiffStatuses — 4-week rolling average, both sides", () => {
     const spikeWeek: RollingWeek = { ...wk(1), cheese_estimated_oz: 50 };
     const s = smoothedDiffStatuses(spikeWeek, [wk(1), wk(1), wk(1)], "flour");
     expect(s.cheese_status).toBe("ok");
+  });
+});
+
+describe("recomputeRollingStatuses — canonical rolling-window recompute", () => {
+  const row = (orderedMult: number, ratioStatus: ComplianceStatus = "ok"): RollingStatusRow => ({
+    cheese_ordered_oz: 100 * orderedMult, cheese_estimated_oz: 100,
+    sauce_ordered_floz: 100 * orderedMult, sauce_estimated_floz: 100,
+    flour_ordered_kg: 100 * orderedMult, flour_estimated_kg: 100,
+    dough_ordered_kg: 0, dough_estimated_kg: 0,
+    store_type: "flour",
+    sauce_cheese_status: ratioStatus,
+    flour_cheese_status: "ok",
+    dough_cheese_status: "ok",
+  });
+
+  it("matches calling smoothedDiffStatuses + overallStatus by hand for the same window", () => {
+    const rows = [row(1), row(1), row(1), row(2.1)]; // 3 on-target weeks then a spike
+    const results = recomputeRollingStatuses(rows);
+    // The 4th (current) row's window is the 3 rows immediately before it.
+    const expected = smoothedDiffStatuses(rows[3], [rows[0], rows[1], rows[2]], "flour");
+    expect(results[3].cheese_status).toBe(expected.cheese_status);
+    expect(results[3].overall_status).toBe(overallStatus([expected.cheese_status, expected.sauce_status, expected.flour_status, "ok", "ok"]));
+  });
+
+  it("is gap-tolerant: uses the up-to-3 preceding ARRAY entries, not week-number arithmetic", () => {
+    // Only 2 rows exist (e.g. weeks 1 and 5 -- a gap) -- the window for the
+    // 2nd row is just the 1 row that exists before it, same as smoothedDiffStatuses([]).
+    const rows = [row(1), row(2)];
+    const results = recomputeRollingStatuses(rows);
+    const expected = smoothedDiffStatuses(rows[1], [rows[0]], "flour");
+    expect(results[1].cheese_status).toBe(expected.cheese_status);
+  });
+
+  it("folds in the same-week ratio status for overall_status", () => {
+    // Every diff is on-target (ok), but the ratio status is bad -> overall bad.
+    // This is the GINOS003 case (James, July 9 2026): a single-week ratio spike
+    // can drive overall_status to bad even when every smoothed diff is fine.
+    const rows = [row(1), row(1), row(1), row(1, "bad")];
+    const results = recomputeRollingStatuses(rows);
+    expect(results[3].cheese_status).toBe("ok");
+    expect(results[3].overall_status).toBe("bad");
+  });
+
+  it("upload-time and backfill-time recompute agree given the same data (GINOS008, July 10 2026)", () => {
+    // Chronic mild cheese/flour over-ordering across several weeks, individually
+    // within the smoothed band, must NOT be pushed to "bad" just because the
+    // window happens to be recomputed via a different call site.
+    const rows = [row(1.2), row(1.25), row(1.1), row(1.05)];
+    const a = recomputeRollingStatuses(rows);
+    const b = rows.map((_, i) => {
+      const prior = rows.slice(Math.max(0, i - 3), i);
+      const diff = smoothedDiffStatuses(rows[i], prior, "flour");
+      return overallStatus([diff.cheese_status, diff.sauce_status, diff.flour_status, "ok", "ok"]);
+    });
+    expect(a.map((r) => r.overall_status)).toEqual(b);
   });
 });
 
