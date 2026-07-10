@@ -4,7 +4,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { computeNetworkStats, computeBrandStats, generateFlags, DEFAULT_DIFF_THRESHOLDS } from "@/lib/calculations";
+import { computeNetworkStats, computeBrandStats, severityScore, DEFAULT_DIFF_THRESHOLDS } from "@/lib/calculations";
 import type { WeeklyMetrics, NetworkStats, BrandStats, WeeklyTrend, Brand, Anomaly } from "@/lib/types";
 
 interface MetricsFilters {
@@ -304,7 +304,11 @@ export async function getAtRiskStores(
     }
   }
 
-  // Sort by severity: bad first, then warn, then by most flags
+  // Sort by severity: bad first, then warn, then by how far off the single
+  // worst metric is (severityScore) -- NOT flag count. Flags use old flat
+  // thresholds that don't track the %-based ones overall_status is actually
+  // graded on, so most stores tied and the "top" of the list was close to
+  // arbitrary among ties (James, July 10-11 2026).
   const sorted = Array.from(byStore.values())
     .filter((m) => m.overall_status !== "ok")
     .sort((a, b) => {
@@ -313,9 +317,7 @@ export async function getAtRiskStores(
       const bOrder = statusOrder[b.overall_status as keyof typeof statusOrder] ?? 2;
       if (aOrder !== bOrder) return aOrder - bOrder;
 
-      const aFlags = generateFlags(a as unknown as WeeklyMetrics).length;
-      const bFlags = generateFlags(b as unknown as WeeklyMetrics).length;
-      return bFlags - aFlags;
+      return severityScore(b as unknown as WeeklyMetrics) - severityScore(a as unknown as WeeklyMetrics);
     })
     .slice(0, limit);
 

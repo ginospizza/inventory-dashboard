@@ -30,6 +30,7 @@ import {
   defaultStoreType,
   smoothedDiffStatuses,
   recomputeRollingStatuses,
+  severityScore,
   type RollingWeek,
   type RollingStatusRow,
 } from "../engine";
@@ -127,6 +128,55 @@ describe("recomputeRollingStatuses — canonical rolling-window recompute", () =
       return overallStatus([diff.cheese_status, diff.sauce_status, diff.flour_status, "ok", "ok"]);
     });
     expect(a.map((r) => r.overall_status)).toEqual(b);
+  });
+});
+
+describe("severityScore — ranks stores within a status tier by real severity", () => {
+  const baseline: WeeklyMetrics = {
+    id: "t", store_id: "t", store_code: "TEST", store_type: "flour",
+    week_number: 1, year: 2026,
+    cheese_ordered_oz: 100, sauce_ordered_floz: 100, flour_ordered_kg: 100, dough_ordered_kg: 0,
+    boxes_small: 0, boxes_medium: 0, boxes_large: 0, boxes_xl: 0, boxes_party: 0,
+    boxes_party_21x15: 0, boxes_clamshell: 0, boxes_plates: 0, boxes_total: 0,
+    cheese_estimated_oz: 100, sauce_estimated_floz: 100, flour_estimated_kg: 100, dough_estimated_kg: 0,
+    cheese_diff: 0, sauce_diff: 0, flour_diff: 0, dough_diff: 0,
+    sauce_cheese_ratio: 1, flour_cheese_ratio: 1, dough_cheese_ratio: 0,
+    total_boxes_ordered: 0, estimated_pizza_sales: 0, weekly_pizza_sales: 0,
+    cheese_status: "ok", sauce_status: "ok", flour_status: "ok", dough_status: "ok",
+    sauce_cheese_status: "ok", flour_cheese_status: "ok", dough_cheese_status: "ok",
+    overall_status: "ok",
+  };
+
+  it("scores dead-on-target as 0", () => {
+    expect(severityScore(baseline)).toBe(0);
+  });
+
+  it("scores by the worst single metric, not a sum", () => {
+    // Cheese 20% off, sauce 90% off -> severity reflects the sauce blowout (0.9),
+    // not 20%+90% added together.
+    const m = { ...baseline, cheese_ordered_oz: 120, sauce_ordered_floz: 190 };
+    expect(severityScore(m)).toBeCloseTo(0.9, 5);
+  });
+
+  it("a same-week ratio spike scores just like a diff blowout (GINOS003-style)", () => {
+    // Every diff on target, but S:C ratio at 150% of ideal.
+    const m = { ...baseline, sauce_cheese_ratio: 1.5 };
+    expect(severityScore(m)).toBeCloseTo(0.5, 5);
+  });
+
+  it("ranks a bigger blowout higher than a smaller one, unlike flag-count ties", () => {
+    const mild = { ...baseline, cheese_ordered_oz: 130 };  // 30% off
+    const severe = { ...baseline, cheese_ordered_oz: 160 }; // 60% off
+    expect(severityScore(severe)).toBeGreaterThan(severityScore(mild));
+  });
+
+  it("uses dough (not flour) for dough-type stores", () => {
+    const m: WeeklyMetrics = {
+      ...baseline, store_type: "dough",
+      flour_ordered_kg: 0, flour_estimated_kg: 0, flour_cheese_ratio: 0,
+      dough_ordered_kg: 200, dough_estimated_kg: 100, dough_cheese_ratio: 1,
+    };
+    expect(severityScore(m)).toBeCloseTo(1.0, 5); // dough is 100% over
   });
 });
 

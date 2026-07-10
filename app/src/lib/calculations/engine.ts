@@ -412,6 +412,46 @@ export function generateFlags(metrics: WeeklyMetrics): Flag[] {
   return flags;
 }
 
+/**
+ * How far off a store's single worst metric is, as a fraction (0 = dead on
+ * target, 1.0 = 100% off). Used to rank stores WITHIN the same overall_status
+ * tier by actual severity, worst first.
+ *
+ * Before this, "Stores Requiring Attention" broke ties by generateFlags()
+ * count -- but flags use old flat case-count thresholds while overall_status
+ * uses %-based ones, so most stores tied at 0-1 flags and the list's "top"
+ * slot fell to whichever tied row the database happened to return first
+ * (James, July 10-11 2026: the list implies the top is highest priority, but
+ * it wasn't actually ranking that way). This scores every store on the same
+ * %-basis that actually determines status, so the ranking is genuine.
+ *
+ * Diff metrics use this week's raw ordered-vs-estimated deviation (the exact
+ * numbers already shown in the Cheese/Sauce Δ columns) rather than the
+ * smoothed rolling average used for grading -- a deliberate simplification so
+ * the sort order is visually self-explanatory next to what's on screen.
+ * Ratio metrics score as distance from the ideal 100%.
+ */
+export function severityScore(m: WeeklyMetrics): number {
+  const pctDiff = (ordered: number, estimated: number) =>
+    estimated > 0 ? Math.abs(ordered - estimated) / estimated : 0;
+  const ratioSeverity = (ratio: number) => (ratio > 0 ? Math.abs(ratio * 100 - 100) / 100 : 0);
+
+  const flourOrDough =
+    m.store_type === "flour"
+      ? pctDiff(m.flour_ordered_kg, m.flour_estimated_kg)
+      : pctDiff(m.dough_ordered_kg, m.dough_estimated_kg);
+  const flourOrDoughRatio =
+    m.store_type === "flour" ? ratioSeverity(m.flour_cheese_ratio) : ratioSeverity(m.dough_cheese_ratio);
+
+  return Math.max(
+    pctDiff(m.cheese_ordered_oz, m.cheese_estimated_oz),
+    pctDiff(m.sauce_ordered_floz, m.sauce_estimated_floz),
+    flourOrDough,
+    ratioSeverity(m.sauce_cheese_ratio),
+    flourOrDoughRatio
+  );
+}
+
 // ── Main computation entry point ─────────────────────────────
 
 /**
