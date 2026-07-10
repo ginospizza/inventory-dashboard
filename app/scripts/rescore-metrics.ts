@@ -21,7 +21,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { smoothedDiffStatuses, overallStatus, type RollingWeek } from "../src/lib/calculations/engine";
+import { recomputeRollingStatuses, type RollingStatusRow } from "../src/lib/calculations/engine";
 import type { ComplianceStatus, StoreType } from "../src/lib/types";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -53,7 +53,7 @@ interface Row {
   overall_status: ComplianceStatus;
 }
 
-const toRolling = (r: Row): RollingWeek => ({
+const toRollingStatusRow = (r: Row): RollingStatusRow => ({
   cheese_ordered_oz: r.cheese_ordered_oz || 0,
   sauce_ordered_floz: r.sauce_ordered_floz || 0,
   flour_ordered_kg: r.flour_ordered_kg || 0,
@@ -62,6 +62,10 @@ const toRolling = (r: Row): RollingWeek => ({
   sauce_estimated_floz: r.sauce_estimated_floz || 0,
   flour_estimated_kg: r.flour_estimated_kg || 0,
   dough_estimated_kg: r.dough_estimated_kg || 0,
+  store_type: r.store_type,
+  sauce_cheese_status: r.sauce_cheese_status,
+  flour_cheese_status: r.flour_cheese_status,
+  dough_cheese_status: r.dough_cheese_status,
 });
 
 const pct = (ord: number, est: number) => (est > 0 ? Math.round(((ord - est) / est) * 100) : null);
@@ -107,23 +111,19 @@ async function main() {
 
   const transitions = new Map<string, number>(); // "bad->warn" -> count
   const changes: { row: Row; next: ComplianceStatus; code: string }[] = [];
+  // Per-store recomputed results, indexed the same as byStore's (sorted) rows —
+  // computed once here and reused for the detail view and the apply pass so
+  // there's exactly one call site for the canonical algorithm.
+  const resultsByStore = new Map<string, ReturnType<typeof recomputeRollingStatuses>>();
 
   for (const [storeId, rows] of byStore) {
     rows.sort((a, b) => (a.year !== b.year ? a.year - b.year : a.week_number - b.week_number));
+    const results = recomputeRollingStatuses(rows.map(toRollingStatusRow));
+    resultsByStore.set(storeId, results);
+
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      const prior = rows.slice(Math.max(0, i - 3), i).map(toRolling); // up to 3 preceding
-      const s = smoothedDiffStatuses(toRolling(r), prior, r.store_type);
-      const ratio: ComplianceStatus[] =
-        r.store_type === "flour"
-          ? [r.sauce_cheese_status, r.flour_cheese_status]
-          : [r.sauce_cheese_status, r.dough_cheese_status];
-      const diff: ComplianceStatus[] =
-        r.store_type === "flour"
-          ? [s.cheese_status, s.sauce_status, s.flour_status]
-          : [s.cheese_status, s.sauce_status, s.dough_status];
-      const next = overallStatus([...diff, ...ratio]);
-
+      const next = results[i].overall_status;
       if (next !== r.overall_status) {
         const key = `${r.overall_status}->${next}`;
         transitions.set(key, (transitions.get(key) ?? 0) + 1);
@@ -150,15 +150,10 @@ async function main() {
       rows.sort((a, b) => (a.year !== b.year ? a.year - b.year : a.week_number - b.week_number));
       console.log(`\n──────── ${code} (${rows[0]?.store_type}) ────────`);
       console.log("  wk   cheese%  sauce%  flour%   old        ->  new");
+      const results = resultsByStore.get(storeId)!;
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
-        const prior = rows.slice(Math.max(0, i - 3), i).map(toRolling);
-        const s = smoothedDiffStatuses(toRolling(r), prior, r.store_type);
-        const ratio: ComplianceStatus[] =
-          r.store_type === "flour" ? [r.sauce_cheese_status, r.flour_cheese_status] : [r.sauce_cheese_status, r.dough_cheese_status];
-        const diff: ComplianceStatus[] =
-          r.store_type === "flour" ? [s.cheese_status, s.sauce_status, s.flour_status] : [s.cheese_status, s.sauce_status, s.dough_status];
-        const next = overallStatus([...diff, ...ratio]);
+        const next = results[i].overall_status;
         const c = pct(r.cheese_ordered_oz, r.cheese_estimated_oz);
         const sp = pct(r.sauce_ordered_floz, r.sauce_estimated_floz);
         const fp = r.store_type === "flour" ? pct(r.flour_ordered_kg, r.flour_estimated_kg) : pct(r.dough_ordered_kg, r.dough_estimated_kg);
@@ -180,11 +175,10 @@ async function main() {
   console.log(`\nApplying ${changes.length} status changes...`);
   let written = 0;
   for (const { row, next } of changes) {
-    // Recompute the per-ingredient statuses to persist alongside overall.
+    // Reuse the same recompute already done above — no second call site.
     const rows = byStore.get(row.store_id)!;
     const i = rows.findIndex((x) => x.id === row.id);
-    const prior = rows.slice(Math.max(0, i - 3), i).map(toRolling);
-    const s = smoothedDiffStatuses(toRolling(row), prior, row.store_type);
+    const s = resultsByStore.get(row.store_id)![i];
     const { error } = await supabase
       .from("weekly_metrics")
       .update({
