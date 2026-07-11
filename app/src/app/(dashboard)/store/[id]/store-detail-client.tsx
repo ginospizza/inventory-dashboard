@@ -36,7 +36,12 @@ export function StoreDetailClient({
 }: StoreDetailClientProps) {
   const [activeTab, setActiveTab] = useState<"primary" | "secondary" | "trends" | "flags" | "compare">("primary");
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiInsight, setAiInsight] = useState<string | null>(null);
+  // Summary + recommendation are always shown; details (the full diagnostic
+  // reasoning) stays collapsed by default -- DSMs manage 30+ stores and skim
+  // this per store, they shouldn't have to read a full write-up for each one
+  // (James, July 11 2026).
+  const [aiInsight, setAiInsight] = useState<{ summary: string; recommendation: string; details: string } | null>(null);
+  const [showAiDetails, setShowAiDetails] = useState(false);
 
   const storeCode = store.code as string;
   const storeCity = store.city as string;
@@ -48,6 +53,7 @@ export function StoreDetailClient({
 
   async function handleAiInsight() {
     setAiLoading(true);
+    setShowAiDetails(false);
     try {
       // Send recent weekly history (oldest → newest) so the AI can spot
       // sustained vs. episodic ("testing the waters") patterns, not just one week.
@@ -82,9 +88,13 @@ export function StoreDetailClient({
         body: JSON.stringify({ page: "store", context: { store: storeCode, latest: latestWithPct, history } }),
       });
       const data = await res.json();
-      setAiInsight(data.insight ?? "No insights available.");
+      setAiInsight({
+        summary: data.summary ?? "No insights available.",
+        recommendation: data.recommendation ?? "",
+        details: data.details ?? "",
+      });
     } catch {
-      setAiInsight("Failed to generate insight.");
+      setAiInsight({ summary: "Failed to generate insight.", recommendation: "", details: "" });
     } finally {
       setAiLoading(false);
     }
@@ -156,17 +166,38 @@ export function StoreDetailClient({
               <div className="h-4 w-full rounded animate-shimmer" />
               <div className="h-4 w-2/3 rounded animate-shimmer" />
             </div>
-          ) : (
+          ) : aiInsight ? (
             <>
               <h4 className="font-serif text-[20px] mb-2">Store Analysis</h4>
               <p className="text-[13px] leading-relaxed whitespace-pre-line" style={{ color: "var(--color-ink-2)" }}>
-                {aiInsight}
+                {aiInsight.summary}
               </p>
+              {aiInsight.recommendation && (
+                <p className="text-[13px] leading-relaxed whitespace-pre-line mt-3 font-medium" style={{ color: "var(--color-ink)" }}>
+                  {aiInsight.recommendation}
+                </p>
+              )}
+              {aiInsight.details && (
+                <>
+                  <button
+                    onClick={() => setShowAiDetails((v) => !v)}
+                    className="mt-3 text-[12px] font-medium underline"
+                    style={{ color: "var(--color-ink-3)" }}
+                  >
+                    {showAiDetails ? "Hide full analysis" : "Show full analysis"}
+                  </button>
+                  {showAiDetails && (
+                    <p className="text-[13px] leading-relaxed whitespace-pre-line mt-2 pt-2" style={{ color: "var(--color-ink-2)", borderTop: "1px solid var(--color-line)" }}>
+                      {aiInsight.details}
+                    </p>
+                  )}
+                </>
+              )}
               <button onClick={handleAiInsight} className="flex items-center gap-1 mt-3 text-[12px]" style={{ color: "var(--color-ink-3)" }}>
                 <RefreshCw className="w-3 h-3" /> Regenerate
               </button>
             </>
-          )}
+          ) : null}
         </div>
       )}
 

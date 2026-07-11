@@ -52,9 +52,8 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const userPrompt = page === "overview"
-    ? buildOverviewPrompt(context)
-    : buildStorePrompt(context);
+  const isStorePage = page !== "overview";
+  const userPrompt = isStorePage ? buildStorePrompt(context) : buildOverviewPrompt(context);
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -71,11 +70,15 @@ export async function POST(request: NextRequest) {
         ],
         max_tokens: 1500,
         temperature: 0.3,
+        // Store-level analysis is structured (summary/recommendation surfaced
+        // to the DSM by default, full reasoning collapsed) -- see
+        // buildStorePrompt. Overview stays free-text for the finance view.
+        ...(isStorePage ? { response_format: { type: "json_object" } } : {}),
       }),
     });
 
     const data = await response.json();
-    const insight = data.choices?.[0]?.message?.content ?? "No insight generated.";
+    const rawContent: string = data.choices?.[0]?.message?.content ?? "";
     const promptTokens = data.usage?.prompt_tokens ?? 0;
     const completionTokens = data.usage?.completion_tokens ?? 0;
     const tokensUsed = data.usage?.total_tokens ?? 0;
@@ -91,11 +94,34 @@ export async function POST(request: NextRequest) {
       model,
     });
 
-    return NextResponse.json({ insight });
+    if (!isStorePage) {
+      return NextResponse.json({ insight: rawContent || "No insight generated." });
+    }
+
+    // Parse the structured store insight. Fall back to dumping the raw text
+    // into `summary` if the model didn't return valid JSON, so the UI still
+    // shows something instead of breaking.
+    try {
+      const parsed = JSON.parse(rawContent);
+      return NextResponse.json({
+        summary: parsed.summary ?? "No summary generated.",
+        recommendation: parsed.recommendation ?? "",
+        details: parsed.details ?? "",
+      });
+    } catch {
+      return NextResponse.json({
+        summary: rawContent || "No insight generated.",
+        recommendation: "",
+        details: "",
+      });
+    }
   } catch (err) {
     console.error("AI call error:", err);
     return NextResponse.json({
       insight: "Failed to generate insight. Please try again.",
+      summary: "Failed to generate insight. Please try again.",
+      recommendation: "",
+      details: "",
     });
   }
 }
