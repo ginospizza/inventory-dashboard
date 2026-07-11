@@ -148,11 +148,37 @@ export function buildStorePrompt(context: Record<string, unknown>): string {
 **Latest Week Data:**
 ${JSON.stringify(latest, null, 2)}
 ${historyBlock}
-Provide:
-1. A one-line compliance summary for this store
-2. Which specific metrics are out of range and by how much (in % of expected)
-3. The likely cause, reasoned from the PATTERN across cheese, sauce, and flour together and whether they stay in ratio — apply the Diagnostic Reasoning rules. Do not diagnose each ingredient in isolation, and do not stack multiple speculative causes. If all three move together in ratio, follow rules 1-2 (outside buying if under, data/box review if over) rather than calling it portioning.
-4. If a weekly history is provided, examine the week-to-week trend — not just the latest week. Call out any sustained deviation or any EPISODIC down-spike-then-recover pattern in the cheese diff (the "testing the waters" outside-buying tell), per the Week-to-week pattern rules. Flag subtle/episodic cases as a WATCH item with stated confidence rather than asserting them.
-5. One specific recommendation for the DSM managing this store
-6. If the store looks compliant, acknowledge that briefly`;
+DSMs manage 30+ stores each and skim this per store, so the primary reading
+must be a single glance: what's the verdict, and what do I do about it. The
+full diagnostic reasoning still needs to happen and still needs to be
+available, it just isn't the first thing a DSM should have to read.
+
+Respond with ONLY a valid JSON object — no markdown code fences, no text
+before or after it — with exactly these three string fields:
+
+"summary": One line. The compliance verdict and, if not compliant, the
+single dominant driver (e.g. "At Risk — sauce critically under-ordered for
+12 straight weeks"). If compliant, say so plainly and stop there.
+
+"recommendation": One specific action for the DSM managing this store, or a
+brief "no action needed" if compliant. Address them by name if given. This
+is what the DSM actually does this week — make it concrete and doable, not
+"look into it."
+
+"details": Everything else, for anyone who wants to dig in — NOT shown by
+default. Cover, in order: (1) which specific metrics are out of range and by
+how much (in % of expected), (2) the likely cause, reasoned from the PATTERN
+across cheese, sauce, and flour together and whether they stay in ratio —
+apply the Diagnostic Reasoning rules; do not diagnose each ingredient in
+isolation, and do not stack multiple speculative causes; if all three move
+together in ratio, follow rules 1-2 (outside buying if under, data/box
+review if over) rather than calling it portioning, (3) if a weekly history
+is provided, the week-to-week trend, not just the latest week — call out any
+sustained deviation or any EPISODIC down-spike-then-recover pattern in the
+cheese diff (the "testing the waters" outside-buying tell), per the
+Week-to-week pattern rules, flagging subtle/episodic cases as a WATCH item
+with stated confidence rather than asserting them. Use plain text with
+numbered points and blank lines between them, same rules as elsewhere — no
+markdown. If the store is compliant, this can be a single short line noting
+there's nothing to dig into.`;
 }

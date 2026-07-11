@@ -164,7 +164,7 @@ function buildStoreContext(wb, sheetName) {
   };
 }
 
-async function callModel(userPrompt) {
+async function callModel(userPrompt, { json = false } = {}) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -181,11 +181,28 @@ async function callModel(userPrompt) {
       ],
       max_tokens: 1500,
       temperature: 0.3,
+      ...(json ? { response_format: { type: "json_object" } } : {}),
     }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(data)}`);
   return data.choices?.[0]?.message?.content ?? "(no content)";
+}
+
+// Mirrors the production /api/ai route's handling of the store-level
+// structured response: JSON with summary/recommendation/details, formatted
+// here for readability. Falls back to the raw string if parsing fails.
+function formatStoreOutput(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    return (
+      `SUMMARY: ${parsed.summary ?? "(none)"}\n\n` +
+      `RECOMMENDATION: ${parsed.recommendation ?? "(none)"}\n\n` +
+      `DETAILS:\n${parsed.details ?? "(none)"}`
+    );
+  } catch {
+    return raw;
+  }
 }
 
 async function main() {
@@ -228,7 +245,7 @@ async function main() {
       latest: ctx.latest,
       history: ctx.history,
     });
-    const aiOutput = await callModel(userPrompt);
+    const aiOutput = await callModel(userPrompt, { json: true });
     const key = ANSWER_KEY[sheet];
     const s = ctx.summary;
 
@@ -241,7 +258,7 @@ async function main() {
     console.log(`\n--- JAMES (expected: ${key.label}) ---`);
     console.log(key.expected);
     console.log(`\n--- AI OUTPUT ---`);
-    console.log(aiOutput.trim());
+    console.log(formatStoreOutput(aiOutput.trim()));
     console.log("");
   }
   console.log("Done. Compare each AI OUTPUT against the JAMES expected answer.\n");
