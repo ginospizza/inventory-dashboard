@@ -25,6 +25,7 @@ import {
   ratioStatus,
   overallStatus,
   computeWeeklyMetrics,
+  computeNetworkStats,
   generateFlags,
   detectBrand,
   defaultStoreType,
@@ -563,30 +564,78 @@ describe("overallStatus", () => {
 
 // ── Flags ────────────────────────────────────────────────────
 
-describe("generateFlags", () => {
-  it("flags cheese_over for Flour store", () => {
-    const m = makeMetrics({ cheese_diff: 8, store_type: "flour" });
-    expect(generateFlags(m).some(f => f.type === "cheese_over")).toBe(true);
+describe("generateFlags — %-of-expected basis (matches how statuses grade)", () => {
+  it("flags cheese_over past +25% of expected, with the % as the value", () => {
+    const m = makeMetrics({ cheese_ordered_oz: 140, cheese_estimated_oz: 100, store_type: "flour" });
+    const flag = generateFlags(m).find(f => f.type === "cheese_over");
+    expect(flag).toBeDefined();
+    expect(flag!.value).toBeCloseTo(40, 5); // signed % deviation, not cases
   });
 
-  it("flags dough_under for Dough store", () => {
-    const m = makeMetrics({ dough_diff: -8, store_type: "dough" });
+  it("flags dough_under past -25% for Dough store", () => {
+    const m = makeMetrics({ dough_ordered_kg: 60, dough_estimated_kg: 100, store_type: "dough" });
     expect(generateFlags(m).some(f => f.type === "dough_under")).toBe(true);
   });
 
+  it("does not flag a big absolute swing that is small in % terms", () => {
+    // 6 cases over on a huge base was an automatic flag under the old flat
+    // thresholds; at +10% of expected it is normal ordering variance.
+    const m = makeMetrics({ cheese_ordered_oz: 6600, cheese_estimated_oz: 6000, cheese_diff: 6, store_type: "flour" });
+    expect(generateFlags(m).some(f => f.type === "cheese_over")).toBe(false);
+  });
+
   it("no flour flags for Dough store", () => {
-    const m = makeMetrics({ flour_diff: 10, store_type: "dough" });
+    const m = makeMetrics({ flour_ordered_kg: 200, flour_estimated_kg: 100, store_type: "dough" });
     expect(generateFlags(m).some(f => f.type === "flour_over")).toBe(false);
   });
 
   it("no dough flags for Flour store", () => {
-    const m = makeMetrics({ dough_diff: 10, store_type: "flour" });
+    const m = makeMetrics({ dough_ordered_kg: 200, dough_estimated_kg: 100, store_type: "flour" });
     expect(generateFlags(m).some(f => f.type === "dough_over")).toBe(false);
   });
 
   it("no flags for compliant store", () => {
-    const m = makeMetrics({ cheese_diff: 2, sauce_diff: -1, flour_diff: 0.5, sauce_cheese_ratio: 0.95, flour_cheese_ratio: 1.05, store_type: "flour" });
+    const m = makeMetrics({
+      cheese_ordered_oz: 110, cheese_estimated_oz: 100,
+      sauce_ordered_floz: 95, sauce_estimated_floz: 100,
+      flour_ordered_kg: 102, flour_estimated_kg: 100,
+      sauce_cheese_ratio: 0.95, flour_cheese_ratio: 1.05, store_type: "flour",
+    });
     expect(generateFlags(m)).toHaveLength(0);
+  });
+});
+
+describe("computeNetworkStats — % of stores on target", () => {
+  it("signed averages cancel but on-target % tells the truth (James, July 11 2026)", () => {
+    // Two stores dead on, one +30%, one -30%: the signed cheese diffs net to
+    // zero (looks 'on target') while only half the network actually is.
+    const metrics = [
+      makeMetrics({ cheese_ordered_oz: 100, cheese_estimated_oz: 100, cheese_diff: 0 }),
+      makeMetrics({ cheese_ordered_oz: 100, cheese_estimated_oz: 100, cheese_diff: 0 }),
+      makeMetrics({ cheese_ordered_oz: 130, cheese_estimated_oz: 100, cheese_diff: 3 }),
+      makeMetrics({ cheese_ordered_oz: 70, cheese_estimated_oz: 100, cheese_diff: -3 }),
+    ];
+    const stats = computeNetworkStats(metrics);
+    expect(stats.avg_cheese_diff).toBe(0);          // the misleading old headline
+    expect(stats.cheese_on_target_pct).toBe(50);    // the honest new one
+  });
+
+  it("excludes stores with no estimate from the on-target denominator", () => {
+    const metrics = [
+      makeMetrics({ cheese_ordered_oz: 100, cheese_estimated_oz: 100 }),
+      makeMetrics({ cheese_ordered_oz: 50, cheese_estimated_oz: 0 }), // no boxes -> not measurable
+    ];
+    const stats = computeNetworkStats(metrics);
+    expect(stats.cheese_on_target_pct).toBe(100);
+  });
+
+  it("uses dough for dough stores in the flour on-target stat", () => {
+    const metrics = [
+      makeMetrics({ store_type: "dough", dough_ordered_kg: 100, dough_estimated_kg: 100 }),
+      makeMetrics({ store_type: "dough", dough_ordered_kg: 200, dough_estimated_kg: 100 }),
+    ];
+    const stats = computeNetworkStats(metrics);
+    expect(stats.flour_on_target_pct).toBe(50);
   });
 });
 

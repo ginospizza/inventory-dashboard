@@ -389,7 +389,9 @@ export function StoreDetailClient({
                   <div key={i} className="flex items-start gap-3">
                     <FlagIcon className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "var(--color-ginos-red)" }} />
                     <div>
-                      <div className="text-[13px] font-medium">{f.metric}: {f.value.toFixed(1)}</div>
+                      {/* All flag values are percentages now: diff flags carry the
+                          signed % vs box-expected, ratio flags the ratio level %. */}
+                      <div className="text-[13px] font-medium">{f.metric}: {f.value > 0 && f.type.includes("over") ? "+" : ""}{f.value.toFixed(1)}%</div>
                       <div className="text-[12px]" style={{ color: "var(--color-ink-3)" }}>{f.meaning}</div>
                     </div>
                   </div>
