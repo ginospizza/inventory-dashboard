@@ -217,46 +217,51 @@ export function OverviewClient({
           </p>
         </div>
 
-        {/* KPI grid */}
+        {/* KPI grid — headline is the share of stores on target per metric.
+            Network AVERAGES of signed diffs cancel (over-orderers offset
+            under-orderers) and can read "on target" while most of the network
+            is out of band (James, July 11 2026); the net avg stays as the
+            small print. */}
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-[14px]">
           <KpiCard
-            label="Avg Cheese Diff"
-            value={`${stats.avg_cheese_diff > 0 ? "+" : ""}${stats.avg_cheese_diff.toFixed(1)}`}
-            unit="cases"
-            sparkData={trend.map((t) => t.avg_cheese_diff)}
+            label="Cheese On Target"
+            value={`${stats.cheese_on_target_pct.toFixed(0)}%`}
+            unit={`of stores within ±25% · net avg ${stats.avg_cheese_diff > 0 ? "+" : ""}${stats.avg_cheese_diff.toFixed(1)} cases`}
+            sparkData={trend.map((t) => t.cheese_on_target_pct)}
             sparkColor="var(--color-ginos-red)"
           />
           <KpiCard
-            label="Avg Sauce Diff"
-            value={`${stats.avg_sauce_diff > 0 ? "+" : ""}${stats.avg_sauce_diff.toFixed(1)}`}
-            unit="cases"
-            sparkData={trend.map((t) => t.avg_sauce_diff)}
+            label="Sauce On Target"
+            value={`${stats.sauce_on_target_pct.toFixed(0)}%`}
+            unit={`of stores within ±25% · net avg ${stats.avg_sauce_diff > 0 ? "+" : ""}${stats.avg_sauce_diff.toFixed(1)} cases`}
+            sparkData={trend.map((t) => t.sauce_on_target_pct)}
             sparkColor="var(--color-mustard)"
           />
           <KpiCard
-            label="Avg Flour Diff"
-            value={`${stats.avg_flour_diff > 0 ? "+" : ""}${stats.avg_flour_diff.toFixed(1)}`}
-            unit="bags"
-            sparkData={trend.map((t) => t.avg_flour_diff)}
+            label="Flour On Target"
+            value={`${stats.flour_on_target_pct.toFixed(0)}%`}
+            unit={`of stores within ±25% · net avg ${stats.avg_flour_diff > 0 ? "+" : ""}${stats.avg_flour_diff.toFixed(1)} bags`}
+            sparkData={trend.map((t) => t.flour_on_target_pct)}
             sparkColor="var(--color-basil)"
           />
           <KpiCard
-            label="Avg Sauce:Cheese"
-            value={`${(stats.avg_sauce_cheese_ratio * 100).toFixed(1)}%`}
-            target="75–125%"
-            sparkData={trend.map((t) => t.avg_sauce_cheese * 100)}
+            label="Sauce:Cheese In Band"
+            value={`${stats.sauce_cheese_in_band_pct.toFixed(0)}%`}
+            unit={`of stores in 75–125% · net avg ${(stats.avg_sauce_cheese_ratio * 100).toFixed(1)}%`}
+            sparkData={trend.map((t) => t.sc_in_band_pct)}
             sparkColor="var(--color-mustard)"
           />
           <KpiCard
-            label="Avg Flour:Cheese"
-            value={`${(stats.avg_flour_cheese_ratio * 100).toFixed(1)}%`}
-            target="75–125%"
-            sparkData={trend.map((t) => t.avg_flour_cheese * 100)}
+            label="Flour:Cheese In Band"
+            value={`${stats.flour_cheese_in_band_pct.toFixed(0)}%`}
+            unit={`of stores in 75–125% · net avg ${(stats.avg_flour_cheese_ratio * 100).toFixed(1)}%`}
+            sparkData={trend.map((t) => t.fc_in_band_pct)}
             sparkColor="var(--color-basil)"
           />
           <KpiCard
             label="Active Flags"
             value={String(stats.active_flags)}
+            unit="metrics beyond ±25% across all stores"
             icon={<Flag className="w-3.5 h-3.5" style={{ color: "var(--color-ginos-red)" }} />}
           />
         </div>

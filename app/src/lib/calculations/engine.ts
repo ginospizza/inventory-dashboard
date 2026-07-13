@@ -374,23 +374,33 @@ const FLAG_MEANINGS: Record<FlagType, string> = {
 
 export function generateFlags(metrics: WeeklyMetrics): Flag[] {
   const flags: Flag[] = [];
-  const bad = DEFAULT_DIFF_THRESHOLDS.bad;
+  // Diff flags use the same %-of-expected basis the statuses are graded on
+  // (was: flat ±6-case thresholds, which over-flagged big stores and
+  // under-flagged small ones — a 6-case swing is noise at 40 cases/week and
+  // catastrophic at 7). Flag.value for diff flags is the signed % deviation.
+  const warnPct = DEFAULT_PCT_THRESHOLDS.warn * 100; // ±25% of expected
+  const pctDev = (ordered: number, estimated: number) =>
+    estimated > 0 ? ((ordered - estimated) / estimated) * 100 : 0;
 
   // Cheese
-  if (metrics.cheese_diff > bad) flags.push({ type: "cheese_over", metric: "Cheese", value: metrics.cheese_diff, threshold: bad, meaning: FLAG_MEANINGS.cheese_over });
-  else if (metrics.cheese_diff < -bad) flags.push({ type: "cheese_under", metric: "Cheese", value: metrics.cheese_diff, threshold: -bad, meaning: FLAG_MEANINGS.cheese_under });
+  const cheesePct = pctDev(metrics.cheese_ordered_oz, metrics.cheese_estimated_oz);
+  if (cheesePct > warnPct) flags.push({ type: "cheese_over", metric: "Cheese", value: cheesePct, threshold: warnPct, meaning: FLAG_MEANINGS.cheese_over });
+  else if (cheesePct < -warnPct) flags.push({ type: "cheese_under", metric: "Cheese", value: cheesePct, threshold: -warnPct, meaning: FLAG_MEANINGS.cheese_under });
 
   // Sauce
-  if (metrics.sauce_diff > bad) flags.push({ type: "sauce_over", metric: "Sauce", value: metrics.sauce_diff, threshold: bad, meaning: FLAG_MEANINGS.sauce_over });
-  else if (metrics.sauce_diff < -bad) flags.push({ type: "sauce_under", metric: "Sauce", value: metrics.sauce_diff, threshold: -bad, meaning: FLAG_MEANINGS.sauce_under });
+  const saucePct = pctDev(metrics.sauce_ordered_floz, metrics.sauce_estimated_floz);
+  if (saucePct > warnPct) flags.push({ type: "sauce_over", metric: "Sauce", value: saucePct, threshold: warnPct, meaning: FLAG_MEANINGS.sauce_over });
+  else if (saucePct < -warnPct) flags.push({ type: "sauce_under", metric: "Sauce", value: saucePct, threshold: -warnPct, meaning: FLAG_MEANINGS.sauce_under });
 
   // Flour or Dough
   if (metrics.store_type === "flour") {
-    if (metrics.flour_diff > bad) flags.push({ type: "flour_over", metric: "Flour", value: metrics.flour_diff, threshold: bad, meaning: FLAG_MEANINGS.flour_over });
-    else if (metrics.flour_diff < -bad) flags.push({ type: "flour_under", metric: "Flour", value: metrics.flour_diff, threshold: -bad, meaning: FLAG_MEANINGS.flour_under });
+    const flourPct = pctDev(metrics.flour_ordered_kg, metrics.flour_estimated_kg);
+    if (flourPct > warnPct) flags.push({ type: "flour_over", metric: "Flour", value: flourPct, threshold: warnPct, meaning: FLAG_MEANINGS.flour_over });
+    else if (flourPct < -warnPct) flags.push({ type: "flour_under", metric: "Flour", value: flourPct, threshold: -warnPct, meaning: FLAG_MEANINGS.flour_under });
   } else {
-    if (metrics.dough_diff > bad) flags.push({ type: "dough_over", metric: "Dough", value: metrics.dough_diff, threshold: bad, meaning: FLAG_MEANINGS.dough_over });
-    else if (metrics.dough_diff < -bad) flags.push({ type: "dough_under", metric: "Dough", value: metrics.dough_diff, threshold: -bad, meaning: FLAG_MEANINGS.dough_under });
+    const doughPct = pctDev(metrics.dough_ordered_kg, metrics.dough_estimated_kg);
+    if (doughPct > warnPct) flags.push({ type: "dough_over", metric: "Dough", value: doughPct, threshold: warnPct, meaning: FLAG_MEANINGS.dough_over });
+    else if (doughPct < -warnPct) flags.push({ type: "dough_under", metric: "Dough", value: doughPct, threshold: -warnPct, meaning: FLAG_MEANINGS.dough_under });
   }
 
   // S:C ratio
@@ -710,12 +720,22 @@ export function computeNetworkStats(metrics: WeeklyMetrics[]): NetworkStats {
       compliance_pct: 0, avg_cheese_diff: 0, avg_sauce_diff: 0, avg_flour_diff: 0,
       avg_sauce_cheese_ratio: 0, avg_flour_cheese_ratio: 0, active_flags: 0,
       sauce_cheese_in_band_pct: 0, flour_cheese_in_band_pct: 0, stores_reporting: 0,
+      cheese_on_target_pct: 0, sauce_on_target_pct: 0, flour_on_target_pct: 0,
     };
   }
 
   const n = metrics.length;
   let compliant = 0, borderline = 0, atRisk = 0, totalFlags = 0, scInBand = 0, fcInBand = 0;
   let sumCheese = 0, sumSauce = 0, sumFlour = 0, sumSC = 0, sumFC = 0;
+  // "% of stores on target": share of measurable stores within ±25% of the
+  // box-expected amount for each ingredient. Signed network AVERAGES cancel
+  // (51 stores over + 23 under netted to "+0.8 cases" while the average store
+  // was 50% off — James, July 11 2026), so the share on target is the honest
+  // headline; the signed avg stays available as secondary context.
+  const warnFrac = DEFAULT_PCT_THRESHOLDS.warn;
+  let cheeseMeasurable = 0, cheeseOnTarget = 0;
+  let sauceMeasurable = 0, sauceOnTarget = 0;
+  let flourMeasurable = 0, flourOnTarget = 0;
 
   for (const m of metrics) {
     if (m.overall_status === "ok") compliant++;
@@ -737,6 +757,21 @@ export function computeNetworkStats(metrics: WeeklyMetrics[]): NetworkStats {
     sumFlour += m.store_type === "flour" ? m.flour_diff : m.dough_diff;
     sumSC += m.sauce_cheese_ratio;
     sumFC += fdRatio;
+
+    if (m.cheese_estimated_oz > 0) {
+      cheeseMeasurable++;
+      if (Math.abs(m.cheese_ordered_oz - m.cheese_estimated_oz) / m.cheese_estimated_oz <= warnFrac) cheeseOnTarget++;
+    }
+    if (m.sauce_estimated_floz > 0) {
+      sauceMeasurable++;
+      if (Math.abs(m.sauce_ordered_floz - m.sauce_estimated_floz) / m.sauce_estimated_floz <= warnFrac) sauceOnTarget++;
+    }
+    const fdOrdered = m.store_type === "flour" ? m.flour_ordered_kg : m.dough_ordered_kg;
+    const fdEstimated = m.store_type === "flour" ? m.flour_estimated_kg : m.dough_estimated_kg;
+    if (fdEstimated > 0) {
+      flourMeasurable++;
+      if (Math.abs(fdOrdered - fdEstimated) / fdEstimated <= warnFrac) flourOnTarget++;
+    }
   }
 
   return {
@@ -754,6 +789,9 @@ export function computeNetworkStats(metrics: WeeklyMetrics[]): NetworkStats {
     sauce_cheese_in_band_pct: round2((scInBand / n) * 100),
     flour_cheese_in_band_pct: round2((fcInBand / n) * 100),
     stores_reporting: n,
+    cheese_on_target_pct: cheeseMeasurable > 0 ? round2((cheeseOnTarget / cheeseMeasurable) * 100) : 0,
+    sauce_on_target_pct: sauceMeasurable > 0 ? round2((sauceOnTarget / sauceMeasurable) * 100) : 0,
+    flour_on_target_pct: flourMeasurable > 0 ? round2((flourOnTarget / flourMeasurable) * 100) : 0,
   };
 }
 

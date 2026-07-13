@@ -280,6 +280,11 @@ export async function getWeeklyTrend(
       avg_flour_diff: stats.avg_flour_diff,
       avg_sauce_cheese: stats.avg_sauce_cheese_ratio,
       avg_flour_cheese: stats.avg_flour_cheese_ratio,
+      cheese_on_target_pct: stats.cheese_on_target_pct,
+      sauce_on_target_pct: stats.sauce_on_target_pct,
+      flour_on_target_pct: stats.flour_on_target_pct,
+      sc_in_band_pct: stats.sauce_cheese_in_band_pct,
+      fc_in_band_pct: stats.flour_cheese_in_band_pct,
     });
   }
 

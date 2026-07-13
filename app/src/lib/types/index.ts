@@ -245,6 +245,14 @@ export interface NetworkStats {
   sauce_cheese_in_band_pct: number;
   flour_cheese_in_band_pct: number;
   stores_reporting: number;
+
+  // Share of measurable stores within ±25% of box-expected, per ingredient.
+  // The honest headline for the overview tiles — signed averages cancel
+  // (over-orderers offset under-orderers) and can read "on target" while
+  // most of the network is out of band.
+  cheese_on_target_pct: number;
+  sauce_on_target_pct: number;
+  flour_on_target_pct: number;
 }
 
 export interface BrandStats {
@@ -264,6 +272,11 @@ export interface WeeklyTrend {
   avg_flour_diff: number;
   avg_sauce_cheese: number;
   avg_flour_cheese: number;
+  cheese_on_target_pct: number;
+  sauce_on_target_pct: number;
+  flour_on_target_pct: number;
+  sc_in_band_pct: number;
+  fc_in_band_pct: number;
 }
 
 // ── Anomalies ──────────────────────────────────────────────
