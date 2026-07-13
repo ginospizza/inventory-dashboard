@@ -77,6 +77,12 @@ export function StoreDetailClient({
           sauce_diff: m.sauce_diff,
           flour_diff: m.flour_diff,
           ...withPct(m),
+          // Estimated usage is box-derived — carried so the AI can see a
+          // box-order collapse (estimate cliff) as a boxes signal, not read
+          // it as an ingredient spike.
+          cheese_est: m.cheese_estimated_oz,
+          sauce_est: m.sauce_estimated_floz,
+          flour_est: m.store_type === "dough" ? m.dough_estimated_kg : m.flour_estimated_kg,
           sc_ratio: m.sauce_cheese_ratio,
           fc_ratio: m.flour_cheese_ratio,
           status: m.overall_status,

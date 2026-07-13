@@ -130,6 +130,8 @@ function buildStoreContext(wb, sheetName) {
     cheese_pct: signedPct(num(r, "cheeseOrdered"), num(r, "cheeseNeeded")),
     sauce_pct: signedPct(num(r, "sauceOrdered"), num(r, "sauceNeeded")),
     flour_pct: null,
+    cheese_est: num(r, "cheeseNeeded"),
+    sauce_est: num(r, "sauceNeeded"),
     sc_ratio: round(num(r, "sc"), 3),
     fc_ratio: round(num(r, "fc"), 3),
   }));
