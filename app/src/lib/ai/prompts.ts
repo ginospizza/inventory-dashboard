@@ -72,6 +72,8 @@ Once you have confirmed something is actually out of range, apply these rules in
 
 5. Always start from the box metric. Box counts are the most trustworthy signal of true sales volume; build every diagnosis on top of them.
 
+6. ESTIMATED USAGE IS 100% BOX-DERIVED. When estimated usage drops sharply — either this week vs. the store's own recent weeks, or as a sustained cliff mid-history — that means the store's approved-channel BOX orders fell, NOT that ingredient usage jumped. A collapse in estimated usage while ordered amounts hold steady is a BOXES signal (boxes likely sourced outside approved channels): point the DSM at box sourcing, not at whichever ingredient the shrunken baseline now makes "look over." When several ingredients are over at once, the boxes are the common denominator and the lead cause — never single out one ingredient (or the S:C ratio) as the story in that case.
+
 When sauce is in ratio (close to box-implied expectation) but cheese is well under, lean toward cheese being purchased outside: the sauce is brand-supplied with the brand recipe, whereas cheese and flour are the easiest items to swap for generics. Of the three main items, sauce is the LEAST likely to be sourced from an outside supplier, so an on-target sauce is a useful signal that the box/sales data is sound and the problem is the off ingredient.
 
 A single ingredient being OVER on its own (e.g. flour consistently high with frequent week-to-week spikes) points to wastage, portioning, or overstocking rather than outside buying — operators sometimes over-order shelf-stable items like flour unevenly. Treat that as a usage/training issue separate from any outside-supplier finding, and it can co-occur with one.
@@ -203,6 +205,71 @@ export function describeRatioDrivers(latest: Record<string, unknown> | null): st
   return lines;
 }
 
+/**
+ * Deterministically detect the "it's the BOXES" signal, which must OVERRIDE the
+ * per-ratio driver analysis. Boxes are the denominator of every estimate, so
+ * when the box order collapses (store sourcing boxes outside approved channels)
+ * EVERY ingredient looks over at once. Left to itself the model leads with the
+ * single most-over ingredient / the out-of-band S:C ratio (e.g. "sauce over,
+ * portioning issue") when the real story is boxes (James, July 12 2026: a
+ * store with cheese/sauce/flour all over AND estimated usage that cliff-dropped
+ * mid-history should point the DSM at boxes, not sauce).
+ *
+ * Two independent tells, either of which fires the signal:
+ *  1. Cross-sectional: every measurable ingredient this week is over +25%.
+ *  2. Temporal: estimated usage (which is derived purely from box orders) has
+ *     dropped sharply and stayed low while ordered amounts held — i.e. the box
+ *     count fell off a cliff, not the ingredients.
+ */
+export function describeBoxSignal(
+  latest: Record<string, unknown> | null,
+  history?: Record<string, unknown>[]
+): string[] {
+  if (!latest) return [];
+  const num = (v: unknown): number | null => (Number.isFinite(Number(v)) ? Number(v) : null);
+  const isDough = latest.store_type === "dough";
+  const pcts = [num(latest.cheese_pct), num(latest.sauce_pct), num(latest.flour_pct)].filter(
+    (p): p is number => p !== null
+  );
+  const lines: string[] = [];
+
+  // 1. Cross-sectional: all measurable ingredients over +25% together.
+  const allOver = pcts.length >= 2 && pcts.every((p) => p > 25);
+  if (allOver) {
+    const parts = [
+      num(latest.cheese_pct) !== null ? `cheese ${fmtPct(num(latest.cheese_pct)!)}` : null,
+      num(latest.sauce_pct) !== null ? `sauce ${fmtPct(num(latest.sauce_pct)!)}` : null,
+      num(latest.flour_pct) !== null ? `${isDough ? "dough" : "flour"} ${fmtPct(num(latest.flour_pct)!)}` : null,
+    ].filter(Boolean).join(", ");
+    lines.push(
+      `ALL ingredients are over expected together (${parts}). Boxes are the shared denominator of every estimate, so the parsimonious cause is the store's approved-channel BOX orders running low (boxes sourced outside approved channels), which makes every ingredient look over at once. Lead the diagnosis with BOXES — do NOT single out sauce or the S:C ratio, and do NOT call this ingredient portioning.`
+    );
+  }
+
+  // 2. Temporal: estimated usage collapsed vs the store's own recent history
+  // while ordered amounts did not. Estimated usage is 100% box-derived.
+  if (history && history.length >= 4) {
+    const est = (w: Record<string, unknown>) => num(w.cheese_est);
+    const series = history.map(est).filter((v): v is number => v !== null && v > 0);
+    if (series.length >= 4) {
+      const latestEst = series[series.length - 1];
+      const earlier = series.slice(0, Math.max(1, series.length - 2));
+      const earlierMax = Math.max(...earlier);
+      if (earlierMax > 0 && latestEst <= earlierMax * 0.5) {
+        lines.push(
+          `Estimated usage has dropped sharply and stayed low (recent cheese-estimate ~${Math.round(latestEst)} oz vs ~${Math.round(earlierMax)} oz earlier in the window). Estimated usage is derived ENTIRELY from box orders, so a cliff like this means the store's approved-channel box orders fell — not that ingredient usage spiked. This is a BOXES signal: point the DSM at box sourcing.`
+        );
+      }
+    }
+  }
+
+  return lines;
+}
+
+function fmtPct(p: number): string {
+  return `${p > 0 ? "+" : ""}${p}%`;
+}
+
 export function buildStorePrompt(context: Record<string, unknown>): string {
   const store = context.store as string;
   const latest = context.latest as Record<string, unknown> | null;
@@ -213,11 +280,22 @@ export function buildStorePrompt(context: Record<string, unknown>): string {
       ? `\n**Recent weekly history (oldest → newest, for trend/pattern analysis):**\n${JSON.stringify(history, null, 2)}\n`
       : "";
 
+  // Box signal takes precedence: when it fires, the ratio-driver detail is
+  // secondary context, not the headline. Boxes are the root cause and the
+  // ratio movement is a downstream symptom.
+  const boxSignal = describeBoxSignal(latest, history);
   const drivers = describeRatioDrivers(latest);
-  const driverBlock =
-    drivers.length > 0
-      ? `\n**Precomputed ratio-driver analysis (authoritative — computed the same way the dashboard does; base your diagnosis on THIS and do not contradict it):**\n${drivers.map((d) => `- ${d}`).join("\n")}\n`
-      : "";
+
+  let driverBlock = "";
+  if (boxSignal.length > 0) {
+    driverBlock =
+      `\n**Precomputed PRIMARY signal (authoritative — this is the lead diagnosis; base summary and recommendation on it):**\n${boxSignal.map((d) => `- ${d}`).join("\n")}\n` +
+      (drivers.length > 0
+        ? `\nSecondary ratio detail (context only — do NOT let this override the boxes signal above):\n${drivers.map((d) => `- ${d}`).join("\n")}\n`
+        : "");
+  } else if (drivers.length > 0) {
+    driverBlock = `\n**Precomputed ratio-driver analysis (authoritative — computed the same way the dashboard does; base your diagnosis on THIS and do not contradict it):**\n${drivers.map((d) => `- ${d}`).join("\n")}\n`;
+  }
 
   return `Analyze this individual store's compliance data. Be specific about what's going well and what needs attention.
 
