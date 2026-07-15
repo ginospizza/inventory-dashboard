@@ -63,9 +63,6 @@ const toRollingStatusRow = (r: Row): RollingStatusRow => ({
   flour_estimated_kg: r.flour_estimated_kg || 0,
   dough_estimated_kg: r.dough_estimated_kg || 0,
   store_type: r.store_type,
-  sauce_cheese_status: r.sauce_cheese_status,
-  flour_cheese_status: r.flour_cheese_status,
-  dough_cheese_status: r.dough_cheese_status,
 });
 
 const pct = (ord: number, est: number) => (est > 0 ? Math.round(((ord - est) / est) * 100) : null);
@@ -123,11 +120,24 @@ async function main() {
 
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      const next = results[i].overall_status;
-      if (next !== r.overall_status) {
-        const key = `${r.overall_status}->${next}`;
-        transitions.set(key, (transitions.get(key) ?? 0) + 1);
-        changes.push({ row: r, next, code: codeById.get(storeId) ?? storeId });
+      const res = results[i];
+      // Any of the seven status fields changing counts — ratio statuses are now
+      // smoothed too, so a row can need rewriting even when overall is unchanged.
+      const anyChanged =
+        res.overall_status !== r.overall_status ||
+        res.cheese_status !== r.cheese_status ||
+        res.sauce_status !== r.sauce_status ||
+        res.flour_status !== r.flour_status ||
+        res.dough_status !== r.dough_status ||
+        res.sauce_cheese_status !== r.sauce_cheese_status ||
+        res.flour_cheese_status !== r.flour_cheese_status ||
+        res.dough_cheese_status !== r.dough_cheese_status;
+      if (anyChanged) {
+        if (res.overall_status !== r.overall_status) {
+          const key = `${r.overall_status}->${res.overall_status}`;
+          transitions.set(key, (transitions.get(key) ?? 0) + 1);
+        }
+        changes.push({ row: r, next: res.overall_status, code: codeById.get(storeId) ?? storeId });
       }
     }
   }
@@ -186,6 +196,9 @@ async function main() {
         sauce_status: s.sauce_status,
         flour_status: s.flour_status,
         dough_status: s.dough_status,
+        sauce_cheese_status: s.sauce_cheese_status,
+        flour_cheese_status: s.flour_cheese_status,
+        dough_cheese_status: s.dough_cheese_status,
         overall_status: next,
       })
       .eq("id", row.id);
