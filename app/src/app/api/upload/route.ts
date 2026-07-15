@@ -348,20 +348,22 @@ export async function POST(request: NextRequest) {
           flour_estimated_kg: r.flour_estimated_kg || 0,
           dough_estimated_kg: r.dough_estimated_kg || 0,
           store_type: r.store_type as StoreType,
-          sauce_cheese_status: r.sauce_cheese_status as ComplianceStatus,
-          flour_cheese_status: r.flour_cheese_status as ComplianceStatus,
-          dough_cheese_status: r.dough_cheese_status as ComplianceStatus,
         }));
         const results = recomputeRollingStatuses(inputs);
 
         rows.forEach((r, i) => {
           const next = results[i];
+          // Any of the seven status fields changing counts (ratio statuses are
+          // smoothed now too, so overall can be unchanged while a ratio moves).
           const changed =
             next.overall_status !== r.overall_status ||
             next.cheese_status !== r.cheese_status ||
             next.sauce_status !== r.sauce_status ||
             next.flour_status !== r.flour_status ||
-            next.dough_status !== r.dough_status;
+            next.dough_status !== r.dough_status ||
+            next.sauce_cheese_status !== r.sauce_cheese_status ||
+            next.flour_cheese_status !== r.flour_cheese_status ||
+            next.dough_cheese_status !== r.dough_cheese_status;
           if (changed) {
             statusUpdates.push({
               store_id: storeId,
@@ -371,6 +373,9 @@ export async function POST(request: NextRequest) {
               sauce_status: next.sauce_status,
               flour_status: next.flour_status,
               dough_status: next.dough_status,
+              sauce_cheese_status: next.sauce_cheese_status,
+              flour_cheese_status: next.flour_cheese_status,
+              dough_cheese_status: next.dough_cheese_status,
               overall_status: next.overall_status,
             });
           }

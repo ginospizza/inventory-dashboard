@@ -493,8 +493,8 @@ export type PriorWeekData = RollingWeek;
  * At Risk even though the store evens out over a month. We average orders AND
  * box-expected across the window, then compare the two averages.
  *
- * The within-week ingredient ratios (S:C, F:C, D:C) are a same-week relationship
- * and are deliberately NOT smoothed here — their statuses are computed separately.
+ * The ratio statuses (S:C, F:C, D:C) are smoothed the same way, in the parallel
+ * smoothedRatioStatuses below — kept a separate function so each stays simple.
  *
  * `prior` is the up-to-3 immediately preceding weeks (order within the array does
  * not matter — it's an average). Pass [] to grade the week in isolation.
@@ -533,13 +533,52 @@ export function smoothedDiffStatuses(
   };
 }
 
-/** One store-week's rolling inputs plus the same-week ratio statuses and
- * store type needed to fully recompute overall_status alongside the diffs. */
-export interface RollingStatusRow extends RollingWeek {
-  store_type: StoreType;
+/**
+ * Compute the ingredient-ratio statuses (S:C, and F:C or D:C) over the same
+ * 4-week rolling window, by averaging each ordered total across the window and
+ * computing the ratio from those averages — then grading with ratioStatus.
+ *
+ * Ratios are now smoothed like the diffs (James, July 14 2026): a single slow
+ * week (summer volume dips, or a store working down leftover stock) would swing
+ * S:C/F:C out of band and trip At Risk even though it self-corrects in a week or
+ * two. Averaging the window steadies that out. The single-week ratio VALUES are
+ * still stored/displayed as-is; only the STATUS (compliance colour) is smoothed
+ * — exactly the diff pattern (single-week diff shown, smoothed status).
+ */
+export function smoothedRatioStatuses(
+  current: RollingWeek,
+  prior: RollingWeek[],
+  storeType: StoreType
+): {
   sauce_cheese_status: ComplianceStatus;
   flour_cheese_status: ComplianceStatus;
   dough_cheese_status: ComplianceStatus;
+} {
+  const window = [current, ...prior];
+  const n = window.length;
+  const avg = (sel: (w: RollingWeek) => number) =>
+    window.reduce((s, w) => s + (sel(w) || 0), 0) / n;
+
+  const avgCheese = avg((w) => w.cheese_ordered_oz);
+  const scRatio = sauceCheeseRatio(avg((w) => w.sauce_ordered_floz), avgCheese);
+  return {
+    sauce_cheese_status: ratioStatus(scRatio),
+    flour_cheese_status:
+      storeType === "flour"
+        ? ratioStatus(flourCheeseRatio(avg((w) => w.flour_ordered_kg), avgCheese))
+        : ("ok" as ComplianceStatus),
+    dough_cheese_status:
+      storeType === "dough"
+        ? ratioStatus(doughCheeseRatio(avg((w) => w.dough_ordered_kg), avgCheese))
+        : ("ok" as ComplianceStatus),
+  };
+}
+
+/** One store-week's rolling inputs (ordered + estimated totals) plus store type,
+ * enough to recompute BOTH the smoothed diff statuses and the smoothed ratio
+ * statuses over the window. */
+export interface RollingStatusRow extends RollingWeek {
+  store_type: StoreType;
 }
 
 /**
@@ -558,19 +597,24 @@ export interface RollingStatusRow extends RollingWeek {
  */
 export function recomputeRollingStatuses(
   rows: RollingStatusRow[]
-): { cheese_status: ComplianceStatus; sauce_status: ComplianceStatus; flour_status: ComplianceStatus; dough_status: ComplianceStatus; overall_status: ComplianceStatus }[] {
+): {
+  cheese_status: ComplianceStatus; sauce_status: ComplianceStatus; flour_status: ComplianceStatus; dough_status: ComplianceStatus;
+  sauce_cheese_status: ComplianceStatus; flour_cheese_status: ComplianceStatus; dough_cheese_status: ComplianceStatus;
+  overall_status: ComplianceStatus;
+}[] {
   return rows.map((row, i) => {
     const prior = rows.slice(Math.max(0, i - 3), i);
     const diff = smoothedDiffStatuses(row, prior, row.store_type);
-    const ratio: ComplianceStatus[] =
+    const ratios = smoothedRatioStatuses(row, prior, row.store_type);
+    const ratioList: ComplianceStatus[] =
       row.store_type === "flour"
-        ? [row.sauce_cheese_status, row.flour_cheese_status]
-        : [row.sauce_cheese_status, row.dough_cheese_status];
+        ? [ratios.sauce_cheese_status, ratios.flour_cheese_status]
+        : [ratios.sauce_cheese_status, ratios.dough_cheese_status];
     const diffList: ComplianceStatus[] =
       row.store_type === "flour"
         ? [diff.cheese_status, diff.sauce_status, diff.flour_status]
         : [diff.cheese_status, diff.sauce_status, diff.dough_status];
-    return { ...diff, overall_status: overallStatus([...diffList, ...ratio]) };
+    return { ...diff, ...ratios, overall_status: overallStatus([...diffList, ...ratioList]) };
   });
 }
 
@@ -614,9 +658,10 @@ export function computeWeeklyMetrics(
   const flourDiffVal = flourDiff(flourOrdered, flourEst);
   const flourCheeseRatioVal = flourCheeseRatio(flourOrdered, agg.total_cheese_oz);
 
-  // Status — diff statuses use the 4-week rolling window (current + up to 3 prior
-  // weeks), smoothing both orders and box-expected. With no prior weeks supplied
-  // this grades the week in isolation (window of 1). Ratios are within-week.
+  // Status — BOTH diff and ratio statuses use the 4-week rolling window (current
+  // + up to 3 prior weeks), smoothing orders and box-expected. With no prior
+  // weeks supplied this grades the week in isolation (window of 1). The diff and
+  // ratio VALUES above are still this single week's; only the STATUS is smoothed.
   const current: RollingWeek = {
     cheese_ordered_oz: agg.total_cheese_oz,
     sauce_ordered_floz: agg.total_sauce_floz,
@@ -629,11 +674,8 @@ export function computeWeeklyMetrics(
   };
   const { cheese_status: cStatus, sauce_status: sStatus, flour_status: fStatus, dough_status: dStatus } =
     smoothedDiffStatuses(current, priorWeeks ?? [], storeType);
-  const scStatus = ratioStatus(scRatio);
-  // flour_cheese_status mirrors the flour-equivalent ratio so the displayed F:C
-  // tile is colored for dough stores too; for dough it equals dough_cheese_status.
-  const fcStatus = ratioStatus(flourCheeseRatioVal);
-  const dcStatus = storeType === "dough" ? ratioStatus(dcRatio) : "ok" as ComplianceStatus;
+  const { sauce_cheese_status: scStatus, flour_cheese_status: fcStatus, dough_cheese_status: dcStatus } =
+    smoothedRatioStatuses(current, priorWeeks ?? [], storeType);
 
   const relevantStatuses = storeType === "flour"
     ? [cStatus, sStatus, fStatus, scStatus, fcStatus]
