@@ -52,7 +52,8 @@ STEP 0 — MAGNITUDE GATE (do this FIRST, before any pattern below). Check wheth
 - A ratio (S:C, F:C) outside 0.75–1.25 is ITSELF an out-of-range signal, independent of the raw ingredient diffs. A store can be out of range on a ratio even when every individual ingredient diff sits within ±25% — do not dismiss an out-of-band ratio just because the ingredient %s look modest.
 - When a ratio is out of band, identify which ingredient is DRIVING it before naming any cause: the driver is the ingredient whose OWN % diff vs box-expected is materially off target. A ratio compares two ingredients, so an out-of-band ratio can mean either side moved — read the two % diffs to see which one did. Never name an ingredient as the problem when its own % diff is within ±25% and the other side of the ratio is far outside it.
   - S:C ABOVE 1.25 with SAUCE far OVER (+25% or more) while cheese is near target → the driver is SAUCE being over-used/over-ordered. Per the causal principle this can never be outside buying — it points to sauce over-portioning, wastage, or overstocking. Do NOT call this cheese under-ordering; cheese is fine.
-  - S:C or F:C ABOVE 1.25 with CHEESE UNDER while sauce is on-target (sauce is brand-supplied and the least-likely item to be swapped, so on-target sauce means the box/sales baseline is sound) and BOTH cheese ratios (S:C and F:C) elevated → treat cheese as the implicated ingredient and lean toward cheese being purchased outside — even if cheese's own % diff looks only moderate, because outside cheese makes the approved-channel cheese order understate true volume.
+  - F:C (or D:C) ABOVE 1.25 with FLOUR/DOUGH far OVER (+25% or more) while cheese is near target → the driver is FLOUR/DOUGH being over, NOT cheese. Cheese is on target, so do NOT mention cheese sourcing or cheese under-ordering at all. A lone flour/dough overage is shelf-stable overstocking/wastage that often normalizes the next week — say that, and stop. Do not append a cheese theory.
+  - S:C or F:C ABOVE 1.25 with CHEESE genuinely UNDER (its own diff below -25%) while sauce is on-target (sauce is brand-supplied and the least-likely item to be swapped, so on-target sauce means the box/sales baseline is sound) and BOTH cheese ratios (S:C and F:C) elevated → treat cheese as the implicated ingredient and lean toward cheese being purchased outside — even if cheese's own % diff looks only moderate, because outside cheese makes the approved-channel cheese order understate true volume. This applies ONLY when cheese's own diff is actually negative; if cheese is on target, the elevated ratio is the OTHER ingredient's doing, not cheese's.
   - S:C or F:C BELOW 0.75 means cheese is HIGH relative to sauce/flour (cheese OVER-ordered). This can NEVER be outside buying — by the causal principle below, outside buying only ever shows as UNDER. A low S:C/F:C points to cheese over-ordering, wastage, or portioning, NOT a supplier issue. Do not write "over-portioning or outside purchasing" as if they were interchangeable; over implies wastage/portioning only.
 - If ALL diffs are within ±25% AND both ratios are within 0.75–1.25, the store is COMPLIANT. Say so plainly and STOP — do NOT apply the pattern rules below and do NOT name outside buying, portioning, or any cause. The pattern rules apply only to metrics that are genuinely out of band.
 
@@ -72,7 +73,8 @@ Once you have confirmed something is actually out of range, apply these rules in
 
 5. Always start from the box metric. Box counts are the most trustworthy signal of true sales volume; build every diagnosis on top of them.
 
-6. ESTIMATED USAGE IS 100% BOX-DERIVED. When estimated usage drops sharply — either this week vs. the store's own recent weeks, or as a sustained cliff mid-history — that means the store's approved-channel BOX orders fell, NOT that ingredient usage jumped. A collapse in estimated usage while ordered amounts hold steady is a BOXES signal (boxes likely sourced outside approved channels): point the DSM at box sourcing, not at whichever ingredient the shrunken baseline now makes "look over." When several ingredients are over at once, the boxes are the common denominator and the lead cause — never single out one ingredient (or the S:C ratio) as the story in that case.
+6. THE BOXES SIGNAL — read it precisely. Boxes are the shared denominator of every estimate, so when a store's approved-channel box order runs low (boxes sourced outside), the per-pizza ingredients look over ALL AT ONCE. The fingerprint is CHEESE AND SAUCE BOTH OVER (+25% or more) while in ratio with each other — those two track sales tightly. Only then lead with boxes, and never single out one ingredient or the S:C ratio in that case.
+   Crucially: estimated usage is 100% box-derived, so it MOVES WITH SALES. A drop in estimated usage is only a boxes signal if the INGREDIENTS STAYED HIGH (cheese and sauce still over) while the estimate fell — that means boxes fell, not sales. If cheese and sauce fell ALONG WITH the estimate and stayed in ratio, that is simply LOWER SALES that week — NOT a box problem — even if the estimated-usage number halved. Do not cry boxes when the ingredients tracked the estimate down. In that situation diagnose only what is actually out of band (e.g. a lone flour overage → shelf-stable overstocking that often normalizes next week).
 
 When sauce is in ratio (close to box-implied expectation) but cheese is well under, lean toward cheese being purchased outside: the sauce is brand-supplied with the brand recipe, whereas cheese and flour are the easiest items to swap for generics. Of the three main items, sauce is the LEAST likely to be sourced from an outside supplier, so an on-target sauce is a useful signal that the box/sales data is sound and the problem is the off ingredient.
 
@@ -209,17 +211,19 @@ export function describeRatioDrivers(latest: Record<string, unknown> | null): st
  * Deterministically detect the "it's the BOXES" signal, which must OVERRIDE the
  * per-ratio driver analysis. Boxes are the denominator of every estimate, so
  * when the box order collapses (store sourcing boxes outside approved channels)
- * EVERY ingredient looks over at once. Left to itself the model leads with the
- * single most-over ingredient / the out-of-band S:C ratio (e.g. "sauce over,
- * portioning issue") when the real story is boxes (James, July 12 2026: a
- * store with cheese/sauce/flour all over AND estimated usage that cliff-dropped
- * mid-history should point the DSM at boxes, not sauce).
+ * the per-pizza ingredients look over ALL AT ONCE. Left to itself the model
+ * leads with the single most-over ingredient / the out-of-band S:C ratio when
+ * the real story is boxes (James, July 12 2026).
  *
- * Two independent tells, either of which fires the signal:
- *  1. Cross-sectional: every measurable ingredient this week is over +25%.
- *  2. Temporal: estimated usage (which is derived purely from box orders) has
- *     dropped sharply and stayed low while ordered amounts held — i.e. the box
- *     count fell off a cliff, not the ingredients.
+ * The signal REQUIRES the ingredients themselves to be over: cheese AND sauce
+ * both over +25% vs box-expected. Those two track sales tightly, so both being
+ * over is the unambiguous "boxes too low" fingerprint. A falling estimated-
+ * usage number ON ITS OWN is NOT enough — if cheese and sauce fell along with
+ * it and stayed in ratio, that is simply lower sales, not a box problem (James,
+ * July 14 2026: an earlier version fired on GINOS034 where the estimate halved
+ * but cheese and sauce dropped with it and only flour was over). Estimated-
+ * usage collapse is used ONLY as corroboration once cheese+sauce-over fires,
+ * never as a standalone trigger.
  */
 export function describeBoxSignal(
   latest: Record<string, unknown> | null,
@@ -228,36 +232,36 @@ export function describeBoxSignal(
   if (!latest) return [];
   const num = (v: unknown): number | null => (Number.isFinite(Number(v)) ? Number(v) : null);
   const isDough = latest.store_type === "dough";
-  const pcts = [num(latest.cheese_pct), num(latest.sauce_pct), num(latest.flour_pct)].filter(
-    (p): p is number => p !== null
-  );
-  const lines: string[] = [];
+  const cheesePct = num(latest.cheese_pct);
+  const saucePct = num(latest.sauce_pct);
+  const flourPct = num(latest.flour_pct);
 
-  // 1. Cross-sectional: all measurable ingredients over +25% together.
-  const allOver = pcts.length >= 2 && pcts.every((p) => p > 25);
-  if (allOver) {
-    const parts = [
-      num(latest.cheese_pct) !== null ? `cheese ${fmtPct(num(latest.cheese_pct)!)}` : null,
-      num(latest.sauce_pct) !== null ? `sauce ${fmtPct(num(latest.sauce_pct)!)}` : null,
-      num(latest.flour_pct) !== null ? `${isDough ? "dough" : "flour"} ${fmtPct(num(latest.flour_pct)!)}` : null,
-    ].filter(Boolean).join(", ");
-    lines.push(
-      `ALL ingredients are over expected together (${parts}). Boxes are the shared denominator of every estimate, so the parsimonious cause is the store's approved-channel BOX orders running low (boxes sourced outside approved channels), which makes every ingredient look over at once. Lead the diagnosis with BOXES — do NOT single out sauce or the S:C ratio, and do NOT call this ingredient portioning.`
-    );
+  // Trigger: cheese AND sauce both genuinely over the box-derived estimate.
+  // If either is on target or under, the ingredients tracked the boxes down
+  // (lower sales) — not a box-sourcing problem — so do not fire.
+  if (cheesePct === null || saucePct === null || cheesePct <= 25 || saucePct <= 25) {
+    return [];
   }
 
-  // 2. Temporal: estimated usage collapsed vs the store's own recent history
-  // while ordered amounts did not. Estimated usage is 100% box-derived.
+  const overParts = [`cheese ${fmtPct(cheesePct)}`, `sauce ${fmtPct(saucePct)}`];
+  if (flourPct !== null && flourPct > 25) overParts.push(`${isDough ? "dough" : "flour"} ${fmtPct(flourPct)}`);
+
+  const lines = [
+    `Cheese AND sauce are both over expected (${overParts.join(", ")}) and in ratio with each other. Boxes are the shared denominator of every estimate, so the parsimonious cause is the store's approved-channel BOX orders running low (boxes sourced outside approved channels), which makes the per-pizza ingredients look over at once. Lead the diagnosis with BOXES — do NOT single out one ingredient or the S:C ratio, and do NOT call this portioning.`,
+  ];
+
+  // Corroboration only (the trigger above already fired): estimated usage,
+  // which is 100% box-derived, also cliff-dropped while the ingredients stayed
+  // high — reinforcing that boxes, not sales, fell.
   if (history && history.length >= 4) {
     const est = (w: Record<string, unknown>) => num(w.cheese_est);
     const series = history.map(est).filter((v): v is number => v !== null && v > 0);
     if (series.length >= 4) {
       const latestEst = series[series.length - 1];
-      const earlier = series.slice(0, Math.max(1, series.length - 2));
-      const earlierMax = Math.max(...earlier);
+      const earlierMax = Math.max(...series.slice(0, Math.max(1, series.length - 2)));
       if (earlierMax > 0 && latestEst <= earlierMax * 0.5) {
         lines.push(
-          `Estimated usage has dropped sharply and stayed low (recent cheese-estimate ~${Math.round(latestEst)} oz vs ~${Math.round(earlierMax)} oz earlier in the window). Estimated usage is derived ENTIRELY from box orders, so a cliff like this means the store's approved-channel box orders fell — not that ingredient usage spiked. This is a BOXES signal: point the DSM at box sourcing.`
+          `Corroborating: estimated usage (box-derived) also dropped sharply (recent cheese-estimate ~${Math.round(latestEst)} oz vs ~${Math.round(earlierMax)} oz earlier) while cheese and sauce ordered stayed high — the box order fell, not sales.`
         );
       }
     }
@@ -297,12 +301,22 @@ export function buildStorePrompt(context: Record<string, unknown>): string {
     driverBlock = `\n**Precomputed ratio-driver analysis (authoritative — computed the same way the dashboard does; base your diagnosis on THIS and do not contradict it):**\n${drivers.map((d) => `- ${d}`).join("\n")}\n`;
   }
 
+  // The verdict is already computed (overall_status) — hand it over as an
+  // authoritative fact rather than letting the model re-derive it, which it
+  // does unreliably (it called a fully on-target store "At Risk"/"Borderline"
+  // by echoing the summary example format — James, July 14 2026).
+  const statusVal = String((latest?.overall_status ?? "")).toLowerCase();
+  const verdict = statusVal === "ok" ? "Compliant" : statusVal === "warn" ? "Borderline" : statusVal === "bad" ? "At Risk" : null;
+  const verdictBlock = verdict
+    ? `\n**AUTHORITATIVE VERDICT: ${verdict}.** The summary MUST begin with exactly this word. ${verdict === "Compliant" ? "This store is on target — name NO problem cause anywhere; every metric is within range." : ""}\n`
+    : "";
+
   return `Analyze this individual store's compliance data. Be specific about what's going well and what needs attention.
 
 **Store:** ${store}
 **Latest Week Data:**
 ${JSON.stringify(latest, null, 2)}
-${historyBlock}${driverBlock}
+${historyBlock}${driverBlock}${verdictBlock}
 DSMs manage 30+ stores each and skim this per store, so the primary reading
 must be a single glance: what's the verdict, and what do I do about it. The
 full diagnostic reasoning still needs to happen and still needs to be
@@ -332,10 +346,15 @@ numbered points and blank lines between them, same rules as elsewhere — no
 markdown. If the store is compliant, this can be a single short line noting
 there's nothing to dig into.
 
-"summary": One line. The compliance verdict and the single dominant CAUSE
-you identified in "details" (e.g. "At Risk — sauce critically under-ordered
-for 12 straight weeks"). It must name the same cause as "details" — never a
-different one. If compliant, say so plainly and stop there.
+"summary": One line. START with the verdict word taken DIRECTLY from the
+data's overall_status field — do NOT compute your own: overall_status "ok" →
+"Compliant", "warn" → "Borderline", "bad" → "At Risk". Never label a store
+At Risk or Borderline when overall_status is "ok"; a metric a few percent
+off (within ±25%) is ON TARGET and is NOT a cause — for a compliant store the
+summary is just e.g. "Compliant — all metrics on target" with no cause named.
+When not compliant, follow the verdict with the single dominant CAUSE you
+identified in "details" (e.g. "At Risk — sauce critically over-ordered for
+6 straight weeks"), naming the same cause as "details", never a different one.
 
 "recommendation": One specific action for the DSM managing this store, or a
 brief "no action needed" if compliant. Address them by name if given. This
