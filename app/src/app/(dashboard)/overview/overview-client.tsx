@@ -5,8 +5,8 @@ import Link from "next/link";
 import { ChevronRight, Sparkles, RefreshCw, Flag, TrendingUp, TrendingDown, AlertTriangle, Info, AlertCircle } from "lucide-react";
 import { FilterBar, StatusPill, DiffCell, RatioCell } from "@/components/dashboard";
 import { DonutChart, ComplianceTrend, Sparkline } from "@/components/charts";
-import type { AppUser, NetworkStats, BrandStats, WeeklyTrend, Flag as FlagType, Anomaly } from "@/lib/types";
-import { brandLabel } from "@/lib/types";
+import type { AppUser, NetworkStats, BrandStats, WeeklyTrend, Flag as FlagType, Anomaly, ComplianceStatus } from "@/lib/types";
+import { brandLabel, STATUS_COLOR, STATUS_LABEL } from "@/lib/types";
 import { signedPct } from "@/lib/ai/prompts";
 
 interface OverviewClientProps {
@@ -40,6 +40,16 @@ export function OverviewClient({
 }: OverviewClientProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
+
+  // Compliance breakdown, best to worst. Severe is only rendered when a store
+  // actually holds it, so the legend doesn't carry a permanent "0 Severe" row
+  // on a healthy week.
+  const statusTiers: { status: ComplianceStatus; count: number }[] = [
+    { status: "ok", count: stats.compliant_count },
+    { status: "warn", count: stats.borderline_count },
+    { status: "bad", count: stats.at_risk_count },
+    { status: "severe", count: stats.severe_count },
+  ].filter((t) => t.status !== "severe" || t.count > 0) as { status: ComplianceStatus; count: number }[];
 
   async function handleGenerateInsight() {
     console.log("AI Insights clicked — fetching...");
@@ -149,47 +159,30 @@ export function OverviewClient({
             <DonutChart value={stats.compliance_pct} />
 
             <div className="flex-1 flex flex-col gap-2">
-              {/* Status bar */}
+              {/* Status bar — driven off one tier list (best to worst) so a new
+                  compliance tier can't be added to the engine and silently go
+                  missing from the breakdown here. */}
               <div className="flex h-[10px] rounded-full overflow-hidden" style={{ background: "var(--color-crust)" }}>
-                {stats.compliant_count > 0 && (
-                  <div
-                    style={{
-                      width: `${(stats.compliant_count / stats.total_stores) * 100}%`,
-                      background: "var(--color-basil)",
-                    }}
-                  />
-                )}
-                {stats.borderline_count > 0 && (
-                  <div
-                    style={{
-                      width: `${(stats.borderline_count / stats.total_stores) * 100}%`,
-                      background: "var(--color-mustard)",
-                    }}
-                  />
-                )}
-                {stats.at_risk_count > 0 && (
-                  <div
-                    style={{
-                      width: `${(stats.at_risk_count / stats.total_stores) * 100}%`,
-                      background: "var(--color-ginos-red)",
-                    }}
-                  />
+                {statusTiers.map(({ status, count }) =>
+                  count > 0 ? (
+                    <div
+                      key={status}
+                      style={{
+                        width: `${(count / stats.total_stores) * 100}%`,
+                        background: STATUS_COLOR[status],
+                      }}
+                    />
+                  ) : null
                 )}
               </div>
 
               <div className="flex flex-col gap-[6px] text-[12px] mt-1">
-                <span className="flex items-center gap-[6px]" style={{ color: "var(--color-basil)" }}>
-                  <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: "var(--color-basil)" }} />
-                  <strong>{stats.compliant_count}</strong> Compliant
-                </span>
-                <span className="flex items-center gap-[6px]" style={{ color: "var(--color-mustard)" }}>
-                  <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: "var(--color-mustard)" }} />
-                  <strong>{stats.borderline_count}</strong> Borderline
-                </span>
-                <span className="flex items-center gap-[6px]" style={{ color: "var(--color-ginos-red)" }}>
-                  <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: "var(--color-ginos-red)" }} />
-                  <strong>{stats.at_risk_count}</strong> At Risk
-                </span>
+                {statusTiers.map(({ status, count }) => (
+                  <span key={status} className="flex items-center gap-[6px]" style={{ color: STATUS_COLOR[status] }}>
+                    <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: STATUS_COLOR[status] }} />
+                    <strong>{count}</strong> {STATUS_LABEL[status]}
+                  </span>
+                ))}
               </div>
             </div>
           </div>

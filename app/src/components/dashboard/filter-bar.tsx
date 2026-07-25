@@ -16,6 +16,7 @@ interface FilterBarProps {
     ok: number;
     warn: number;
     bad: number;
+    severe: number;
   };
   showStatusFilter?: boolean;
 }
@@ -165,6 +166,7 @@ export function FilterBar({
             {(
               [
                 { key: "all", label: "All", count: statusCounts.all },
+                { key: "severe", label: "Severe", count: statusCounts.severe },
                 { key: "bad", label: "At risk", count: statusCounts.bad },
                 { key: "warn", label: "Borderline", count: statusCounts.warn },
                 { key: "ok", label: "Compliant", count: statusCounts.ok },

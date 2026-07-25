@@ -99,15 +99,22 @@ export const DEFAULT_DIFF_THRESHOLDS = {
 } as const;
 
 // Percentage-based thresholds (confirmed by James)
-// Diff as % of estimated: warn at 25%, bad at 50%
+// Diff as % of box-expected:
+//   within 25% Compliant · 25-50% Borderline · 50-75% At Risk · >75% Severe
+// The `severe` tier was added July 22 2026 — see ComplianceStatus.
 export const DEFAULT_PCT_THRESHOLDS = {
   warn: 0.25,
   bad: 0.50,
+  severe: 0.75,
 } as const;
 
+// Ratios (S:C, F:C, D:C) as a percentage of the 100% ideal:
+//   75-125 Compliant · 65-135 Borderline · 50-150 At Risk · outside Severe
 export const DEFAULT_RATIO_THRESHOLDS = {
   ok_low: 75,
   ok_high: 125,
   warn_low: 65,
   warn_high: 135,
+  bad_low: 50,
+  bad_high: 150,
 } as const;

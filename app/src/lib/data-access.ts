@@ -6,6 +6,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { computeNetworkStats, computeBrandStats, severityScore, DEFAULT_DIFF_THRESHOLDS, ROLLING_WINDOW_WEEKS } from "@/lib/calculations";
 import type { WeeklyMetrics, NetworkStats, BrandStats, WeeklyTrend, Brand, Anomaly } from "@/lib/types";
+import { statusRank } from "@/lib/types";
 
 interface MetricsFilters {
   week?: number | string; // number for specific week, or "all", "ytd", "q1", "q2", "q3", "q4"
@@ -309,18 +310,22 @@ export async function getAtRiskStores(
     }
   }
 
-  // Sort by severity: bad first, then warn, then by how far off the single
-  // worst metric is (severityScore) -- NOT flag count. Flags use old flat
-  // thresholds that don't track the %-based ones overall_status is actually
-  // graded on, so most stores tied and the "top" of the list was close to
-  // arbitrary among ties (James, July 10-11 2026).
+  // Sort by severity: worst tier first (Severe, then At Risk, then Borderline),
+  // then within a tier by how far off the single worst metric is (severityScore)
+  // -- NOT flag count. Flags use old flat thresholds that don't track the
+  // %-based ones overall_status is actually graded on, so most stores tied and
+  // the "top" of the list was close to arbitrary among ties (James, July 10-11
+  // 2026).
+  //
+  // Ranks come from statusRank, not a local map. The local map here was
+  // `{ bad: 0, warn: 1, ok: 2 }` with `?? 2`, which would have given the new
+  // "severe" tier the same rank as "ok" and sorted the most urgent stores to
+  // the BOTTOM of Stores Requiring Attention.
   const sorted = Array.from(byStore.values())
     .filter((m) => m.overall_status !== "ok")
     .sort((a, b) => {
-      const statusOrder = { bad: 0, warn: 1, ok: 2 };
-      const aOrder = statusOrder[a.overall_status as keyof typeof statusOrder] ?? 2;
-      const bOrder = statusOrder[b.overall_status as keyof typeof statusOrder] ?? 2;
-      if (aOrder !== bOrder) return aOrder - bOrder;
+      const byTier = statusRank(b.overall_status) - statusRank(a.overall_status);
+      if (byTier !== 0) return byTier;
 
       return severityScore(b as unknown as WeeklyMetrics) - severityScore(a as unknown as WeeklyMetrics);
     })

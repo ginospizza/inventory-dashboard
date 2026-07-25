@@ -20,6 +20,7 @@ import type {
   Brand,
   StoreType,
 } from "@/lib/types";
+import { worstStatus, statusRank } from "@/lib/types";
 
 import {
   KG_TO_OZ,
@@ -332,26 +333,44 @@ export function diffStatus(value: number, warn = DEFAULT_DIFF_THRESHOLDS.warn, b
   return "ok";
 }
 
-/** Percentage-based diff status: compares diff as % of estimated */
+/**
+ * Percentage-based diff status: compares diff as % of box-expected.
+ * within 25% ok · 25-50% warn · 50-75% bad · >75% severe (James, July 22 2026)
+ */
 export function diffStatusPct(ordered: number, estimated: number): ComplianceStatus {
   if (estimated <= 0) return "ok"; // can't calculate % if no estimate
   const pctDiff = Math.abs(ordered - estimated) / estimated;
+  if (pctDiff > DEFAULT_PCT_THRESHOLDS.severe) return "severe";
   if (pctDiff > DEFAULT_PCT_THRESHOLDS.bad) return "bad";
   if (pctDiff > DEFAULT_PCT_THRESHOLDS.warn) return "warn";
   return "ok";
 }
 
+/**
+ * Ratio status, graded on distance from the 100% ideal.
+ * 75-125 ok · 65-135 warn · 50-150 bad · outside severe (James, July 22 2026)
+ */
 export function ratioStatus(value: number, thresholds = DEFAULT_RATIO_THRESHOLDS): ComplianceStatus {
+  // A ratio of exactly 0 means one side of it was never ordered (the ratio
+  // helpers return 0 when cheese is 0), so there is no real distance-from-ideal
+  // to grade. That case has always landed on "bad"; keep it there rather than
+  // letting missing data climb into the new worst tier — 0 is outside 50-150,
+  // so without this guard every no-cheese week would read as Severe.
+  if (value <= 0) return "bad";
+
   const pct = value * 100;
+  if (pct < thresholds.bad_low || pct > thresholds.bad_high) return "severe";
   if (pct < thresholds.warn_low || pct > thresholds.warn_high) return "bad";
   if (pct < thresholds.ok_low || pct > thresholds.ok_high) return "warn";
   return "ok";
 }
 
+/**
+ * A store's overall status is its single worst metric — unchanged in principle,
+ * but now ranked through STATUS_RANK so a new tier can never be missed here.
+ */
 export function overallStatus(statuses: ComplianceStatus[]): ComplianceStatus {
-  if (statuses.includes("bad")) return "bad";
-  if (statuses.includes("warn")) return "warn";
-  return "ok";
+  return worstStatus(statuses);
 }
 
 // ── Flags ────────────────────────────────────────────────────
@@ -761,7 +780,7 @@ export function computeWeeklyMetrics(
 export function computeNetworkStats(metrics: WeeklyMetrics[]): NetworkStats {
   if (metrics.length === 0) {
     return {
-      total_stores: 0, compliant_count: 0, borderline_count: 0, at_risk_count: 0,
+      total_stores: 0, compliant_count: 0, borderline_count: 0, at_risk_count: 0, severe_count: 0,
       compliance_pct: 0, avg_cheese_diff: 0, avg_sauce_diff: 0, avg_flour_diff: 0,
       avg_sauce_cheese_ratio: 0, avg_flour_cheese_ratio: 0, active_flags: 0,
       sauce_cheese_in_band_pct: 0, flour_cheese_in_band_pct: 0, stores_reporting: 0,
@@ -770,7 +789,7 @@ export function computeNetworkStats(metrics: WeeklyMetrics[]): NetworkStats {
   }
 
   const n = metrics.length;
-  let compliant = 0, borderline = 0, atRisk = 0, totalFlags = 0, scInBand = 0, fcInBand = 0;
+  let compliant = 0, borderline = 0, atRisk = 0, severe = 0, totalFlags = 0, scInBand = 0, fcInBand = 0;
   let sumCheese = 0, sumSauce = 0, sumFlour = 0, sumSC = 0, sumFC = 0;
   // "% of stores on target": share of measurable stores within ±25% of the
   // box-expected amount for each ingredient. Signed network AVERAGES cancel
@@ -785,6 +804,7 @@ export function computeNetworkStats(metrics: WeeklyMetrics[]): NetworkStats {
   for (const m of metrics) {
     if (m.overall_status === "ok") compliant++;
     else if (m.overall_status === "warn") borderline++;
+    else if (m.overall_status === "severe") severe++;
     else atRisk++;
 
     totalFlags += generateFlags(m).length;
@@ -824,6 +844,7 @@ export function computeNetworkStats(metrics: WeeklyMetrics[]): NetworkStats {
     compliant_count: compliant,
     borderline_count: borderline,
     at_risk_count: atRisk,
+    severe_count: severe,
     compliance_pct: round2((compliant / n) * 100),
     avg_cheese_diff: round2(sumCheese / n),
     avg_sauce_diff: round2(sumSauce / n),

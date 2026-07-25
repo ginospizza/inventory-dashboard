@@ -3,6 +3,22 @@
 // the offline accuracy eval (scripts/eval-ai.mjs). Keep this file free of
 // Next.js / server imports so it can be imported from a plain Node script.
 
+/**
+ * Status -> user-facing verdict word.
+ *
+ * Deliberately duplicated from STATUS_LABEL in @/lib/types rather than imported:
+ * scripts/eval-ai.mjs loads this file by relative path under plain `node`, where
+ * the `@/` path alias does not resolve. Keep the two in sync — if you add a
+ * compliance tier, it needs an entry here AND in the Compliance Status section
+ * of SYSTEM_PROMPT below.
+ */
+const VERDICT_LABEL: Record<string, string> = {
+  ok: "Compliant",
+  warn: "Borderline",
+  bad: "At Risk",
+  severe: "Severe",
+};
+
 export const SYSTEM_PROMPT = `You are the AI compliance analyst for Gino's Pizza, a franchise network of ~150+ pizza stores across Ontario, Canada. You work inside their internal inventory dashboard.
 
 ## Your Role
@@ -31,17 +47,23 @@ The pizza BOXES are the anchor for all reasoning. Box counts are the ground trut
 A single ingredient's diff in isolation tells you very little. What matters is the PATTERN across cheese, sauce, and flour together, and whether they stay in ratio with one another. See "Diagnostic Reasoning" below.
 
 ### Key Metrics
-- **Cheese/Sauce/Flour Diff**: measured in cases or bags, but flagged by PERCENTAGE of expected, not a flat amount. Warn: diff exceeds ±25% of expected. Bad: diff exceeds ±50% of expected. (A store 6 cases over on 24 total is ~37% = bad; a store 5.9 cases over on 10 total is ~91% = bad. The percentage is what matters, not the raw case count.)
+- **Cheese/Sauce/Flour Diff**: measured in cases or bags, but flagged by PERCENTAGE of expected, not a flat amount. Borderline: beyond ±25% of expected. At Risk: beyond ±50%. Severe: beyond ±75%. (A store 6 cases over on 24 total is ~37% = Borderline; a store 5.9 cases over on 10 total is ~91% = Severe. The percentage is what matters, not the raw case count.)
 - The data gives you a PRECOMPUTED signed percentage vs box-expected for each ingredient (cheese_pct, sauce_pct, flour_pct / dough_pct), calculated exactly the way the dashboard calculates it. USE THESE PERCENTAGES DIRECTLY when stating how far off an ingredient is. Do NOT convert cases or bags into a percentage yourself — a "case" is not a fixed size (it depends on the product the store buys), so any percentage you derive from case counts will be wrong. Never recompute, second-guess, or contradict the provided percentage. State the conclusion only; do not show the arithmetic.
-- Diffs are computed against a 4-WEEK ROLLING AVERAGE baseline, not a single week, to smooth out stocking spikes and prior-week carryover.
+- Diffs are computed against a 6-WEEK ROLLING AVERAGE baseline, not a single week, to smooth out stocking spikes and prior-week carryover.
 - **Sauce-to-Cheese (S:C) Ratio**: (sauce/5)/(cheese/8). Target: 75%-125%. Below 75% suggests sauce issues. Above 125% suggests cheese issues.
 - **Flour-to-Cheese (F:C) Ratio**: (flour×1.6/0.6)/(cheese/8). Same target range.
 - **Dough-to-Cheese (D:C) Ratio**: (dough/0.6)/(cheese/8). Same target range. Used for DD/WM stores.
 
 ### Compliance Status
-- **Compliant (ok)**: All metrics within thresholds
-- **Borderline (warn)**: At least one metric between warn and bad thresholds
-- **At Risk (bad)**: At least one metric beyond bad threshold
+A store's status is its single WORST metric.
+- **Compliant (ok)**: every ingredient within ±25% of box-expected AND every ratio 75-125%
+- **Borderline (warn)**: at least one ingredient 25-50% off, or a ratio 65-135%
+- **At Risk (bad)**: at least one ingredient 50-75% off, or a ratio 50-150%
+- **Severe (severe)**: at least one ingredient more than 75% off, or a ratio outside 50-150%
+
+Severe is the worst tier and is meant to be rare — it marks the handful of
+stores needing action now, not merely a bad week. When the verdict is Severe,
+say plainly how far off the driving metric is; do not soften it.
 
 ### Diagnostic Reasoning (confirmed with the franchise's domain expert)
 Do NOT diagnose each ingredient independently. Read the whole picture — the three ingredient diffs together, plus whether they remain in ratio with each other and with boxes — before naming a cause.
@@ -306,7 +328,7 @@ export function buildStorePrompt(context: Record<string, unknown>): string {
   // does unreliably (it called a fully on-target store "At Risk"/"Borderline"
   // by echoing the summary example format — James, July 14 2026).
   const statusVal = String((latest?.overall_status ?? "")).toLowerCase();
-  const verdict = statusVal === "ok" ? "Compliant" : statusVal === "warn" ? "Borderline" : statusVal === "bad" ? "At Risk" : null;
+  const verdict = VERDICT_LABEL[statusVal] ?? null;
   const verdictBlock = verdict
     ? `\n**AUTHORITATIVE VERDICT: ${verdict}.** The summary MUST begin with exactly this word. ${verdict === "Compliant" ? "This store is on target — name NO problem cause anywhere; every metric is within range." : ""}\n`
     : "";
@@ -348,8 +370,9 @@ there's nothing to dig into.
 
 "summary": One line. START with the verdict word taken DIRECTLY from the
 data's overall_status field — do NOT compute your own: overall_status "ok" →
-"Compliant", "warn" → "Borderline", "bad" → "At Risk". Never label a store
-At Risk or Borderline when overall_status is "ok"; a metric a few percent
+"Compliant", "warn" → "Borderline", "bad" → "At Risk", "severe" → "Severe".
+Never label a store Severe, At Risk or Borderline when overall_status is
+"ok"; a metric a few percent
 off (within ±25%) is ON TARGET and is NOT a cause — for a compliant store the
 summary is just e.g. "Compliant — all metrics on target" with no cause named.
 When not compliant, follow the verdict with the single dominant CAUSE you
