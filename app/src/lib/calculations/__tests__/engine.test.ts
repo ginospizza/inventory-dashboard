@@ -37,11 +37,17 @@ import {
   type RollingStatusRow,
 } from "../engine";
 
-import { FLOUR_YIELD_FACTOR, BOX_RATIOS, BOXES_PER_CASE } from "../constants";
+import {
+  FLOUR_YIELD_FACTOR,
+  BOX_RATIOS,
+  BOXES_PER_CASE,
+  ROLLING_WINDOW_WEEKS,
+  ROLLING_PRIOR_WEEKS,
+} from "../constants";
 import type { Product, RawOrderRow, WeeklyMetrics, ComplianceStatus } from "@/lib/types";
 
 // ── Rolling-average smoothing (both sides) ───────────────────
-describe("smoothedDiffStatuses — 4-week rolling average, both sides", () => {
+describe("smoothedDiffStatuses — rolling average, both sides", () => {
   const wk = (orderedMult: number): RollingWeek => ({
     // ordered = multiplier × the box-expected; estimated held steady at the same base
     cheese_ordered_oz: 100 * orderedMult, cheese_estimated_oz: 100,
@@ -52,9 +58,18 @@ describe("smoothedDiffStatuses — 4-week rolling average, both sides", () => {
 
   it("a single stock-up spike is smoothed away by the prior weeks", () => {
     // This week +110% over (would be At Risk in isolation), but the 3 prior weeks
-    // were on-target, so the 4-week average is only ~+28% -> Borderline, not At Risk.
+    // were on-target, so the average is only ~+28% -> Borderline, not At Risk.
     const s = smoothedDiffStatuses(wk(2.1), [wk(1), wk(1), wk(1)], "flour");
     expect(s.cheese_status).toBe("warn");
+  });
+
+  it("a full 6-week window smooths that same spike further than 4 weeks did", () => {
+    // Same +110% spike, now against 5 on-target priors: (2.1 + 5)/6 = +18.3%,
+    // inside the 25% band -> Compliant. This is the relaxation the move from a
+    // 4-week to a 6-week window produces (James, July 22 2026), and it is the
+    // whole reason a re-score backfill is required alongside the change.
+    const priors = Array.from({ length: ROLLING_PRIOR_WEEKS }, () => wk(1));
+    expect(smoothedDiffStatuses(wk(2.1), priors, "flour").cheese_status).toBe("ok");
   });
 
   it("a sustained over-order stays At Risk (smoothing does not rescue it)", () => {
@@ -78,7 +93,7 @@ describe("smoothedDiffStatuses — 4-week rolling average, both sides", () => {
   });
 });
 
-describe("smoothedRatioStatuses — ratios smoothed over the 4-week window (July 14 2026)", () => {
+describe("smoothedRatioStatuses — ratios smoothed over the rolling window (July 14 2026)", () => {
   // cheese fixed so cheese/8 = 100; then S:C = sauce/500, F:C = flour/37.5.
   const rw = (sc: number, fc = 1.0): RollingWeek => ({
     cheese_ordered_oz: 800, cheese_estimated_oz: 800,
@@ -141,11 +156,30 @@ describe("recomputeRollingStatuses — canonical rolling-window recompute", () =
     );
   });
 
-  it("is gap-tolerant: uses the up-to-3 preceding ARRAY entries, not week-number arithmetic", () => {
+  it("is gap-tolerant: uses the preceding ARRAY entries, not week-number arithmetic", () => {
     const rows = [row(1), row(2)];
     const results = recomputeRollingStatuses(rows);
     const expected = smoothedDiffStatuses(rows[1], [rows[0]], "flour");
     expect(results[1].cheese_status).toBe(expected.cheese_status);
+  });
+
+  it(`windows exactly ${ROLLING_WINDOW_WEEKS} weeks — the edge week counts, one older does not`, () => {
+    // Every other prior fixture is short enough that Math.max(0, ...) clamps to
+    // the start of the array, which makes the window size invisible: a 4-week
+    // window and a 6-week window give identical answers. To pin the size, put a
+    // huge spike at EXACTLY the oldest position the window still reaches, then
+    // one position beyond it.
+    const steady = (n: number) => Array.from({ length: n }, () => row(1));
+
+    // Spike sits ROLLING_PRIOR_WEEKS back from the last week -> still inside.
+    const atEdge = [row(50), ...steady(ROLLING_PRIOR_WEEKS)];
+    const edgeResult = recomputeRollingStatuses(atEdge);
+    expect(edgeResult[edgeResult.length - 1].cheese_status).toBe("bad");
+
+    // One week further back -> falls out, last week grades clean.
+    const pastEdge = [row(50), ...steady(ROLLING_WINDOW_WEEKS)];
+    const pastResult = recomputeRollingStatuses(pastEdge);
+    expect(pastResult[pastResult.length - 1].cheese_status).toBe("ok");
   });
 
   it("smooths a single-week ratio spike out of overall (James, July 14 2026)", () => {
@@ -167,7 +201,7 @@ describe("recomputeRollingStatuses — canonical rolling-window recompute", () =
     const rows = [row(1.2), row(1.25), row(1.1), row(1.05)];
     const a = recomputeRollingStatuses(rows);
     const b = rows.map((_, i) => {
-      const prior = rows.slice(Math.max(0, i - 3), i);
+      const prior = rows.slice(Math.max(0, i - ROLLING_PRIOR_WEEKS), i);
       const diff = smoothedDiffStatuses(rows[i], prior, "flour");
       const rat = smoothedRatioStatuses(rows[i], prior, "flour");
       return overallStatus([diff.cheese_status, diff.sauce_status, diff.flour_status, rat.sauce_cheese_status, rat.flour_cheese_status]);

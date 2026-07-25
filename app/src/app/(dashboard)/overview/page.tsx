@@ -12,7 +12,7 @@ import {
   getLatestWeek,
   getAnomalies,
 } from "@/lib/data-access";
-import { generateFlags } from "@/lib/calculations";
+import { generateFlags, ROLLING_WINDOW_WEEKS } from "@/lib/calculations";
 import type { WeeklyMetrics } from "@/lib/types";
 import { OverviewClient } from "./overview-client";
 
@@ -56,7 +56,7 @@ export default async function OverviewPage({ searchParams }: PageProps) {
     await Promise.all([
       getNetworkStats(filters),
       getBrandStats(filters),
-      getWeeklyTrend(8, { brand: params.brand, dsm: params.dsm, year: selectedYear }),
+      getWeeklyTrend(ROLLING_WINDOW_WEEKS, { brand: params.brand, dsm: params.dsm, year: selectedYear }),
       getAtRiskStores(filters),
       getAvailableWeeks(selectedYear),
       getAvailableYears(),

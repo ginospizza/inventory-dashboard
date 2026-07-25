@@ -12,6 +12,7 @@ import { AlertTriangle, AlertCircle, Info } from "lucide-react";
 import type { AppUser, Flag, ComplianceStatus, Anomaly } from "@/lib/types";
 import { brandLabel } from "@/lib/types";
 import { signedPct } from "@/lib/ai/prompts";
+import { ROLLING_WINDOW_WEEKS } from "@/lib/calculations/constants";
 
 interface StoreDetailClientProps {
   user: AppUser;
@@ -48,8 +49,11 @@ export function StoreDetailClient({
   const storeBrand = brandLabel(store.brand as string);
   const dsm = store.dsms as { name: string; region: string } | null;
 
-  const last5 = metrics.slice(0, 5);
-  const trendData = [...metrics].reverse().slice(-8);
+  // Rows displayed and the trend chart both use the smoothing window, so the
+  // table, the charts, and the moving average all describe the same 6 weeks
+  // (James, July 22 2026 — these were 5 and 8).
+  const recentWeeks = metrics.slice(0, ROLLING_WINDOW_WEEKS);
+  const trendData = [...metrics].reverse().slice(-ROLLING_WINDOW_WEEKS);
 
   async function handleAiInsight() {
     setAiLoading(true);
@@ -257,7 +261,7 @@ export function StoreDetailClient({
                 </tr>
               </thead>
               <tbody>
-                {last5.map((m) => (
+                {recentWeeks.map((m) => (
                   <tr key={`${m.year}-${m.week_number}`} className="hover:bg-[rgba(244,236,221,.4)]">
                     <td className="px-3 py-[10px] font-medium" style={{ borderBottom: "1px solid var(--color-line)" }}>W{m.week_number as number}</td>
                     <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)" }}>{fmt(m.cheese_ordered_oz as number)}</td>
