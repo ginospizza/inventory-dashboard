@@ -34,6 +34,7 @@ import {
   smoothedRatioStatuses,
   recomputeRollingStatuses,
   severityScore,
+  explainStatus,
   type RollingWeek,
   type RollingStatusRow,
 } from "../engine";
@@ -132,6 +133,78 @@ describe("statusRank — ordering used by every severity sort", () => {
     // the bottom of Stores Requiring Attention.
     expect(statusRank("something-new")).toBe(statusRank("severe"));
     expect(statusRank(undefined)).toBe(statusRank("severe"));
+  });
+});
+
+// ── Status explanation (James, July 22 2026) ─────────────────
+describe("explainStatus — why a store carries its status", () => {
+  // cheese/8 = 100 so S:C = sauce/500 and F:C = flour/37.5; every value here is
+  // in band unless a test moves it.
+  const wk = (over: { cheese?: number; sauce?: number; flour?: number } = {}): RollingWeek => ({
+    cheese_ordered_oz: 800 * (over.cheese ?? 1), cheese_estimated_oz: 800,
+    sauce_ordered_floz: 500 * (over.sauce ?? 1), sauce_estimated_floz: 500,
+    flour_ordered_kg: 37.5 * (over.flour ?? 1), flour_estimated_kg: 37.5,
+    dough_ordered_kg: 0, dough_estimated_kg: 0,
+  });
+
+  it("agrees with the status the engine actually assigns", () => {
+    // The explanation existing to explain a DIFFERENT verdict than the pill is
+    // the exact confusion James reported, so this is the property that matters.
+    const cases: RollingWeek[][] = [
+      [wk(), wk(), wk()],
+      [wk({ cheese: 1.3 }), wk(), wk()],
+      [wk({ cheese: 1.6 }), wk({ cheese: 1.6 }), wk({ cheese: 1.6 })],
+      [wk({ sauce: 2.5 }), wk({ sauce: 2.5 }), wk({ sauce: 2.5 })],
+      [wk({ flour: 0.2 }), wk({ flour: 0.2 }), wk({ flour: 0.2 })],
+    ];
+    for (const [current, ...prior] of cases) {
+      const diffs = smoothedDiffStatuses(current, prior, "flour");
+      const ratios = smoothedRatioStatuses(current, prior, "flour");
+      const expected = overallStatus([
+        diffs.cheese_status, diffs.sauce_status, diffs.flour_status,
+        ratios.sauce_cheese_status, ratios.flour_cheese_status,
+      ]);
+      expect(explainStatus(current, prior, "flour").status).toBe(expected);
+    }
+  });
+
+  it("names the metric that actually drove the status", () => {
+    // Cheese sustained ~+60% -> At Risk on cheese alone.
+    const e = explainStatus(wk({ cheese: 1.6 }), [wk({ cheese: 1.6 }), wk({ cheese: 1.6 })], "flour");
+    expect(e.status).toBe("bad");
+    expect(e.drivers.map((d) => d.label)).toContain("Cheese");
+    expect(e.detail).toMatch(/Cheese ordered \d+% over/);
+  });
+
+  it("explains a ratio-driven status as a ratio, not an ingredient", () => {
+    // Sauce far over pushes S:C out of band while sauce's own diff also moves —
+    // whichever tier wins, the driver list must not be empty and must be real.
+    const e = explainStatus(wk({ sauce: 2.5 }), [wk({ sauce: 2.5 }), wk({ sauce: 2.5 })], "flour");
+    expect(e.drivers.length).toBeGreaterThan(0);
+    expect(e.drivers.every((d) => d.status === e.status)).toBe(true);
+  });
+
+  it("reports no drivers and a plain all-clear when compliant", () => {
+    const e = explainStatus(wk(), [wk(), wk()], "flour");
+    expect(e.status).toBe("ok");
+    expect(e.drivers).toEqual([]);
+    expect(e.headline).toMatch(/on target/i);
+  });
+
+  it("says how many weeks the window covered", () => {
+    expect(explainStatus(wk(), [], "flour").windowWeeks).toBe(1);
+    const priors = Array.from({ length: ROLLING_PRIOR_WEEKS }, () => wk());
+    expect(explainStatus(wk(), priors, "flour").windowWeeks).toBe(ROLLING_WINDOW_WEEKS);
+  });
+
+  it("describes dough stores with Dough / Dough:Cheese, never Flour", () => {
+    const doughWeek: RollingWeek = {
+      ...wk(), flour_ordered_kg: 0, flour_estimated_kg: 0,
+      dough_ordered_kg: 60, dough_estimated_kg: 60,
+    };
+    const e = explainStatus(doughWeek, [doughWeek, doughWeek], "dough");
+    const labels = e.drivers.map((d) => d.label).join(" ");
+    expect(labels).not.toMatch(/Flour/);
   });
 });
 

@@ -20,7 +20,7 @@ import type {
   Brand,
   StoreType,
 } from "@/lib/types";
-import { worstStatus, statusRank } from "@/lib/types";
+import { worstStatus, statusRank, STATUS_LABEL } from "@/lib/types";
 
 import {
   KG_TO_OZ,
@@ -38,6 +38,7 @@ import {
   DEFAULT_PCT_THRESHOLDS,
   DEFAULT_RATIO_THRESHOLDS,
   ROLLING_PRIOR_WEEKS,
+  ROLLING_WINDOW_WEEKS,
 } from "./constants";
 
 // ── Intermediate aggregation ─────────────────────────────────
@@ -592,6 +593,142 @@ export function smoothedRatioStatuses(
       storeType === "dough"
         ? ratioStatus(doughCheeseRatio(avg((w) => w.dough_ordered_kg), avgCheese))
         : ("ok" as ComplianceStatus),
+  };
+}
+
+/**
+ * Why a store-week carries the status it does.
+ *
+ * James (July 22 2026): "It's not clear enough why a store is considered At
+ * Risk... Add an explanation to the Status to show why it is the Status it is."
+ *
+ * This is computed from the SAME smoothed window as the status itself rather
+ * than from the single-week numbers on display, because those two disagree by
+ * design — the table shows one week, the grade averages six. An explanation
+ * derived from the visible week would routinely contradict the pill beside it
+ * ("why does it say At Risk when cheese is only 4% over?"), which is precisely
+ * the confusion James is reporting.
+ */
+export interface StatusExplanation {
+  status: ComplianceStatus;
+  /** Short label for a tooltip, e.g. "Sustained cheese overage". */
+  headline: string;
+  /** Full sentence naming the driver(s) and the numbers behind them. */
+  detail: string;
+  /** Every metric sitting at the worst tier — more than one can tie. */
+  drivers: { label: string; phrase: string; status: ComplianceStatus }[];
+  /** How many weeks the window actually had (fewer than 6 early in a series). */
+  windowWeeks: number;
+}
+
+const METRIC_LABEL = {
+  cheese: "Cheese",
+  sauce: "Sauce",
+  flour: "Flour",
+  dough: "Dough",
+} as const;
+
+/**
+ * Build the human explanation for one store-week's status.
+ *
+ * `prior` is the same up-to-ROLLING_PRIOR_WEEKS list passed to the smoothed
+ * status functions, so the verdict here always matches overall_status.
+ */
+export function explainStatus(
+  current: RollingWeek,
+  prior: RollingWeek[],
+  storeType: StoreType
+): StatusExplanation {
+  const window = [current, ...prior];
+  const n = window.length;
+  const avg = (sel: (w: RollingWeek) => number) =>
+    window.reduce((s, w) => s + (sel(w) || 0), 0) / n;
+
+  const diffs = smoothedDiffStatuses(current, prior, storeType);
+  const ratios = smoothedRatioStatuses(current, prior, storeType);
+
+  /** Signed % away from box-expected, over the window. */
+  const pctOff = (ord: number, est: number) => (est > 0 ? ((ord - est) / est) * 100 : 0);
+
+  const isDough = storeType === "dough";
+  const candidates: { label: string; phrase: string; status: ComplianceStatus }[] = [];
+
+  const addDiff = (
+    label: string,
+    orderedSel: (w: RollingWeek) => number,
+    estimatedSel: (w: RollingWeek) => number,
+    status: ComplianceStatus
+  ) => {
+    const pct = pctOff(avg(orderedSel), avg(estimatedSel));
+    const direction = pct >= 0 ? "over" : "under";
+    candidates.push({
+      label,
+      phrase: `${label} ordered ${Math.abs(Math.round(pct))}% ${direction} what the box count expects`,
+      status,
+    });
+  };
+
+  addDiff(METRIC_LABEL.cheese, (w) => w.cheese_ordered_oz, (w) => w.cheese_estimated_oz, diffs.cheese_status);
+  addDiff(METRIC_LABEL.sauce, (w) => w.sauce_ordered_floz, (w) => w.sauce_estimated_floz, diffs.sauce_status);
+  if (isDough) {
+    addDiff(METRIC_LABEL.dough, (w) => w.dough_ordered_kg, (w) => w.dough_estimated_kg, diffs.dough_status);
+  } else {
+    addDiff(METRIC_LABEL.flour, (w) => w.flour_ordered_kg, (w) => w.flour_estimated_kg, diffs.flour_status);
+  }
+
+  const addRatio = (label: string, value: number, status: ComplianceStatus) => {
+    candidates.push({
+      label,
+      phrase: `${label} ratio at ${Math.round(value * 100)}% (target ${DEFAULT_RATIO_THRESHOLDS.ok_low}-${DEFAULT_RATIO_THRESHOLDS.ok_high}%)`,
+      status,
+    });
+  };
+
+  const avgCheese = avg((w) => w.cheese_ordered_oz);
+  addRatio("Sauce:Cheese", sauceCheeseRatio(avg((w) => w.sauce_ordered_floz), avgCheese), ratios.sauce_cheese_status);
+  if (isDough) {
+    addRatio("Dough:Cheese", doughCheeseRatio(avg((w) => w.dough_ordered_kg), avgCheese), ratios.dough_cheese_status);
+  } else {
+    addRatio("Flour:Cheese", flourCheeseRatio(avg((w) => w.flour_ordered_kg), avgCheese), ratios.flour_cheese_status);
+  }
+
+  const status = worstStatus(candidates.map((c) => c.status));
+  const drivers = candidates.filter((c) => c.status === status);
+  const windowLabel = `${n}-week average`;
+
+  if (status === "ok") {
+    return {
+      status,
+      headline: "All metrics on target",
+      detail: `Every ingredient is within ${Math.round(DEFAULT_PCT_THRESHOLDS.warn * 100)}% of what the box count expects and both ratios are in band, on a ${windowLabel}.`,
+      drivers: [],
+      windowWeeks: n,
+    };
+  }
+
+  const label = STATUS_LABEL[status];
+  const list = drivers.map((d) => d.phrase).join("; ");
+  const sustained = n >= ROLLING_WINDOW_WEEKS ? "Sustained" : "Recent";
+  const headline =
+    drivers.length === 1
+      ? `${sustained} ${drivers[0].label.toLowerCase()} deviation`
+      : `${sustained} deviation across ${drivers.length} metrics`;
+
+  // A store's status is its single worst metric, so name that plainly and say
+  // what the other metrics are doing — otherwise "At Risk" reads as though
+  // everything is wrong when four of five may be fine.
+  const otherCount = candidates.length - drivers.length;
+  const others =
+    otherCount > 0
+      ? ` The other ${otherCount} metric${otherCount === 1 ? " is" : "s are"} better than this.`
+      : "";
+
+  return {
+    status,
+    headline,
+    detail: `${label} because a store is graded on its worst metric: ${list} — measured on a ${windowLabel}.${others}`,
+    drivers,
+    windowWeeks: n,
   };
 }
 
