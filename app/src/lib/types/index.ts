@@ -288,6 +288,11 @@ export interface Flag {
   value: number;
   threshold: number;
   meaning: string;
+  /** When this flag occurred. Set when flags are collected across weeks for the
+   *  Flag History tab (James, July 22 2026: "Add occurrence dates"); omitted
+   *  when generateFlags is called for a single week's own display. */
+  week?: number;
+  year?: number;
 }
 
 // ── Network Stats (computed for overview) ────────────────────
@@ -355,9 +360,19 @@ export interface Anomaly {
   store_code: string;
   store_id: string;
   week: number;
+  /** Needed to sort and date anomalies correctly across a year boundary. */
+  year: number;
   metric: string;
   value: number;
   description: string;
+  /**
+   * Rolling-window average of the SAME metric at this week, for context
+   * (James, July 22 2026: "the cheese diff of -14.1 cases should also display
+   * the 6 week average to give greater context"). Undefined where the anomaly
+   * isn't a numeric deviation (zero-boxes, zero-cheese).
+   */
+  window_average?: number;
+  window_weeks?: number;
 }
 
 // ── AI ──────────────────────────────────────────────────────
