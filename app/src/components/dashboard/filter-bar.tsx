@@ -19,6 +19,11 @@ interface FilterBarProps {
     severe: number;
   };
   showStatusFilter?: boolean;
+  /** Off on the store page — a single store has one brand and one DSM, so the
+   *  selectors there would be inert controls (James asked only for the DATE
+   *  filters to be carried over to the store view). */
+  showBrandFilter?: boolean;
+  showDsmFilter?: boolean;
 }
 
 export function FilterBar({
@@ -29,6 +34,8 @@ export function FilterBar({
   dsms,
   statusCounts,
   showStatusFilter = false,
+  showBrandFilter = true,
+  showDsmFilter = true,
 }: FilterBarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -108,23 +115,27 @@ export function FilterBar({
       </select>
 
       {/* Brand filter */}
-      <FilterLabel>Brand</FilterLabel>
-      <select
-        value={currentBrand}
-        onChange={(e) => updateParam("brand", e.target.value)}
-        className="filter-select"
-        style={selectStyle}
-      >
-        <option value="all">All Brands</option>
-        {brands.map((b) => (
-          <option key={b} value={b}>
-            {brandLabel(b)}
-          </option>
-        ))}
-      </select>
+      {showBrandFilter && (
+        <>
+          <FilterLabel>Brand</FilterLabel>
+          <select
+            value={currentBrand}
+            onChange={(e) => updateParam("brand", e.target.value)}
+            className="filter-select"
+            style={selectStyle}
+          >
+            <option value="all">All Brands</option>
+            {brands.map((b) => (
+              <option key={b} value={b}>
+                {brandLabel(b)}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
 
       {/* DSM filter — admin only */}
-      {!isDsm && (
+      {showDsmFilter && !isDsm && (
         <>
           <FilterLabel>DSM</FilterLabel>
           <select
@@ -144,7 +155,7 @@ export function FilterBar({
       )}
 
       {/* DSM locked pill for DSM users */}
-      {isDsm && (
+      {showDsmFilter && isDsm && (
         <div
           className="flex items-center gap-[6px] px-3 py-[6px] rounded-full text-ginos-red bg-ginos-red-soft"
           style={{ fontSize: "12px", fontWeight: 600 }}
