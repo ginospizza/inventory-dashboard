@@ -19,6 +19,7 @@ import {
   aggregateStoreWeek,
   computeWeeklyMetrics,
   detectBrand,
+  recomputeRollingStatuses,
   resolveStoreType,
 } from "../src/lib/calculations/engine";
 import { normalizeStoreCode, shouldIgnoreStore } from "../src/lib/calculations/stores";
@@ -490,8 +491,13 @@ async function computeAndWriteMetrics(
 
   console.log(`  Computed ${computed} raw metrics, skipped ${skipped}`);
 
-  // Pass 2: Re-compute with 4-week rolling average for status
-  // Group by store, then for each week look back 3 weeks
+  // Pass 2: Re-compute status with the rolling average.
+  //
+  // Delegates to recomputeRollingStatuses — the same function the upload route
+  // and rescore-metrics.ts use. This pass used to carry its own windowing that
+  // smoothed only the ordered side and left the ratio statuses unsmoothed, so a
+  // fresh import disagreed with a rescore until the rescore overwrote it. One
+  // implementation now, so the window size and the smoothing rules can't drift.
   const byStoreAll = new Map<string, { year: number; week: number; metrics: any }[]>();
   for (const [, entry] of rawMetrics) {
     if (!byStoreAll.has(entry.storeId)) byStoreAll.set(entry.storeId, []);
@@ -504,59 +510,26 @@ async function computeAndWriteMetrics(
     // Sort by year then week
     entries.sort((a, b) => a.year !== b.year ? a.year - b.year : a.week - b.week);
 
+    // One call for the store's whole chronological series — the function walks
+    // the rolling window itself and returns every status per week, ratios included.
+    const rolled = recomputeRollingStatuses(
+      entries.map(({ metrics }) => ({
+        store_type: metrics.store_type,
+        cheese_ordered_oz: metrics.cheese_ordered_oz,
+        sauce_ordered_floz: metrics.sauce_ordered_floz,
+        flour_ordered_kg: metrics.flour_ordered_kg,
+        dough_ordered_kg: metrics.dough_ordered_kg ?? 0,
+        cheese_estimated_oz: metrics.cheese_estimated_oz,
+        sauce_estimated_floz: metrics.sauce_estimated_floz,
+        flour_estimated_kg: metrics.flour_estimated_kg,
+        dough_estimated_kg: metrics.dough_estimated_kg ?? 0,
+      }))
+    );
+
     for (let i = 0; i < entries.length; i++) {
       const { metrics } = entries[i];
-
-      // Get prior 3 weeks (indices i-1, i-2, i-3)
-      const priorWeeks = [];
-      for (let j = Math.max(0, i - 3); j < i; j++) {
-        priorWeeks.push({
-          cheese_ordered_oz: entries[j].metrics.cheese_ordered_oz,
-          sauce_ordered_floz: entries[j].metrics.sauce_ordered_floz,
-          flour_ordered_kg: entries[j].metrics.flour_ordered_kg,
-          dough_ordered_kg: entries[j].metrics.dough_ordered_kg ?? 0,
-        });
-      }
-
-      // Re-compute status with rolling average
-      const { diffStatusPct } = await import("../src/lib/calculations/engine");
-      const { DEFAULT_PCT_THRESHOLDS } = await import("../src/lib/calculations/constants");
-
-      let cheeseForStatus = metrics.cheese_ordered_oz;
-      let sauceForStatus = metrics.sauce_ordered_floz;
-      let flourForStatus = metrics.flour_ordered_kg;
-      let doughForStatus = metrics.dough_ordered_kg ?? 0;
-
-      if (priorWeeks.length > 0) {
-        const all = [
-          { cheese_ordered_oz: metrics.cheese_ordered_oz, sauce_ordered_floz: metrics.sauce_ordered_floz, flour_ordered_kg: metrics.flour_ordered_kg, dough_ordered_kg: metrics.dough_ordered_kg ?? 0 },
-          ...priorWeeks,
-        ];
-        const n = all.length;
-        cheeseForStatus = all.reduce((s: number, w: any) => s + w.cheese_ordered_oz, 0) / n;
-        sauceForStatus = all.reduce((s: number, w: any) => s + w.sauce_ordered_floz, 0) / n;
-        flourForStatus = all.reduce((s: number, w: any) => s + w.flour_ordered_kg, 0) / n;
-        doughForStatus = all.reduce((s: number, w: any) => s + w.dough_ordered_kg, 0) / n;
-      }
-
-      const cheeseEst = metrics.cheese_estimated_oz;
-      const sauceEst = metrics.sauce_estimated_floz;
-      const flourEst = metrics.flour_estimated_kg;
-      const doughEst = metrics.dough_estimated_kg ?? 0;
-      const storeType = entries[i].metrics.store_type;
-
-      const cStatus = diffStatusPct(cheeseForStatus, cheeseEst);
-      const sStatus = diffStatusPct(sauceForStatus, sauceEst);
-      // flour_status computed for all store types: dough stores carry a
-      // flour-equivalent in flour_ordered_kg, so this colors their Flour tile
-      // (equals dough_status). Overall grading for dough still uses dStatus.
-      const fStatus = diffStatusPct(flourForStatus, flourEst);
-      const dStatus = storeType === "dough" ? diffStatusPct(doughForStatus, doughEst) : "ok";
-
-      const statuses = [cStatus, sStatus, metrics.sauce_cheese_status, metrics.flour_cheese_status];
-      if (storeType === "flour") statuses.push(fStatus);
-      else statuses.push(dStatus, metrics.dough_cheese_status ?? "ok");
-      const overallStatus = statuses.includes("bad") ? "bad" : statuses.includes("warn") ? "warn" : "ok";
+      const storeType = metrics.store_type;
+      const status = rolled[i];
 
       metricsToInsert.push({
         store_id: storeId,
@@ -587,14 +560,14 @@ async function computeAndWriteMetrics(
         total_boxes_ordered: metrics.total_boxes_ordered,
         estimated_pizza_sales: metrics.estimated_pizza_sales,
         weekly_pizza_sales: metrics.weekly_pizza_sales,
-        cheese_status: cStatus,
-        sauce_status: sStatus,
-        flour_status: fStatus,
-        dough_status: dStatus,
-        sauce_cheese_status: metrics.sauce_cheese_status,
-        flour_cheese_status: metrics.flour_cheese_status,
-        dough_cheese_status: metrics.dough_cheese_status ?? "ok",
-        overall_status: overallStatus,
+        cheese_status: status.cheese_status,
+        sauce_status: status.sauce_status,
+        flour_status: status.flour_status,
+        dough_status: status.dough_status,
+        sauce_cheese_status: status.sauce_cheese_status,
+        flour_cheese_status: status.flour_cheese_status,
+        dough_cheese_status: status.dough_cheese_status,
+        overall_status: status.overall_status,
       });
     }
   }

@@ -36,6 +36,7 @@ import {
   DEFAULT_DIFF_THRESHOLDS,
   DEFAULT_PCT_THRESHOLDS,
   DEFAULT_RATIO_THRESHOLDS,
+  ROLLING_PRIOR_WEEKS,
 } from "./constants";
 
 // ── Intermediate aggregation ─────────────────────────────────
@@ -484,9 +485,9 @@ export interface RollingWeek {
 export type PriorWeekData = RollingWeek;
 
 /**
- * Compute the four ingredient diff statuses for a week using a 4-week rolling
- * window (the current week plus up to 3 prior weeks), smoothing BOTH the ordered
- * amounts and the box-expected estimates.
+ * Compute the four ingredient diff statuses for a week using the rolling window
+ * (the current week plus up to ROLLING_PRIOR_WEEKS prior weeks — 6 weeks total),
+ * smoothing BOTH the ordered amounts and the box-expected estimates.
  *
  * Smoothing both sides is the fix for the "stocked up one week, ordered light the
  * next" problem: grading a single week in isolation lets a stock-up spike trip
@@ -496,8 +497,9 @@ export type PriorWeekData = RollingWeek;
  * The ratio statuses (S:C, F:C, D:C) are smoothed the same way, in the parallel
  * smoothedRatioStatuses below — kept a separate function so each stays simple.
  *
- * `prior` is the up-to-3 immediately preceding weeks (order within the array does
- * not matter — it's an average). Pass [] to grade the week in isolation.
+ * `prior` is the up-to-ROLLING_PRIOR_WEEKS immediately preceding weeks (order
+ * within the array does not matter — it's an average). Pass [] to grade the week
+ * in isolation.
  *
  * This is the single source of truth for rolling-average status. The upload path,
  * the historical importer, and the re-score backfill all call it so the smoothing
@@ -535,7 +537,7 @@ export function smoothedDiffStatuses(
 
 /**
  * Compute the ingredient-ratio statuses (S:C, and F:C or D:C) over the same
- * 4-week rolling window, by averaging each ordered total across the window and
+ * rolling window, by averaging each ordered total across the window and
  * computing the ratio from those averages — then grading with ratioStatus.
  *
  * Ratios are now smoothed like the diffs (James, July 14 2026): a single slow
@@ -586,7 +588,8 @@ export interface RollingStatusRow extends RollingWeek {
  * series of weeks (sorted by week_number ascending, gap-tolerant).
  *
  * This is the single source of truth for "what should week i's status be
- * given its own data and the up-to-3 rows immediately before it." Both the
+ * given its own data and the up-to-ROLLING_PRIOR_WEEKS rows immediately before
+ * it." Both the
  * historical rescore script and the upload route MUST call this instead of
  * reimplementing the windowing — a GINOS008 week-27 case (James, July 10
  * 2026) showed the upload-time computation and a fresh rescore disagreeing
@@ -603,7 +606,7 @@ export function recomputeRollingStatuses(
   overall_status: ComplianceStatus;
 }[] {
   return rows.map((row, i) => {
-    const prior = rows.slice(Math.max(0, i - 3), i);
+    const prior = rows.slice(Math.max(0, i - ROLLING_PRIOR_WEEKS), i);
     const diff = smoothedDiffStatuses(row, prior, row.store_type);
     const ratios = smoothedRatioStatuses(row, prior, row.store_type);
     const ratioList: ComplianceStatus[] =
@@ -624,7 +627,7 @@ export function computeWeeklyMetrics(
   year: number,
   storeType: StoreType = "flour",
   brand: Brand = "GINOS",
-  priorWeeks?: RollingWeek[] // last 3 weeks (not including current) for 4-week rolling avg
+  priorWeeks?: RollingWeek[] // preceding weeks (excl. current) for the 6-week rolling avg
 ): Omit<WeeklyMetrics, "id"> {
   const agg = aggregateStoreWeek(rows, productLookup, year);
   // Clamshells count for every brand; paper plates only for TTD/PP/WM.
@@ -658,8 +661,8 @@ export function computeWeeklyMetrics(
   const flourDiffVal = flourDiff(flourOrdered, flourEst);
   const flourCheeseRatioVal = flourCheeseRatio(flourOrdered, agg.total_cheese_oz);
 
-  // Status — BOTH diff and ratio statuses use the 4-week rolling window (current
-  // + up to 3 prior weeks), smoothing orders and box-expected. With no prior
+  // Status — BOTH diff and ratio statuses use the 6-week rolling window (current
+  // + up to 5 prior weeks), smoothing orders and box-expected. With no prior
   // weeks supplied this grades the week in isolation (window of 1). The diff and
   // ratio VALUES above are still this single week's; only the STATUS is smoothed.
   const current: RollingWeek = {

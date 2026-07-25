@@ -80,6 +80,17 @@ export const SAUCE_RATIO_DIVISOR = 5;
 export const CHEESE_RATIO_DIVISOR = 8;
 export const DOUGH_RATIO_DIVISOR = 0.6;
 
+// ── Rolling / display window ─────────────────────────────────
+// Standardized on 6 weeks (James, July 22 2026). Three different numbers were
+// in play before — a 4-week smoothing window, 5 weeks of rows in the store
+// table, and 8 weeks of trend chart — so the "average" on one screen didn't
+// line up with the trend on the next. One constant now drives all three:
+// the smoothing window, the weeks of data displayed, and the trend length.
+export const ROLLING_WINDOW_WEEKS = 6;
+
+/** Prior weeks to include alongside the current one (= window - 1). */
+export const ROLLING_PRIOR_WEEKS = ROLLING_WINDOW_WEEKS - 1;
+
 // ── Default thresholds (configurable per item in admin) ──────
 // Legacy flat thresholds (kept for reference)
 export const DEFAULT_DIFF_THRESHOLDS = {

@@ -4,7 +4,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { computeNetworkStats, computeBrandStats, severityScore, DEFAULT_DIFF_THRESHOLDS } from "@/lib/calculations";
+import { computeNetworkStats, computeBrandStats, severityScore, DEFAULT_DIFF_THRESHOLDS, ROLLING_WINDOW_WEEKS } from "@/lib/calculations";
 import type { WeeklyMetrics, NetworkStats, BrandStats, WeeklyTrend, Brand, Anomaly } from "@/lib/types";
 
 interface MetricsFilters {
@@ -261,7 +261,7 @@ export async function getBrandStats(
  * Get weekly compliance trend (last N weeks).
  */
 export async function getWeeklyTrend(
-  numWeeks = 8,
+  numWeeks = ROLLING_WINDOW_WEEKS,
   filters: Omit<MetricsFilters, "week"> = {}
 ): Promise<WeeklyTrend[]> {
   const weeks = await getAvailableWeeks(filters.year);

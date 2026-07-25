@@ -1,12 +1,13 @@
 /**
- * Re-score historical weekly_metrics with the 4-week rolling average.
+ * Re-score historical weekly_metrics with the rolling average
+ * (ROLLING_WINDOW_WEEKS, currently 6).
  *
  * Why: status was being graded week-in-isolation on the live dashboard because
  * the rolling average was never applied to uploads (and the original load only
  * smoothed orders, not box-expected). This backfill recomputes every week's
  * ingredient + overall STATUS using smoothedDiffStatuses — the same single
  * source of truth the upload path now uses — smoothing BOTH orders and
- * box-expected across the current week + up to 3 prior weeks.
+ * box-expected across the current week + the preceding weeks in the window.
  *
  * It only rewrites status columns. Ordered / estimated / diffs / ratios are
  * untouched, so the change is fully reversible (re-run with the old logic) and
@@ -22,6 +23,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { recomputeRollingStatuses, type RollingStatusRow } from "../src/lib/calculations/engine";
+import { ROLLING_WINDOW_WEEKS } from "../src/lib/calculations/constants";
 import type { ComplianceStatus, StoreType } from "../src/lib/types";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -68,7 +70,7 @@ const toRollingStatusRow = (r: Row): RollingStatusRow => ({
 const pct = (ord: number, est: number) => (est > 0 ? Math.round(((ord - est) / est) * 100) : null);
 
 async function main() {
-  console.log(`\n=== Re-score weekly_metrics (4-week rolling avg, both sides) ===`);
+  console.log(`\n=== Re-score weekly_metrics (${ROLLING_WINDOW_WEEKS}-week rolling avg, both sides) ===`);
   console.log(APPLY ? "MODE: APPLY (will write status changes)" : "MODE: DRY RUN (no writes)");
   if (STORE_FILTER) console.log(`Store filter (detail view): ${[...STORE_FILTER].join(", ")}`);
 
