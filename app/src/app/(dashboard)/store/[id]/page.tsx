@@ -106,9 +106,19 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
   const anchorIndex = resolveAnchorIndex(sorted, query.week, selectedYear);
 
   const latest = sorted[anchorIndex] ?? null;
-  const latestFlags = latest
-    ? generateFlags(latest as unknown as WeeklyMetrics)
-    : [];
+
+  // Flag HISTORY, not just the anchored week. The tab has always been called
+  // "Flag History" but only ever showed one week's flags, which is why James
+  // asking for "occurrence dates" made no sense against it — every row carried
+  // the same implicit date. Collect flags across the whole series and stamp each
+  // with the week it happened in (James, July 22 2026).
+  const flagHistory = sorted.flatMap((m) =>
+    generateFlags(m as unknown as WeeklyMetrics).map((f) => ({
+      ...f,
+      week: m.week_number,
+      year: m.year,
+    }))
+  );
 
   // Years and weeks available for this store, to populate the filter bar.
   const availableYears = [...new Set(sorted.map((m) => m.year))].sort((a, b) => b - a);
@@ -144,7 +154,7 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
       metrics={sorted as unknown as Record<string, unknown>[]}
       latest={latest as unknown as Record<string, unknown> | null}
       anchorIndex={anchorIndex}
-      flags={latestFlags}
+      flags={flagHistory}
       secondaryOrders={secondaryOrders}
       brandColor={brandColor}
       anomalies={anomalies}

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 import type { AppUser, ComplianceStatus } from "@/lib/types";
 import { brandLabel } from "@/lib/types";
+import { weekMondayLabel } from "@/lib/weeks";
 
 interface FilterBarProps {
   user: AppUser;
@@ -41,6 +42,8 @@ export function FilterBar({
   const searchParams = useSearchParams();
 
   const currentWeek = searchParams.get("week") ?? "";
+  // Week→Monday depends on the year, so the labels follow the Year selector.
+  const selectedYear = Number(searchParams.get("year") ?? new Date().getFullYear());
   const currentBrand = searchParams.get("brand") ?? "all";
   const currentDsm = searchParams.get("dsm") ?? "all";
   const currentStatus = searchParams.get("status") ?? "all";
@@ -106,9 +109,12 @@ export function FilterBar({
         <option value="q3">Q3 (Wk 27-39)</option>
         <option value="q4">Q4 (Wk 40-52)</option>
         <optgroup label="Individual Weeks">
+          {/* Each week shows the Monday it starts on, so "Week 27" is placeable
+              in the calendar at a glance (James, July 22 2026). Derived, not
+              imported — see lib/weeks.ts. */}
           {weeks.map((w) => (
             <option key={w} value={w}>
-              Week {w}
+              Week {w} — {weekMondayLabel(selectedYear, w)}
             </option>
           ))}
         </optgroup>

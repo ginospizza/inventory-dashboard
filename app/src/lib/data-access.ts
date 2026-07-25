@@ -363,32 +363,57 @@ export async function getAnomalies(
   for (const [sid, storeMetrics] of byStore) {
     const info = storeInfo.get(sid);
     if (!info) continue;
-    const sorted = [...storeMetrics].sort((a, b) => a.week_number - b.week_number);
+    // Sort by year THEN week — week_number alone interleaves 2025 and 2026,
+    // which both mis-sorts the output and makes the rolling window below average
+    // across unrelated years.
+    const sorted = [...storeMetrics].sort((a, b) =>
+      a.year !== b.year ? a.year - b.year : a.week_number - b.week_number
+    );
 
-    for (const m of sorted) {
+    /**
+     * Trailing rolling average of one field at position `i` — the same window
+     * the compliance status is smoothed over, so the context number James asked
+     * for lines up with how the store is actually graded.
+     */
+    const windowAvg = (i: number, field: "cheese_diff" | "sauce_diff"): { avg: number; weeks: number } => {
+      const from = Math.max(0, i - (ROLLING_WINDOW_WEEKS - 1));
+      const slice = sorted.slice(from, i + 1);
+      const sum = slice.reduce((s, r) => s + ((r[field] as number) || 0), 0);
+      return { avg: sum / slice.length, weeks: slice.length };
+    };
+
+    sorted.forEach((m, i) => {
       // Extreme diffs (>2x bad threshold)
       if (Math.abs(m.cheese_diff) > extremeThreshold) {
+        const { avg, weeks } = windowAvg(i, "cheese_diff");
         anomalies.push({
           type: "extreme_diff",
           severity: "critical",
           store_code: info.code,
           store_id: sid,
           week: m.week_number,
+          year: m.year,
           metric: "Cheese",
           value: m.cheese_diff,
           description: `Cheese diff of ${m.cheese_diff > 0 ? "+" : ""}${m.cheese_diff.toFixed(1)} cases (${m.cheese_diff > 0 ? "bulk order or event" : "possible shortage"})`,
+          window_average: avg,
+          window_weeks: weeks,
         });
       }
       if (Math.abs(m.sauce_diff) > extremeThreshold) {
+        const { avg, weeks } = windowAvg(i, "sauce_diff");
         anomalies.push({
           type: "extreme_diff",
           severity: "critical",
           store_code: info.code,
           store_id: sid,
           week: m.week_number,
+          year: m.year,
           metric: "Sauce",
           value: m.sauce_diff,
           description: `Sauce diff of ${m.sauce_diff > 0 ? "+" : ""}${m.sauce_diff.toFixed(1)} cases`,
+          window_average: avg,
+          window_weeks: weeks,
         });
       }
 
@@ -400,6 +425,7 @@ export async function getAnomalies(
           store_code: info.code,
           store_id: sid,
           week: m.week_number,
+          year: m.year,
           metric: "Cheese",
           value: 0,
           description: "Ordered boxes but no cheese",
@@ -414,12 +440,13 @@ export async function getAnomalies(
           store_code: info.code,
           store_id: sid,
           week: m.week_number,
+          year: m.year,
           metric: "Boxes",
           value: 0,
           description: "Ordered ingredients but no boxes — ratios may be skewed",
         });
       }
-    }
+    });
 
     // Week-over-week spike detection (>3x previous week's cheese)
     for (let i = 1; i < sorted.length; i++) {
@@ -432,6 +459,7 @@ export async function getAnomalies(
           store_code: info.code,
           store_id: sid,
           week: curr.week_number,
+          year: curr.year,
           metric: "Cheese",
           value: curr.cheese_ordered_oz / prev.cheese_ordered_oz,
           description: `Cheese order ${(curr.cheese_ordered_oz / prev.cheese_ordered_oz).toFixed(1)}x previous week`,
@@ -440,9 +468,11 @@ export async function getAnomalies(
     }
   }
 
-  // Sort by severity then week
-  const sevOrder = { critical: 0, warning: 1, info: 2 };
-  anomalies.sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity] || b.week - a.week);
+  // Chronological, newest first (James, July 22 2026 — was severity-then-week,
+  // which interleaved a week-3 item between week 28 and week 27 and made the
+  // list impossible to read as a timeline). Severity is still on each row as a
+  // badge; it just no longer drives the order.
+  anomalies.sort((a, b) => (a.year !== b.year ? b.year - a.year : b.week - a.week));
 
   return anomalies;
 }

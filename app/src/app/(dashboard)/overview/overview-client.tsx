@@ -8,6 +8,7 @@ import { DonutChart, ComplianceTrend, Sparkline } from "@/components/charts";
 import type { AppUser, NetworkStats, BrandStats, WeeklyTrend, Flag as FlagType, Anomaly, ComplianceStatus } from "@/lib/types";
 import { brandLabel, STATUS_COLOR, STATUS_LABEL } from "@/lib/types";
 import { signedPct } from "@/lib/ai/prompts";
+import { weekWithDate } from "@/lib/weeks";
 
 interface OverviewClientProps {
   user: AppUser;
@@ -526,11 +527,16 @@ export function OverviewClient({
                   <div className="flex items-center gap-2 text-[13px]">
                     <span className="font-medium">{a.store_code}</span>
                     <span className="font-mono text-[11px]" style={{ color: "var(--color-ink-3)" }}>
-                      Wk {a.week}
+                      {weekWithDate(a.year, a.week)}
                     </span>
                   </div>
                   <p className="text-[12px] truncate" style={{ color: "var(--color-ink-2)" }}>
                     {a.description}
+                    {a.window_average !== undefined && a.window_weeks !== undefined && (
+                      <span style={{ color: "var(--color-ink-3)" }}>
+                        {" · "}{a.window_weeks}-wk avg {a.window_average > 0 ? "+" : ""}{a.window_average.toFixed(1)} cases
+                      </span>
+                    )}
                   </p>
                 </div>
                 <span

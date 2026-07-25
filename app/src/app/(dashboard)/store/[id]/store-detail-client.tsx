@@ -12,6 +12,7 @@ import { AlertTriangle, AlertCircle, Info } from "lucide-react";
 import type { AppUser, Flag, ComplianceStatus, Anomaly } from "@/lib/types";
 import { brandLabel, statusRank, statusColor } from "@/lib/types";
 import { signedPct } from "@/lib/ai/prompts";
+import { weekWithDate, weekMondayLabel } from "@/lib/weeks";
 import {
   ROLLING_WINDOW_WEEKS,
   SAUCE_CASE_FLOZ,
@@ -559,12 +560,21 @@ export function StoreDetailClient({
             {flags.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {flags.map((f, i) => (
-                  <div key={i} className="flex items-start gap-3">
+                  <div key={`${f.year}-${f.week}-${f.type}-${i}`} className="flex items-start gap-3">
                     <FlagIcon className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "var(--color-ginos-red)" }} />
                     <div>
                       {/* All flag values are percentages now: diff flags carry the
                           signed % vs box-expected, ratio flags the ratio level %. */}
-                      <div className="text-[13px] font-medium">{f.metric}: {f.value > 0 && f.type.includes("over") ? "+" : ""}{f.value.toFixed(1)}%</div>
+                      <div className="text-[13px] font-medium">
+                        {f.metric}: {f.value > 0 && f.type.includes("over") ? "+" : ""}{f.value.toFixed(1)}%
+                        {/* Occurrence date (James, July 22 2026). This tab spans
+                            every week now, so each row needs to say WHEN. */}
+                        {f.week !== undefined && f.year !== undefined && (
+                          <span className="font-mono text-[11px] font-normal ml-2" style={{ color: "var(--color-ink-3)" }}>
+                            {weekWithDate(f.year, f.week)}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[12px]" style={{ color: "var(--color-ink-3)" }}>{f.meaning}</div>
                     </div>
                   </div>
@@ -572,7 +582,7 @@ export function StoreDetailClient({
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-[13px] font-medium" style={{ color: "var(--color-basil)" }}>Clean record — no flags this week</p>
+                <p className="text-[13px] font-medium" style={{ color: "var(--color-basil)" }}>Clean record — no flags on record</p>
               </div>
             )}
           </div>
@@ -603,8 +613,23 @@ export function StoreDetailClient({
                   <Info className="w-4 h-4 shrink-0" style={{ color: "var(--color-ink-3)" }} />
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-medium">Week {a.week} — {a.metric}</div>
-                  <p className="text-[12px]" style={{ color: "var(--color-ink-2)" }}>{a.description}</p>
+                  <div className="text-[13px] font-medium">
+                    Week {a.week} — {a.metric}
+                    <span className="font-mono text-[11px] font-normal ml-2" style={{ color: "var(--color-ink-3)" }}>
+                      wk of {weekMondayLabel(a.year, a.week)}
+                    </span>
+                  </div>
+                  <p className="text-[12px]" style={{ color: "var(--color-ink-2)" }}>
+                    {a.description}
+                    {/* The window average alongside the single-week number, so a
+                        one-off spike reads differently from a standing problem
+                        (James, July 22 2026). */}
+                    {a.window_average !== undefined && a.window_weeks !== undefined && (
+                      <span style={{ color: "var(--color-ink-3)" }}>
+                        {" · "}{a.window_weeks}-wk avg {a.window_average > 0 ? "+" : ""}{a.window_average.toFixed(1)} cases
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <span
                   className="shrink-0 text-[10px] font-semibold tracking-[.04em] uppercase px-[7px] py-[2px] rounded-full"
