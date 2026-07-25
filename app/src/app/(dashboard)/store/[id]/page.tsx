@@ -2,14 +2,14 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchMetrics, getAnomalies } from "@/lib/data-access";
+import { fetchMetrics, getAnomalies, getProductTotals, rangeWeeks, type ProductRange } from "@/lib/data-access";
 import { generateFlags } from "@/lib/calculations";
 import type { WeeklyMetrics, Brand } from "@/lib/types";
 import { StoreDetailClient } from "./store-detail-client";
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ week?: string; year?: string }>;
+  searchParams: Promise<{ week?: string; year?: string; range?: string }>;
 }
 
 /**
@@ -57,6 +57,32 @@ function resolveAnchorIndex(
     if (i !== -1) return i;
   }
   return 0;
+}
+
+/** Box sizes as James refers to them, in menu order. `boxes_*` on weekly_metrics
+ *  hold individual boxes (cases × 40), except clamshells/plates which are already
+ *  individual pieces. */
+const BOX_SIZES = [
+  { key: "boxes_small", label: 'Small (10")' },
+  { key: "boxes_medium", label: 'Medium (12")' },
+  { key: "boxes_large", label: 'Large (14")' },
+  { key: "boxes_xl", label: 'X-Large (16")' },
+  { key: "boxes_party", label: 'Party (20")' },
+  { key: "boxes_party_21x15", label: "Party 21x15" },
+  { key: "boxes_clamshell", label: "Clamshell / slice" },
+  { key: "boxes_plates", label: "Paper plates" },
+] as const;
+
+type BoxKey = (typeof BOX_SIZES)[number]["key"];
+
+/** Sum each box size across a set of store-weeks. */
+function summariseBoxes(
+  weeks: Pick<WeeklyMetrics, BoxKey>[]
+): { label: string; quantity: number }[] {
+  return BOX_SIZES.map(({ key, label }) => ({
+    label,
+    quantity: weeks.reduce((s, m) => s + (m[key] ?? 0), 0),
+  }));
 }
 
 const BRAND_COLORS: Record<string, string> = {
@@ -126,21 +152,35 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
     .filter((m) => m.year === selectedYear)
     .map((m) => m.week_number);
 
-  // Get secondary product orders for the anchored week
-  let secondaryOrders: Record<string, unknown>[] = [];
-  if (latest) {
-    const { data } = await supabase
-      .from("weekly_orders")
-      .select("*, products(code, description, classification, pack_size)")
-      .eq("store_id", id)
-      .eq("week_number", latest.week_number)
-      .eq("year", latest.year);
+  // Secondary Products over the selected range, plus the same period a year
+  // earlier for the year-over-year column (James, July 22 2026).
+  const productRange: ProductRange =
+    (["last_week", "last_4_weeks", "q1", "q2", "q3", "q4"] as const).find(
+      (r) => r === query.range
+    ) ?? "last_week";
 
-    secondaryOrders = (data ?? []).filter(
-      (o: Record<string, unknown>) =>
-        (o.products as Record<string, unknown>)?.classification === "secondary"
-    );
-  }
+  const anchorWeek = latest?.week_number ?? 1;
+  const anchorYear = latest?.year ?? selectedYear;
+  const [fromWeek, toWeek] = rangeWeeks(productRange, anchorWeek);
+
+  const [secondaryTotals, secondaryPriorYear] = latest
+    ? await Promise.all([
+        getProductTotals(id, anchorYear, fromWeek, toWeek, "secondary"),
+        getProductTotals(id, anchorYear - 1, fromWeek, toWeek, "secondary"),
+      ])
+    : [[], []];
+
+  // Box quantities come from weekly_metrics, NOT weekly_orders: metrics have the
+  // full two-year history whereas line items start at 2026 week 16, so this is
+  // the only source where the Boxes tab's year-over-year column can actually be
+  // populated.
+  const boxWeeksThis = sorted.filter(
+    (m) => m.year === anchorYear && m.week_number >= fromWeek && m.week_number <= toWeek
+  );
+  const priorYearMetrics = await fetchMetrics({ storeId: id, year: anchorYear - 1 });
+  const boxWeeksPrior = priorYearMetrics.filter(
+    (m) => m.week_number >= fromWeek && m.week_number <= toWeek
+  );
 
   const brandColor = BRAND_COLORS[store.brand] ?? "#7A7670";
 
@@ -155,7 +195,13 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
       latest={latest as unknown as Record<string, unknown> | null}
       anchorIndex={anchorIndex}
       flags={flagHistory}
-      secondaryOrders={secondaryOrders}
+      secondaryTotals={secondaryTotals}
+      secondaryPriorYear={secondaryPriorYear}
+      boxTotals={summariseBoxes(boxWeeksThis)}
+      boxTotalsPriorYear={summariseBoxes(boxWeeksPrior)}
+      productRange={productRange}
+      rangeLabel={`Wk ${fromWeek}${fromWeek === toWeek ? "" : `–${toWeek}`} ${anchorYear}`}
+      priorRangeLabel={`Wk ${fromWeek}${fromWeek === toWeek ? "" : `–${toWeek}`} ${anchorYear - 1}`}
       brandColor={brandColor}
       anomalies={anomalies}
       years={availableYears}

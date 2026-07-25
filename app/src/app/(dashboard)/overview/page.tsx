@@ -56,7 +56,14 @@ export default async function OverviewPage({ searchParams }: PageProps) {
     await Promise.all([
       getNetworkStats(filters),
       getBrandStats(filters),
-      getWeeklyTrend(ROLLING_WINDOW_WEEKS, { brand: params.brand, dsm: params.dsm, year: selectedYear }),
+      // The Period filter drives the trend's ENDING week: selecting week 28 plots
+      // weeks 23-28 (James, July 22 2026). A range selection (All/YTD/Qn) has no
+      // single ending week, so those fall back to the most recent weeks.
+      getWeeklyTrend(
+        ROLLING_WINDOW_WEEKS,
+        { brand: params.brand, dsm: params.dsm, year: selectedYear },
+        typeof week === "number" ? week : undefined
+      ),
       getAtRiskStores(filters),
       getAvailableWeeks(selectedYear),
       getAvailableYears(),
