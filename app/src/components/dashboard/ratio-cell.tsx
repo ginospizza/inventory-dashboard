@@ -1,15 +1,9 @@
 import { ratioStatus } from "@/lib/calculations";
-import type { ComplianceStatus } from "@/lib/types";
+import { STATUS_COLOR } from "@/lib/types";
 
 interface RatioCellProps {
   value: number; // decimal, e.g. 0.878
 }
-
-const STATUS_COLORS: Record<ComplianceStatus, string> = {
-  ok: "var(--color-basil)",
-  warn: "var(--color-mustard)",
-  bad: "var(--color-ginos-red)",
-};
 
 export function RatioCell({ value }: RatioCellProps) {
   const status = ratioStatus(value);
@@ -19,7 +13,7 @@ export function RatioCell({ value }: RatioCellProps) {
     <span
       className="font-mono tnum"
       style={{
-        color: STATUS_COLORS[status],
+        color: STATUS_COLOR[status],
         fontSize: "13px",
         fontWeight: 500,
       }}

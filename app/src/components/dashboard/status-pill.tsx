@@ -1,4 +1,5 @@
 import type { ComplianceStatus } from "@/lib/types";
+import { STATUS_LABEL } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface StatusPillProps {
@@ -6,24 +7,26 @@ interface StatusPillProps {
   className?: string;
 }
 
-const STATUS_CONFIG: Record<
-  ComplianceStatus,
-  { label: string; bg: string; text: string }
-> = {
+// Compliant / Borderline / At Risk are soft-tinted pills. Severe is the only
+// SOLID one — a fourth tint of red would have read as a shade of At Risk rather
+// than an escalation past it, and the whole point of the tier (James, July 22
+// 2026) is that the urgent handful stands out from a long At Risk list.
+const STATUS_CONFIG: Record<ComplianceStatus, { bg: string; text: string }> = {
   ok: {
-    label: "Compliant",
     bg: "var(--color-basil-soft)",
     text: "var(--color-basil)",
   },
   warn: {
-    label: "Borderline",
     bg: "var(--color-mustard-soft)",
     text: "var(--color-mustard)",
   },
   bad: {
-    label: "At Risk",
     bg: "var(--color-ginos-red-soft)",
     text: "var(--color-ginos-red)",
+  },
+  severe: {
+    bg: "var(--color-ginos-red-deep)",
+    text: "#FFFFFF",
   },
 };
 
@@ -49,7 +52,7 @@ export function StatusPill({ status, className }: StatusPillProps) {
         className="w-[6px] h-[6px] rounded-full"
         style={{ background: "currentColor" }}
       />
-      {config.label}
+      {STATUS_LABEL[status]}
     </span>
   );
 }

@@ -10,7 +10,7 @@ import {
 import { StatusPill, DiffCell, RatioCell } from "@/components/dashboard";
 import { AlertTriangle, AlertCircle, Info } from "lucide-react";
 import type { AppUser, Flag, ComplianceStatus, Anomaly } from "@/lib/types";
-import { brandLabel } from "@/lib/types";
+import { brandLabel, statusRank, statusColor } from "@/lib/types";
 import { signedPct } from "@/lib/ai/prompts";
 import { ROLLING_WINDOW_WEEKS } from "@/lib/calculations/constants";
 
@@ -343,8 +343,7 @@ export function StoreDetailClient({
                     <tbody>
                       {metrics.slice(0, 15).map((m, i) => {
                         const prev = metrics[i + 1] as Record<string, unknown> | undefined;
-                        const statusVal = (s: string) => s === "bad" ? 2 : s === "warn" ? 1 : 0;
-                        const statusChange = prev ? statusVal(m.overall_status as string) - statusVal(prev.overall_status as string) : 0;
+                        const statusChange = prev ? statusRank(m.overall_status as string) - statusRank(prev.overall_status as string) : 0;
                         return (
                           <tr key={m.week_number as number} className="hover:bg-[rgba(244,236,221,.3)]">
                             <td className="px-[14px] py-[10px] font-mono font-medium" style={{ borderBottom: "1px solid var(--color-line)" }}>
@@ -487,7 +486,7 @@ function RatioKpi({ label, value, status }: { label: string; value: number; stat
       {/* Range viz */}
       <div className="relative h-[6px] rounded-full mt-1" style={{ background: "var(--color-crust)" }}>
         <div className="absolute h-full rounded-full" style={{ left: "37.5%", width: "25%", background: "var(--color-basil-soft)" }} />
-        <div className="absolute top-1/2 -translate-y-1/2 w-[8px] h-[8px] rounded-full border-2 border-white" style={{ left: `${position}%`, background: status === "ok" ? "var(--color-basil)" : status === "warn" ? "var(--color-mustard)" : "var(--color-ginos-red)", boxShadow: "var(--shadow-sm)" }} />
+        <div className="absolute top-1/2 -translate-y-1/2 w-[8px] h-[8px] rounded-full border-2 border-white" style={{ left: `${position}%`, background: statusColor(status), boxShadow: "var(--shadow-sm)" }} />
       </div>
       <div className="flex justify-between text-[9px] font-mono" style={{ color: "var(--color-ink-3)" }}>
         <span>0%</span><span>75%</span><span>125%</span><span>200%</span>

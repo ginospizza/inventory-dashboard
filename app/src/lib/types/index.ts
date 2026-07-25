@@ -114,7 +114,71 @@ export interface WeeklyOrder {
 
 // ── Computed Metrics ────────────────────────────────────────
 
-export type ComplianceStatus = "ok" | "warn" | "bad";
+/**
+ * Compliance tiers, best to worst. "severe" was added July 22 2026 (James):
+ * with only three tiers, one ingredient more than 50% off flipped a store to
+ * At Risk with no way to tell a store 55% off from one 400% off, and after the
+ * W28 upload over half the network carried the same label. Severe separates the
+ * genuinely urgent cases out of At Risk.
+ */
+export type ComplianceStatus = "ok" | "warn" | "bad" | "severe";
+
+/**
+ * Severity rank — 0 is best. The single source of truth for ordering statuses.
+ *
+ * Use this (or `statusRank`) for every sort and every "which is worse" test.
+ * Several call sites used to inline `s === "bad" ? 2 : s === "warn" ? 1 : 0`,
+ * which silently ranks any UNKNOWN status as best-in-class — exactly the bug
+ * adding a fourth tier would have introduced across the Compare tab, the store
+ * page, and the network stats.
+ */
+export const STATUS_RANK: Record<ComplianceStatus, number> = {
+  ok: 0,
+  warn: 1,
+  bad: 2,
+  severe: 3,
+};
+
+/** Rank of a status coming from the DB as a plain string. Unknown -> worst,
+ *  so a value this build doesn't recognise surfaces loudly instead of sorting
+ *  to the top of the "healthy" end and disappearing. */
+export function statusRank(s: string | null | undefined): number {
+  return STATUS_RANK[s as ComplianceStatus] ?? STATUS_RANK.severe;
+}
+
+/** The label shown to users. Matches James's vocabulary exactly. */
+export const STATUS_LABEL: Record<ComplianceStatus, string> = {
+  ok: "Compliant",
+  warn: "Borderline",
+  bad: "At Risk",
+  severe: "Severe",
+};
+
+/**
+ * Foreground colour per tier, for dots / markers / small indicators. Severe uses
+ * the deep red so it stays distinguishable from At Risk at 7px. Several call
+ * sites inlined `ok ? green : warn ? amber : red`, which silently painted any
+ * new tier plain At Risk red.
+ */
+export const STATUS_COLOR: Record<ComplianceStatus, string> = {
+  ok: "var(--color-basil)",
+  warn: "var(--color-mustard)",
+  bad: "var(--color-ginos-red)",
+  severe: "var(--color-ginos-red-deep)",
+};
+
+/** Colour for a status coming from the DB as a plain string. */
+export function statusColor(s: string | null | undefined): string {
+  return STATUS_COLOR[s as ComplianceStatus] ?? STATUS_COLOR.bad;
+}
+
+/** Worst (highest-ranked) status in a list; "ok" for an empty list. */
+export function worstStatus(statuses: ComplianceStatus[]): ComplianceStatus {
+  return statuses.reduce<ComplianceStatus>(
+    (worst, s) => (statusRank(s) > statusRank(worst) ? s : worst),
+    "ok"
+  );
+}
 
 export interface WeeklyMetrics {
   id: string;
@@ -233,6 +297,8 @@ export interface NetworkStats {
   compliant_count: number;
   borderline_count: number;
   at_risk_count: number;
+  /** Worst tier — counted separately from at_risk_count, not included in it. */
+  severe_count: number;
   compliance_pct: number;
 
   avg_cheese_diff: number;

@@ -29,7 +29,7 @@ interface StoresClientProps {
   years?: number[];
   brands: string[];
   dsms: { id: string; name: string }[];
-  statusCounts: { all: number; ok: number; warn: number; bad: number };
+  statusCounts: { all: number; ok: number; warn: number; bad: number; severe: number };
   statusFilter?: string;
 }
 

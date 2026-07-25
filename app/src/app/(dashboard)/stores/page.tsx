@@ -75,6 +75,7 @@ export default async function StoresPage({ searchParams }: PageProps) {
     ok: storeMetrics.filter((m) => m.overall_status === "ok").length,
     warn: storeMetrics.filter((m) => m.overall_status === "warn").length,
     bad: storeMetrics.filter((m) => m.overall_status === "bad").length,
+    severe: storeMetrics.filter((m) => m.overall_status === "severe").length,
   };
 
   return (

@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/supabase/auth";
 import { getAvailableWeeks, getAvailableYears, getNetworkStats, fetchMetrics } from "@/lib/data-access";
 import { computeNetworkStats } from "@/lib/calculations";
 import type { WeeklyMetrics } from "@/lib/types";
+import { statusRank } from "@/lib/types";
 import { CompareClient } from "./compare-client";
 
 interface PageProps {
@@ -92,10 +93,9 @@ export default async function ComparePage({ searchParams }: PageProps) {
   }
 
   // Sort by biggest change in status (improved or worsened)
-  const statusVal = (s: string) => s === "bad" ? 2 : s === "warn" ? 1 : 0;
   storeComparison.sort((a, b) => {
-    const changeA = a.a && a.b ? Math.abs(statusVal(a.b.status) - statusVal(a.a.status)) : 0;
-    const changeB = b.a && b.b ? Math.abs(statusVal(b.b.status) - statusVal(b.a.status)) : 0;
+    const changeA = a.a && a.b ? Math.abs(statusRank(a.b.status) - statusRank(a.a.status)) : 0;
+    const changeB = b.a && b.b ? Math.abs(statusRank(b.b.status) - statusRank(b.a.status)) : 0;
     return changeB - changeA;
   });
 

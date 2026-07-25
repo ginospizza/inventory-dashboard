@@ -22,6 +22,7 @@ import {
   flourCheeseRatio,
   doughCheeseRatio,
   diffStatus,
+  diffStatusPct,
   ratioStatus,
   overallStatus,
   computeWeeklyMetrics,
@@ -45,6 +46,94 @@ import {
   ROLLING_PRIOR_WEEKS,
 } from "../constants";
 import type { Product, RawOrderRow, WeeklyMetrics, ComplianceStatus } from "@/lib/types";
+import { statusRank } from "@/lib/types";
+
+// ── Four-tier grading bands (James, July 22 2026) ────────────
+describe("diffStatusPct — ingredient bands", () => {
+  // ordered vs a box-expected of 100, so the numbers read as percentages.
+  const at = (pct: number) => diffStatusPct(100 + pct, 100);
+
+  it("grades each band, over and under", () => {
+    expect(at(0)).toBe("ok");
+    expect(at(24)).toBe("ok");
+    expect(at(26)).toBe("warn");
+    expect(at(49)).toBe("warn");
+    expect(at(51)).toBe("bad");
+    expect(at(74)).toBe("bad");
+    expect(at(76)).toBe("severe");
+    expect(at(400)).toBe("severe");
+
+    // Symmetric on the under side — it's an absolute deviation.
+    expect(at(-24)).toBe("ok");
+    expect(at(-26)).toBe("warn");
+    expect(at(-51)).toBe("bad");
+    expect(at(-76)).toBe("severe");
+  });
+
+  it("treats the boundaries themselves as the kinder tier", () => {
+    // Thresholds are exclusive (`>`), so exactly 25/50/75% does not escalate.
+    expect(at(25)).toBe("ok");
+    expect(at(50)).toBe("warn");
+    expect(at(75)).toBe("bad");
+  });
+
+  it("returns ok when there is no box-expected to compare against", () => {
+    expect(diffStatusPct(500, 0)).toBe("ok");
+  });
+});
+
+describe("ratioStatus — ratio bands", () => {
+  it("grades each band, high and low", () => {
+    expect(ratioStatus(1.0)).toBe("ok");
+    expect(ratioStatus(1.24)).toBe("ok");
+    expect(ratioStatus(1.3)).toBe("warn");
+    expect(ratioStatus(1.4)).toBe("bad");
+    expect(ratioStatus(1.6)).toBe("severe");
+
+    expect(ratioStatus(0.8)).toBe("ok");
+    expect(ratioStatus(0.7)).toBe("warn");
+    expect(ratioStatus(0.6)).toBe("bad");
+    expect(ratioStatus(0.4)).toBe("severe");
+  });
+
+  it("keeps an uncomputable (zero) ratio at bad rather than promoting it to severe", () => {
+    // The ratio helpers return 0 when cheese is 0, i.e. one side was never
+    // ordered. 0 is outside 50-150, so without the guard every no-cheese week
+    // would read as Severe — data absence dressed up as the most urgent tier.
+    expect(ratioStatus(0)).toBe("bad");
+  });
+});
+
+describe("overallStatus — worst metric wins", () => {
+  it("picks the worst tier present", () => {
+    expect(overallStatus(["ok", "ok"])).toBe("ok");
+    expect(overallStatus(["ok", "warn"])).toBe("warn");
+    expect(overallStatus(["ok", "warn", "bad"])).toBe("bad");
+    expect(overallStatus(["ok", "warn", "bad", "severe"])).toBe("severe");
+    // One severe metric outranks any number of healthy ones.
+    expect(overallStatus(["severe", "ok", "ok", "ok", "ok"])).toBe("severe");
+  });
+
+  it("is ok for an empty list", () => {
+    expect(overallStatus([])).toBe("ok");
+  });
+});
+
+describe("statusRank — ordering used by every severity sort", () => {
+  it("orders best to worst", () => {
+    expect(statusRank("ok")).toBeLessThan(statusRank("warn"));
+    expect(statusRank("warn")).toBeLessThan(statusRank("bad"));
+    expect(statusRank("bad")).toBeLessThan(statusRank("severe"));
+  });
+
+  it("ranks an unrecognised status as worst, not best", () => {
+    // The old inline `s === "bad" ? 2 : s === "warn" ? 1 : 0` ranked anything
+    // unknown as 0 — best in class — which would have buried Severe stores at
+    // the bottom of Stores Requiring Attention.
+    expect(statusRank("something-new")).toBe(statusRank("severe"));
+    expect(statusRank(undefined)).toBe(statusRank("severe"));
+  });
+});
 
 // ── Rolling-average smoothing (both sides) ───────────────────
 describe("smoothedDiffStatuses — rolling average, both sides", () => {
@@ -72,16 +161,23 @@ describe("smoothedDiffStatuses — rolling average, both sides", () => {
     expect(smoothedDiffStatuses(wk(2.1), priors, "flour").cheese_status).toBe("ok");
   });
 
-  it("a sustained over-order stays At Risk (smoothing does not rescue it)", () => {
-    // Over by +100% every week -> average is still +100% -> At Risk. This is the
-    // GINOS014 case: a chronic over-order is not a spike and must not be smoothed away.
+  it("a sustained over-order is not rescued by smoothing", () => {
+    // Over by +100% every week -> average is still +100%. This is the GINOS014
+    // case: a chronic over-order is not a spike and must not be smoothed away.
+    // +100% is past the 75% line, so it grades Severe rather than At Risk.
     const s = smoothedDiffStatuses(wk(2), [wk(2), wk(2), wk(2)], "flour");
+    expect(s.cheese_status).toBe("severe");
+  });
+
+  it("a sustained over-order between 50% and 75% stays At Risk, not Severe", () => {
+    // +60% every week — chronic, but not past the Severe line.
+    const s = smoothedDiffStatuses(wk(1.6), [wk(1.6), wk(1.6), wk(1.6)], "flour");
     expect(s.cheese_status).toBe("bad");
   });
 
   it("with no prior weeks, grades the week in isolation", () => {
     const s = smoothedDiffStatuses(wk(2), [], "flour");
-    expect(s.cheese_status).toBe("bad");
+    expect(s.cheese_status).toBe("severe");
   });
 
   it("smooths box-expected too: a boxes dip with steady orders is not flagged", () => {
@@ -109,13 +205,19 @@ describe("smoothedRatioStatuses — ratios smoothed over the rolling window (Jul
     expect(s.sauce_cheese_status).not.toBe("bad");
   });
 
-  it("a sustained out-of-band S:C stays bad", () => {
+  it("a sustained out-of-band S:C is not rescued by smoothing", () => {
+    // S:C 160% sustained — past the 150% Severe line.
     const s = smoothedRatioStatuses(rw(1.6), [rw(1.6), rw(1.6), rw(1.6)], "flour");
+    expect(s.sauce_cheese_status).toBe("severe");
+  });
+
+  it("a sustained S:C inside 150% stays At Risk, not Severe", () => {
+    const s = smoothedRatioStatuses(rw(1.4), [rw(1.4), rw(1.4), rw(1.4)], "flour");
     expect(s.sauce_cheese_status).toBe("bad");
   });
 
   it("with no priors, grades the ratio in isolation", () => {
-    expect(smoothedRatioStatuses(rw(1.6), [], "flour").sauce_cheese_status).toBe("bad");
+    expect(smoothedRatioStatuses(rw(1.6), [], "flour").sauce_cheese_status).toBe("severe");
   });
 
   it("dough stores get D:C (F:C stays ok), flour stores get F:C (D:C stays ok)", () => {
@@ -174,7 +276,7 @@ describe("recomputeRollingStatuses — canonical rolling-window recompute", () =
     // Spike sits ROLLING_PRIOR_WEEKS back from the last week -> still inside.
     const atEdge = [row(50), ...steady(ROLLING_PRIOR_WEEKS)];
     const edgeResult = recomputeRollingStatuses(atEdge);
-    expect(edgeResult[edgeResult.length - 1].cheese_status).toBe("bad");
+    expect(edgeResult[edgeResult.length - 1].cheese_status).toBe("severe");
 
     // One week further back -> falls out, last week grades clean.
     const pastEdge = [row(50), ...steady(ROLLING_WINDOW_WEEKS)];
@@ -190,11 +292,12 @@ describe("recomputeRollingStatuses — canonical rolling-window recompute", () =
     expect(results[3].overall_status).not.toBe("bad");
   });
 
-  it("keeps a SUSTAINED out-of-band ratio At Risk", () => {
+  it("keeps a SUSTAINED out-of-band ratio out of compliance", () => {
     const rows = [badRatioRow(1), badRatioRow(1), badRatioRow(1), badRatioRow(1)];
     const results = recomputeRollingStatuses(rows);
-    expect(results[3].sauce_cheese_status).toBe("bad");
-    expect(results[3].overall_status).toBe("bad");
+    // S:C works out to ~208% here — past 150%, so Severe.
+    expect(results[3].sauce_cheese_status).toBe("severe");
+    expect(results[3].overall_status).toBe("severe");
   });
 
   it("upload-time and backfill-time recompute agree given the same data (GINOS008, July 10 2026)", () => {

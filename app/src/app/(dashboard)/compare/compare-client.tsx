@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import Link from "next/link";
 import { ArrowRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { NetworkStats } from "@/lib/types";
+import { statusRank, statusColor } from "@/lib/types";
 
 interface StoreCompare {
   store_code: string;
@@ -52,8 +53,7 @@ function DeltaChip({ value, suffix = "", invert = false }: { value: number; suff
 }
 
 function StatusDot({ status }: { status: string }) {
-  const color = status === "ok" ? "var(--color-basil)" : status === "warn" ? "var(--color-mustard)" : "var(--color-ginos-red)";
-  return <span className="w-[7px] h-[7px] rounded-full inline-block" style={{ background: color }} />;
+  return <span className="w-[7px] h-[7px] rounded-full inline-block" style={{ background: statusColor(status) }} />;
 }
 
 export function CompareClient({
@@ -88,13 +88,11 @@ export function CompareClient({
   // Count improved / worsened stores
   const improved = storeComparison.filter(s => {
     if (!s.a || !s.b) return false;
-    const sv = (st: string) => st === "bad" ? 2 : st === "warn" ? 1 : 0;
-    return sv(s.b.status) < sv(s.a.status);
+    return statusRank(s.b.status) < statusRank(s.a.status);
   }).length;
   const worsened = storeComparison.filter(s => {
     if (!s.a || !s.b) return false;
-    const sv = (st: string) => st === "bad" ? 2 : st === "warn" ? 1 : 0;
-    return sv(s.b.status) > sv(s.a.status);
+    return statusRank(s.b.status) > statusRank(s.a.status);
   }).length;
 
   return (
@@ -214,8 +212,7 @@ export function CompareClient({
             </thead>
             <tbody>
               {storeComparison.slice(0, 30).map((s) => {
-                const sv = (st: string) => st === "bad" ? 2 : st === "warn" ? 1 : 0;
-                const statusChange = s.a && s.b ? sv(s.b.status) - sv(s.a.status) : 0;
+                const statusChange = s.a && s.b ? statusRank(s.b.status) - statusRank(s.a.status) : 0;
                 const cheeseDiff = s.a && s.b ? s.b.cheese_diff - s.a.cheese_diff : 0;
                 const scChange = s.a && s.b ? (s.b.sc_ratio - s.a.sc_ratio) * 100 : 0;
 

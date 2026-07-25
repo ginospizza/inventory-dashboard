@@ -149,14 +149,14 @@ create table if not exists weekly_metrics (
   store_type text not null default 'flour' check (store_type in ('flour', 'dough')),
 
   -- Status
-  cheese_status text not null default 'ok' check (cheese_status in ('ok', 'warn', 'bad')),
-  sauce_status text not null default 'ok' check (sauce_status in ('ok', 'warn', 'bad')),
-  flour_status text not null default 'ok' check (flour_status in ('ok', 'warn', 'bad')),
-  dough_status text not null default 'ok' check (dough_status in ('ok', 'warn', 'bad')),
-  sauce_cheese_status text not null default 'ok' check (sauce_cheese_status in ('ok', 'warn', 'bad')),
-  flour_cheese_status text not null default 'ok' check (flour_cheese_status in ('ok', 'warn', 'bad')),
-  dough_cheese_status text not null default 'ok' check (dough_cheese_status in ('ok', 'warn', 'bad')),
-  overall_status text not null default 'ok' check (overall_status in ('ok', 'warn', 'bad')),
+  cheese_status text not null default 'ok' check (cheese_status in ('ok', 'warn', 'bad', 'severe')),
+  sauce_status text not null default 'ok' check (sauce_status in ('ok', 'warn', 'bad', 'severe')),
+  flour_status text not null default 'ok' check (flour_status in ('ok', 'warn', 'bad', 'severe')),
+  dough_status text not null default 'ok' check (dough_status in ('ok', 'warn', 'bad', 'severe')),
+  sauce_cheese_status text not null default 'ok' check (sauce_cheese_status in ('ok', 'warn', 'bad', 'severe')),
+  flour_cheese_status text not null default 'ok' check (flour_cheese_status in ('ok', 'warn', 'bad', 'severe')),
+  dough_cheese_status text not null default 'ok' check (dough_cheese_status in ('ok', 'warn', 'bad', 'severe')),
+  overall_status text not null default 'ok' check (overall_status in ('ok', 'warn', 'bad', 'severe')),
 
   created_at timestamptz default now(),
 
