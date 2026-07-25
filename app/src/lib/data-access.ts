@@ -263,10 +263,19 @@ export async function getBrandStats(
  */
 export async function getWeeklyTrend(
   numWeeks = ROLLING_WINDOW_WEEKS,
-  filters: Omit<MetricsFilters, "week"> = {}
+  filters: Omit<MetricsFilters, "week"> = {},
+  /**
+   * Week the chart should END on. The selected week plus the previous
+   * numWeeks-1 are plotted, so picking week 28 shows weeks 23-28 and picking 24
+   * shows 18-24 (James, July 22 2026). Omit for the most recent weeks.
+   */
+  endWeek?: number
 ): Promise<WeeklyTrend[]> {
-  const weeks = await getAvailableWeeks(filters.year);
-  const recentWeeks = weeks.slice(0, numWeeks);
+  const weeks = await getAvailableWeeks(filters.year); // descending
+  // Drop anything after the chosen ending week, then take that week and the
+  // numWeeks-1 before it.
+  const upToEnd = endWeek ? weeks.filter((w) => w <= endWeek) : weeks;
+  const recentWeeks = upToEnd.slice(0, numWeeks);
 
   const trends: WeeklyTrend[] = [];
 
@@ -475,6 +484,97 @@ export async function getAnomalies(
   anomalies.sort((a, b) => (a.year !== b.year ? b.year - a.year : b.week - a.week));
 
   return anomalies;
+}
+
+/**
+ * Time ranges offered on the Secondary Products and Boxes tabs
+ * (James, July 22 2026: "Filter to show quantities ordered in the Last Week,
+ * Last 4 Weeks, or select a Quarter (total sum only)").
+ */
+export type ProductRange = "last_week" | "last_4_weeks" | "q1" | "q2" | "q3" | "q4";
+
+/** Inclusive week bounds for a range, relative to an anchor week. */
+export function rangeWeeks(range: ProductRange, anchorWeek: number): [number, number] {
+  switch (range) {
+    case "last_week":
+      return [anchorWeek, anchorWeek];
+    case "last_4_weeks":
+      return [Math.max(1, anchorWeek - 3), anchorWeek];
+    default: {
+      const [lo, hi] = QUARTER_RANGES[range];
+      return [lo, hi];
+    }
+  }
+}
+
+/**
+ * Per-product order quantities for one store over a week range, summed per
+ * product — the shape the Secondary Products and Boxes tabs display.
+ *
+ * NOTE ON COVERAGE: weekly_orders (per-SKU line items) only exists from 2026
+ * week 16, when James started uploading through the app. The historical importer
+ * writes weekly_metrics but never wrote weekly_orders, so earlier weeks — and the
+ * whole of 2025 — have no line-item detail. That is why the year-over-year column
+ * is empty for secondary products: there is no prior-year data to compare to,
+ * only aggregate metrics. Box quantities avoid this entirely by coming from
+ * weekly_metrics instead (see the Boxes tab), which does have full history.
+ */
+export async function getProductTotals(
+  storeId: string,
+  year: number,
+  fromWeek: number,
+  toWeek: number,
+  classification: "secondary" | "primary"
+): Promise<{ code: string; description: string; pack_size: string; quantity: number; weeks: number }[]> {
+  const supabase = createAdminClient();
+
+  const rows: Record<string, unknown>[] = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from("weekly_orders")
+      .select("quantity, week_number, products!inner(code, description, classification, pack_size)")
+      .eq("store_id", storeId)
+      .eq("year", year)
+      .gte("week_number", fromWeek)
+      .lte("week_number", toWeek)
+      .eq("products.classification", classification)
+      .range(from, from + PAGE - 1);
+    if (error) {
+      console.error("getProductTotals error:", error);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    rows.push(...(data as unknown as Record<string, unknown>[]));
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  const byProduct = new Map<
+    string,
+    { code: string; description: string; pack_size: string; quantity: number; weeks: Set<number> }
+  >();
+  for (const r of rows) {
+    const p = r.products as Record<string, unknown>;
+    const code = String(p?.code ?? "—");
+    const entry =
+      byProduct.get(code) ??
+      {
+        code,
+        description: String(p?.description ?? "—"),
+        pack_size: String(p?.pack_size ?? ""),
+        quantity: 0,
+        weeks: new Set<number>(),
+      };
+    entry.quantity += (r.quantity as number) || 0;
+    entry.weeks.add(r.week_number as number);
+    byProduct.set(code, entry);
+  }
+
+  return [...byProduct.values()]
+    .map((e) => ({ ...e, weeks: e.weeks.size }))
+    .sort((a, b) => b.quantity - a.quantity);
 }
 
 /**

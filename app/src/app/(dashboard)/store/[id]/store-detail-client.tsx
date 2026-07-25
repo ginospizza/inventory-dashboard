@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronDown, Sparkles, RefreshCw, Flag as FlagIcon } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -29,7 +30,13 @@ interface StoreDetailClientProps {
   /** Index in `metrics` (newest-first) that the Period filter anchors on. */
   anchorIndex: number;
   flags: Flag[];
-  secondaryOrders: Record<string, unknown>[];
+  secondaryTotals: { code: string; description: string; pack_size: string; quantity: number; weeks: number }[];
+  secondaryPriorYear: { code: string; description: string; pack_size: string; quantity: number; weeks: number }[];
+  boxTotals: { label: string; quantity: number }[];
+  boxTotalsPriorYear: { label: string; quantity: number }[];
+  productRange: string;
+  rangeLabel: string;
+  priorRangeLabel: string;
   brandColor: string;
   anomalies: Anomaly[];
   years: number[];
@@ -43,13 +50,19 @@ export function StoreDetailClient({
   latest,
   anchorIndex,
   flags,
-  secondaryOrders,
+  secondaryTotals,
+  secondaryPriorYear,
+  boxTotals,
+  boxTotalsPriorYear,
+  productRange,
+  rangeLabel,
+  priorRangeLabel,
   brandColor,
   anomalies,
   years,
   weeks,
 }: StoreDetailClientProps) {
-  const [activeTab, setActiveTab] = useState<"primary" | "secondary" | "trends" | "flags" | "compare">("primary");
+  const [activeTab, setActiveTab] = useState<"primary" | "secondary" | "boxes" | "trends" | "flags" | "compare">("primary");
   const [aiLoading, setAiLoading] = useState(false);
   // Summary + recommendation are always shown; details (the full diagnostic
   // reasoning) stays collapsed by default -- DSMs manage 30+ stores and skim
@@ -321,6 +334,8 @@ export function StoreDetailClient({
         {([
           { key: "primary", label: "Primary Products" },
           { key: "secondary", label: "Secondary Products" },
+          // New tab beside Secondary Products (James, July 22 2026).
+          { key: "boxes", label: "Boxes" },
           { key: "trends", label: "Trends" },
           { key: "compare", label: "Compare" },
           { key: "flags", label: `Flag History (${flags.length})` },
@@ -422,35 +437,89 @@ export function StoreDetailClient({
         )}
 
         {activeTab === "secondary" && (
-          <div className="p-[18px] overflow-x-auto">
-            {secondaryOrders.length > 0 ? (
+          <div className="p-[18px]">
+            <RangePicker current={productRange} />
+            {secondaryTotals.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+                  <thead>
+                    <tr>
+                      <Th>Product</Th>
+                      <Th align="right">{rangeLabel}</Th>
+                      <Th align="right">{priorRangeLabel}</Th>
+                      <Th align="right">Year over Year</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {secondaryTotals.map((p) => {
+                      const prior = secondaryPriorYear.find((q) => q.code === p.code);
+                      return (
+                        <tr key={p.code} className="hover:bg-[rgba(244,236,221,.4)]">
+                          <td className="px-3 py-[10px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                            <span className="font-medium">{p.description}</span>
+                            <span className="text-[11px] ml-2" style={{ color: "var(--color-ink-3)" }}>{p.pack_size}</span>
+                          </td>
+                          <td className="px-3 py-[10px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                            {p.quantity.toFixed(0)}
+                          </td>
+                          <PriorAndYoY current={p.quantity} prior={prior?.quantity} />
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {secondaryPriorYear.length === 0 && <NoPriorYearNote />}
+              </div>
+            ) : (
+              <p className="text-center py-8 text-[13px]" style={{ color: "var(--color-ink-3)" }}>
+                No secondary product data for {rangeLabel}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Boxes — the quantities every ingredient estimate is derived from.
+            Sourced from weekly_metrics rather than the per-SKU weekly_orders,
+            because metrics carry the full two-year history while line items only
+            start at 2026 week 16 — so this is the one place the year-over-year
+            column can actually be populated (James, July 22 2026). */}
+        {activeTab === "boxes" && (
+          <div className="p-[18px]">
+            <RangePicker current={productRange} />
+            <div className="overflow-x-auto">
               <table className="w-full text-[13px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
                 <thead>
                   <tr>
-                    <th className="text-left font-semibold text-[11px] tracking-[.06em] uppercase px-3 py-[10px]" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)" }}>Product</th>
-                    <th className="text-right font-semibold text-[11px] tracking-[.06em] uppercase px-3 py-[10px]" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)" }}>Qty</th>
+                    <Th>Box size</Th>
+                    <Th align="right">{rangeLabel}</Th>
+                    <Th align="right">{priorRangeLabel}</Th>
+                    <Th align="right">Year over Year</Th>
                   </tr>
                 </thead>
                 <tbody>
-                  {secondaryOrders.map((o, i) => {
-                    const prod = o.products as Record<string, unknown> | null;
-                    return (
-                      <tr key={i} className="hover:bg-[rgba(244,236,221,.4)]">
-                        <td className="px-3 py-[10px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                          <span className="font-medium">{prod?.description as string ?? "—"}</span>
-                          <span className="text-[11px] ml-2" style={{ color: "var(--color-ink-3)" }}>{prod?.pack_size as string}</span>
-                        </td>
-                        <td className="px-3 py-[10px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                          {o.quantity as number}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {boxTotals.map((b, i) => (
+                    <tr key={b.label} className="hover:bg-[rgba(244,236,221,.4)]">
+                      <td className="px-3 py-[10px] font-medium" style={{ borderBottom: "1px solid var(--color-line)" }}>{b.label}</td>
+                      <td className="px-3 py-[10px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                        {b.quantity.toFixed(0)}
+                      </td>
+                      <PriorAndYoY current={b.quantity} prior={boxTotalsPriorYear[i]?.quantity} />
+                    </tr>
+                  ))}
+                  <tr style={{ background: "var(--color-paper)" }}>
+                    <td className="px-3 py-[10px] font-semibold" style={{ borderTop: "2px solid var(--color-line-2)" }}>Total</td>
+                    <td className="px-3 py-[10px] text-right font-mono font-semibold" style={{ borderTop: "2px solid var(--color-line-2)" }}>
+                      {boxTotals.reduce((s, b) => s + b.quantity, 0).toFixed(0)}
+                    </td>
+                    <PriorAndYoY
+                      current={boxTotals.reduce((s, b) => s + b.quantity, 0)}
+                      prior={boxTotalsPriorYear.reduce((s, b) => s + b.quantity, 0)}
+                      emphasise
+                    />
+                  </tr>
                 </tbody>
               </table>
-            ) : (
-              <p className="text-center py-8 text-[13px]" style={{ color: "var(--color-ink-3)" }}>No secondary product data for this week</p>
-            )}
+            </div>
           </div>
         )}
 
@@ -728,6 +797,105 @@ function TrendChart({ title, data, dataKey, multiply, color, target, threshold }
 
 function fmt(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n.toFixed(1);
+}
+
+function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
+  return (
+    <th
+      className="font-semibold text-[11px] tracking-[.06em] uppercase px-3 py-[10px] whitespace-nowrap"
+      style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)", textAlign: align }}
+    >
+      {children}
+    </th>
+  );
+}
+
+/**
+ * Time-range selector for the Secondary Products and Boxes tabs — Last Week,
+ * Last 4 Weeks, or a Quarter, as a total sum (James, July 22 2026). Writes to a
+ * `range` search param so the server does the aggregation.
+ */
+function RangePicker({ current }: { current: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const set = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("range", value);
+    router.push(`?${params.toString()}`);
+  };
+
+  const OPTIONS = [
+    { key: "last_week", label: "Last Week" },
+    { key: "last_4_weeks", label: "Last 4 Weeks" },
+    { key: "q1", label: "Q1" },
+    { key: "q2", label: "Q2" },
+    { key: "q3", label: "Q3" },
+    { key: "q4", label: "Q4" },
+  ];
+
+  return (
+    <div className="inline-flex p-[3px] rounded-lg gap-[2px] mb-4" style={{ background: "var(--color-crust)" }}>
+      {OPTIONS.map((o) => (
+        <button
+          key={o.key}
+          onClick={() => set(o.key)}
+          className="px-3 py-[6px] rounded-[6px] text-[12.5px] font-medium transition-all"
+          style={{
+            background: current === o.key ? "white" : "transparent",
+            color: current === o.key ? "var(--color-ink)" : "var(--color-ink-2)",
+            boxShadow: current === o.key ? "var(--shadow-sm)" : "none",
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Prior-year quantity plus the year-over-year change, as two cells.
+ * `prior` undefined or 0 means there is nothing to compare against — shown as
+ * "—" rather than a fake +100%, which is the honest reading when the prior year
+ * simply has no data for this product (see getProductTotals' coverage note).
+ */
+function PriorAndYoY({ current, prior, emphasise = false }: { current: number; prior?: number; emphasise?: boolean }) {
+  const border = emphasise ? "2px solid var(--color-line-2)" : "1px solid var(--color-line)";
+  const borderProp = emphasise ? { borderTop: border } : { borderBottom: border };
+  const hasPrior = prior !== undefined && prior > 0;
+  const pct = hasPrior ? ((current - prior) / prior) * 100 : null;
+
+  return (
+    <>
+      <td className="px-3 py-[10px] text-right font-mono" style={{ ...borderProp, color: "var(--color-ink-3)" }}>
+        {hasPrior ? prior.toFixed(0) : "—"}
+      </td>
+      <td
+        className="px-3 py-[10px] text-right font-mono"
+        style={{
+          ...borderProp,
+          fontWeight: emphasise ? 600 : 400,
+          // Up/down on volume is neutral information, not good or bad — a store
+          // selling more pizza SHOULD order more boxes. Deliberately not coloured
+          // red/green like the compliance diffs.
+          color: pct === null ? "var(--color-ink-3)" : "var(--color-ink-2)",
+        }}
+      >
+        {pct === null ? "—" : `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`}
+      </td>
+    </>
+  );
+}
+
+function NoPriorYearNote() {
+  return (
+    <p className="text-[11.5px] mt-3" style={{ color: "var(--color-ink-3)" }}>
+      No prior-year comparison available: per-product order detail only exists from
+      week 16 of 2026, when uploads began going through the app. Box quantities on
+      the Boxes tab do have full history.
+    </p>
+  );
 }
 
 /**
