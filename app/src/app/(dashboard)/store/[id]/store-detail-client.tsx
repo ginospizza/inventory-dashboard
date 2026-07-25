@@ -1,28 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Sparkles, RefreshCw, Flag as FlagIcon } from "lucide-react";
+import { ChevronLeft, ChevronDown, Sparkles, RefreshCw, Flag as FlagIcon } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, ReferenceArea,
 } from "recharts";
-import { StatusPill, DiffCell, RatioCell } from "@/components/dashboard";
+import { StatusPill, DiffCell, RatioCell, FilterBar } from "@/components/dashboard";
 import { AlertTriangle, AlertCircle, Info } from "lucide-react";
 import type { AppUser, Flag, ComplianceStatus, Anomaly } from "@/lib/types";
 import { brandLabel, statusRank, statusColor } from "@/lib/types";
 import { signedPct } from "@/lib/ai/prompts";
-import { ROLLING_WINDOW_WEEKS } from "@/lib/calculations/constants";
+import {
+  ROLLING_WINDOW_WEEKS,
+  SAUCE_CASE_FLOZ,
+  FLOUR_BAG_KG,
+  KG_TO_OZ,
+} from "@/lib/calculations/constants";
+import { explainStatus, type StatusExplanation, type RollingWeek } from "@/lib/calculations/engine";
 
 interface StoreDetailClientProps {
   user: AppUser;
   store: Record<string, unknown>;
   metrics: Record<string, unknown>[];
   latest: Record<string, unknown> | null;
+  /** Index in `metrics` (newest-first) that the Period filter anchors on. */
+  anchorIndex: number;
   flags: Flag[];
   secondaryOrders: Record<string, unknown>[];
   brandColor: string;
   anomalies: Anomaly[];
+  years: number[];
+  weeks: number[];
 }
 
 export function StoreDetailClient({
@@ -30,10 +40,13 @@ export function StoreDetailClient({
   store,
   metrics,
   latest,
+  anchorIndex,
   flags,
   secondaryOrders,
   brandColor,
   anomalies,
+  years,
+  weeks,
 }: StoreDetailClientProps) {
   const [activeTab, setActiveTab] = useState<"primary" | "secondary" | "trends" | "flags" | "compare">("primary");
   const [aiLoading, setAiLoading] = useState(false);
@@ -43,6 +56,9 @@ export function StoreDetailClient({
   // (James, July 11 2026).
   const [aiInsight, setAiInsight] = useState<{ summary: string; recommendation: string; details: string } | null>(null);
   const [showAiDetails, setShowAiDetails] = useState(false);
+  // Which week's status explanation is expanded in the Compare tab, keyed
+  // "year-week" (null = none).
+  const [openExplanation, setOpenExplanation] = useState<string | null>(null);
 
   const storeCode = store.code as string;
   const storeCity = store.city as string;
@@ -52,8 +68,72 @@ export function StoreDetailClient({
   // Rows displayed and the trend chart both use the smoothing window, so the
   // table, the charts, and the moving average all describe the same 6 weeks
   // (James, July 22 2026 — these were 5 and 8).
-  const recentWeeks = metrics.slice(0, ROLLING_WINDOW_WEEKS);
-  const trendData = [...metrics].reverse().slice(-ROLLING_WINDOW_WEEKS);
+  // Windowed from the anchored week rather than always from the newest, so the
+  // Period filter moves the whole page (tiles, table, trend) together.
+  const recentWeeks = metrics.slice(anchorIndex, anchorIndex + ROLLING_WINDOW_WEEKS);
+  const trendData = [...recentWeeks].reverse();
+
+  // Ord / "Usage based on Boxes" display in cases and bags rather than raw
+  // oz / fl oz / kg (James, July 22 2026). Sauce and flour are fixed
+  // conversions; cheese's case size varies by store, see deriveCheeseCaseOz.
+  const cheeseCaseOz = deriveCheeseCaseOz(metrics);
+  const toCheeseCases = (oz: number) => (cheeseCaseOz > 0 ? oz / cheeseCaseOz : 0);
+  const toSauceCases = (floz: number) => floz / SAUCE_CASE_FLOZ;
+  const toFlourBags = (kg: number) => kg / FLOUR_BAG_KG;
+
+  // 6-week moving average, shown above the current week for every metric
+  // (James, July 22 2026). Averaged over the same window the compliance status
+  // is smoothed across, so the number here explains the status beside it.
+  const avgOf = (key: string) =>
+    recentWeeks.length === 0
+      ? 0
+      : recentWeeks.reduce((s, m) => s + (((m[key] as number) ?? 0) || 0), 0) / recentWeeks.length;
+
+  /**
+   * Status explanation for the metrics row at `index` (the Compare tab is
+   * newest-first, so the rolling window is the entries AFTER it in the array).
+   *
+   * Built from the same window the engine grades on, so the sentence can never
+   * disagree with the pill it sits under.
+   */
+  const explanationFor = (index: number): StatusExplanation | null => {
+    const row = metrics[index];
+    if (!row) return null;
+    const toRolling = (m: Record<string, unknown>): RollingWeek => ({
+      cheese_ordered_oz: (m.cheese_ordered_oz as number) ?? 0,
+      sauce_ordered_floz: (m.sauce_ordered_floz as number) ?? 0,
+      flour_ordered_kg: (m.flour_ordered_kg as number) ?? 0,
+      dough_ordered_kg: (m.dough_ordered_kg as number) ?? 0,
+      cheese_estimated_oz: (m.cheese_estimated_oz as number) ?? 0,
+      sauce_estimated_floz: (m.sauce_estimated_floz as number) ?? 0,
+      flour_estimated_kg: (m.flour_estimated_kg as number) ?? 0,
+      dough_estimated_kg: (m.dough_estimated_kg as number) ?? 0,
+    });
+    // metrics is newest-first: the weeks preceding this one are at higher indices.
+    const prior = metrics
+      .slice(index + 1, index + 1 + ROLLING_WINDOW_WEEKS - 1)
+      .map(toRolling);
+    return explainStatus(
+      toRolling(row),
+      prior,
+      (row.store_type as string) === "dough" ? "dough" : "flour"
+    );
+  };
+
+  const movingAvg = {
+    weeks: recentWeeks.length,
+    cheeseOrd: toCheeseCases(avgOf("cheese_ordered_oz")),
+    cheeseEst: toCheeseCases(avgOf("cheese_estimated_oz")),
+    cheeseDiff: avgOf("cheese_diff"),
+    sauceOrd: toSauceCases(avgOf("sauce_ordered_floz")),
+    sauceEst: toSauceCases(avgOf("sauce_estimated_floz")),
+    sauceDiff: avgOf("sauce_diff"),
+    flourOrd: toFlourBags(avgOf("flour_ordered_kg")),
+    flourEst: toFlourBags(avgOf("flour_estimated_kg")),
+    flourDiff: avgOf("flour_diff"),
+    sc: avgOf("sauce_cheese_ratio"),
+    fc: avgOf("flour_cheese_ratio"),
+  };
 
   async function handleAiInsight() {
     setAiLoading(true);
@@ -161,6 +241,19 @@ export function StoreDetailClient({
         </button>
       </div>
 
+      {/* Date filters — the dashboard's Year + Period selectors, carried over to
+          the store view (James, July 22 2026). Brand and DSM are omitted: a
+          single store has exactly one of each, so they'd be inert. */}
+      <FilterBar
+        user={user}
+        weeks={weeks}
+        years={years}
+        brands={[]}
+        dsms={[]}
+        showBrandFilter={false}
+        showDsmFilter={false}
+      />
+
       {/* AI insight panel */}
       {(aiLoading || aiInsight) && (
         <div
@@ -214,11 +307,11 @@ export function StoreDetailClient({
       {/* KPI strip */}
       {latest && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-[14px] mb-6">
-          <KpiStrip label="Cheese" ordered={latest.cheese_ordered_oz as number} estimated={latest.cheese_estimated_oz as number} diff={latest.cheese_diff as number} unit="oz" diffUnit="cs" status={latest.cheese_status as ComplianceStatus} />
-          <KpiStrip label="Sauce" ordered={latest.sauce_ordered_floz as number} estimated={latest.sauce_estimated_floz as number} diff={latest.sauce_diff as number} unit="fl oz" diffUnit="cs" status={latest.sauce_status as ComplianceStatus} />
-          <KpiStrip label="Flour" ordered={latest.flour_ordered_kg as number} estimated={latest.flour_estimated_kg as number} diff={latest.flour_diff as number} unit="kg" diffUnit="bg" status={latest.flour_status as ComplianceStatus} />
-          <RatioKpi label="S:C Ratio" value={latest.sauce_cheese_ratio as number} status={latest.sauce_cheese_status as ComplianceStatus} />
-          <RatioKpi label="F:C Ratio" value={latest.flour_cheese_ratio as number} status={latest.flour_cheese_status as ComplianceStatus} />
+          <KpiStrip label="Cheese" ordered={toCheeseCases(latest.cheese_ordered_oz as number)} estimated={toCheeseCases(latest.cheese_estimated_oz as number)} diff={latest.cheese_diff as number} unit="cs" avgOrdered={movingAvg.cheeseOrd} avgWeeks={movingAvg.weeks} />
+          <KpiStrip label="Sauce" ordered={toSauceCases(latest.sauce_ordered_floz as number)} estimated={toSauceCases(latest.sauce_estimated_floz as number)} diff={latest.sauce_diff as number} unit="cs" avgOrdered={movingAvg.sauceOrd} avgWeeks={movingAvg.weeks} />
+          <KpiStrip label="Flour" ordered={toFlourBags(latest.flour_ordered_kg as number)} estimated={toFlourBags(latest.flour_estimated_kg as number)} diff={latest.flour_diff as number} unit="bg" avgOrdered={movingAvg.flourOrd} avgWeeks={movingAvg.weeks} />
+          <RatioKpi label="Sauce:Cheese" value={latest.sauce_cheese_ratio as number} status={latest.sauce_cheese_status as ComplianceStatus} avgValue={movingAvg.sc} avgWeeks={movingAvg.weeks} />
+          <RatioKpi label="Flour:Cheese" value={latest.flour_cheese_ratio as number} status={latest.flour_cheese_status as ComplianceStatus} avgValue={movingAvg.fc} avgWeeks={movingAvg.weeks} />
         </div>
       )}
 
@@ -253,25 +346,70 @@ export function StoreDetailClient({
             <table className="w-full text-[13px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
               <thead>
                 <tr>
-                  {["Week", "Cheese Ord", "Cheese Est", "Cheese Δ", "Sauce Ord", "Sauce Est", "Sauce Δ", "Flour Ord", "Flour Est", "Flour Δ", "S:C", "F:C"].map((h) => (
-                    <th key={h} className="text-right font-semibold text-[11px] tracking-[.06em] uppercase px-3 py-[10px]" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)", background: "var(--color-paper)", textAlign: h === "Week" ? "left" : "right" }}>
+                  {/* James, July 22 2026: "Est" renamed to "Usage based on Boxes",
+                      the delta symbol spelled out as "Difference", and the ratio
+                      columns given their full names. */}
+                  {[
+                    "Week",
+                    "Cheese Ord", "Cheese Usage based on Boxes", "Cheese Difference",
+                    "Sauce Ord", "Sauce Usage based on Boxes", "Sauce Difference",
+                    "Flour Ord", "Flour Usage based on Boxes", "Flour Difference",
+                    "Sauce:Cheese", "Flour:Cheese",
+                  ].map((h) => (
+                    <th key={h} className="font-semibold text-[11px] tracking-[.06em] uppercase px-3 py-[10px] align-bottom" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)", background: "var(--color-paper)", textAlign: h === "Week" ? "left" : "right", minWidth: h.includes("Usage") ? "104px" : undefined }}>
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
+                {/* 6-week moving average, above the weekly rows (James, July 22
+                    2026). Tinted and labelled so it reads as a summary line
+                    rather than another week. */}
+                {movingAvg.weeks > 0 && (
+                  <tr style={{ background: "var(--color-paper)" }}>
+                    <td className="px-3 py-[10px] font-semibold text-[11px] tracking-[.04em] uppercase whitespace-nowrap" style={{ borderBottom: "2px solid var(--color-line-2)", color: "var(--color-ink-2)" }}>
+                      {movingAvg.weeks}-wk avg
+                    </td>
+                    {[
+                      unitFmt(movingAvg.cheeseOrd, "cs"),
+                      unitFmt(movingAvg.cheeseEst, "cs"),
+                      null,
+                      unitFmt(movingAvg.sauceOrd, "cs"),
+                      unitFmt(movingAvg.sauceEst, "cs"),
+                      null,
+                      unitFmt(movingAvg.flourOrd, "bg"),
+                      unitFmt(movingAvg.flourEst, "bg"),
+                      null,
+                    ].map((val, i) =>
+                      val === null ? (
+                        <td key={i} className="px-3 py-[10px] text-right" style={{ borderBottom: "2px solid var(--color-line-2)" }}>
+                          <DiffCell
+                            value={i === 2 ? movingAvg.cheeseDiff : i === 5 ? movingAvg.sauceDiff : movingAvg.flourDiff}
+                            unit={i === 8 ? "bg" : "cs"}
+                          />
+                        </td>
+                      ) : (
+                        <td key={i} className="px-3 py-[10px] text-right font-mono text-[12px] font-medium" style={{ borderBottom: "2px solid var(--color-line-2)", color: "var(--color-ink-2)" }}>
+                          {val}
+                        </td>
+                      )
+                    )}
+                    <td className="px-3 py-[10px] text-right" style={{ borderBottom: "2px solid var(--color-line-2)" }}><RatioCell value={movingAvg.sc} /></td>
+                    <td className="px-3 py-[10px] text-right" style={{ borderBottom: "2px solid var(--color-line-2)" }}><RatioCell value={movingAvg.fc} /></td>
+                  </tr>
+                )}
                 {recentWeeks.map((m) => (
                   <tr key={`${m.year}-${m.week_number}`} className="hover:bg-[rgba(244,236,221,.4)]">
                     <td className="px-3 py-[10px] font-medium" style={{ borderBottom: "1px solid var(--color-line)" }}>W{m.week_number as number}</td>
-                    <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)" }}>{fmt(m.cheese_ordered_oz as number)}</td>
-                    <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-3)" }}>{fmt(m.cheese_estimated_oz as number)}</td>
+                    <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)" }}>{unitFmt(toCheeseCases(m.cheese_ordered_oz as number), "cs")}</td>
+                    <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-3)" }}>{unitFmt(toCheeseCases(m.cheese_estimated_oz as number), "cs")}</td>
                     <td className="px-3 py-[10px] text-right" style={{ borderBottom: "1px solid var(--color-line)" }}><DiffCell value={m.cheese_diff as number} /></td>
-                    <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)" }}>{fmt(m.sauce_ordered_floz as number)}</td>
-                    <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-3)" }}>{fmt(m.sauce_estimated_floz as number)}</td>
+                    <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)" }}>{unitFmt(toSauceCases(m.sauce_ordered_floz as number), "cs")}</td>
+                    <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-3)" }}>{unitFmt(toSauceCases(m.sauce_estimated_floz as number), "cs")}</td>
                     <td className="px-3 py-[10px] text-right" style={{ borderBottom: "1px solid var(--color-line)" }}><DiffCell value={m.sauce_diff as number} /></td>
-                    <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)" }}>{fmt(m.flour_ordered_kg as number)}</td>
-                    <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-3)" }}>{fmt(m.flour_estimated_kg as number)}</td>
+                    <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)" }}>{unitFmt(toFlourBags(m.flour_ordered_kg as number), "bg")}</td>
+                    <td className="px-3 py-[10px] text-right font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-3)" }}>{unitFmt(toFlourBags(m.flour_estimated_kg as number), "bg")}</td>
                     <td className="px-3 py-[10px] text-right" style={{ borderBottom: "1px solid var(--color-line)" }}><DiffCell value={m.flour_diff as number} unit="bg" /></td>
                     <td className="px-3 py-[10px] text-right" style={{ borderBottom: "1px solid var(--color-line)" }}><RatioCell value={m.sauce_cheese_ratio as number} /></td>
                     <td className="px-3 py-[10px] text-right" style={{ borderBottom: "1px solid var(--color-line)" }}><RatioCell value={m.flour_cheese_ratio as number} /></td>
@@ -335,47 +473,73 @@ export function StoreDetailClient({
                   <table className="w-full text-[13px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
                     <thead>
                       <tr>
-                        {["Week", "Cheese Diff", "Sauce Diff", "S:C Ratio", "Status", "vs Prev"].map(h => (
+                        {/* James, July 22 2026: drop "vs Prev", add Flour
+                            Difference and the Flour:Cheese ratio. */}
+                        {["Week", "Cheese Difference", "Sauce Difference", "Flour Difference", "Sauce:Cheese", "Flour:Cheese", "Status"].map(h => (
                           <th key={h} className="text-left font-semibold text-[11px] tracking-[.06em] uppercase px-[14px] py-[10px]" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {metrics.slice(0, 15).map((m, i) => {
-                        const prev = metrics[i + 1] as Record<string, unknown> | undefined;
-                        const statusChange = prev ? statusRank(m.overall_status as string) - statusRank(prev.overall_status as string) : 0;
+                        const weekKey = `${m.year}-${m.week_number}`;
+                        const isOpen = openExplanation === weekKey;
+                        const explanation = explanationFor(i);
                         return (
-                          <tr key={m.week_number as number} className="hover:bg-[rgba(244,236,221,.3)]">
-                            <td className="px-[14px] py-[10px] font-mono font-medium" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                              Wk {m.week_number as number}
-                              <span className="text-[10px] ml-1" style={{ color: "var(--color-ink-3)" }}>{m.year as number}</span>
-                            </td>
-                            <td className="px-[14px] py-[10px] font-mono" style={{ borderBottom: "1px solid var(--color-line)", color: Math.abs(m.cheese_diff as number) > 6 ? "var(--color-ginos-red)" : "var(--color-ink)" }}>
-                              {(m.cheese_diff as number) > 0 ? "+" : ""}{(m.cheese_diff as number).toFixed(1)}
-                            </td>
-                            <td className="px-[14px] py-[10px] font-mono" style={{ borderBottom: "1px solid var(--color-line)", color: Math.abs(m.sauce_diff as number) > 6 ? "var(--color-ginos-red)" : "var(--color-ink)" }}>
-                              {(m.sauce_diff as number) > 0 ? "+" : ""}{(m.sauce_diff as number).toFixed(1)}
-                            </td>
-                            <td className="px-[14px] py-[10px] font-mono" style={{ borderBottom: "1px solid var(--color-line)", color: (m.sauce_cheese_ratio as number) * 100 < 75 || (m.sauce_cheese_ratio as number) * 100 > 125 ? "var(--color-ginos-red)" : "var(--color-ink)" }}>
-                              {((m.sauce_cheese_ratio as number) * 100).toFixed(1)}%
-                            </td>
-                            <td className="px-[14px] py-[10px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                              <StatusPill status={m.overall_status as "ok" | "warn" | "bad"} />
-                            </td>
-                            <td className="px-[14px] py-[10px] text-center" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                              {prev ? (
-                                statusChange < 0 ? (
-                                  <span className="text-[10px] font-semibold px-[6px] py-[2px] rounded-full" style={{ background: "var(--color-basil-soft)", color: "var(--color-basil)" }}>Better</span>
-                                ) : statusChange > 0 ? (
-                                  <span className="text-[10px] font-semibold px-[6px] py-[2px] rounded-full" style={{ background: "var(--color-ginos-red-soft)", color: "var(--color-ginos-red)" }}>Worse</span>
-                                ) : (
-                                  <span className="text-[10px] px-[6px] py-[2px] rounded-full" style={{ background: "var(--color-crust)", color: "var(--color-ink-3)" }}>Same</span>
-                                )
-                              ) : (
-                                <span className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>—</span>
-                              )}
-                            </td>
-                          </tr>
+                          <Fragment key={weekKey}>
+                            <tr className="hover:bg-[rgba(244,236,221,.3)]">
+                              <td className="px-[14px] py-[10px] font-mono font-medium" style={{ borderBottom: isOpen ? "none" : "1px solid var(--color-line)" }}>
+                                Wk {m.week_number as number}
+                                <span className="text-[10px] ml-1" style={{ color: "var(--color-ink-3)" }}>{m.year as number}</span>
+                              </td>
+                              <td className="px-[14px] py-[10px]" style={{ borderBottom: isOpen ? "none" : "1px solid var(--color-line)" }}>
+                                <DiffCell value={m.cheese_diff as number} />
+                              </td>
+                              <td className="px-[14px] py-[10px]" style={{ borderBottom: isOpen ? "none" : "1px solid var(--color-line)" }}>
+                                <DiffCell value={m.sauce_diff as number} />
+                              </td>
+                              <td className="px-[14px] py-[10px]" style={{ borderBottom: isOpen ? "none" : "1px solid var(--color-line)" }}>
+                                <DiffCell value={m.flour_diff as number} unit="bg" />
+                              </td>
+                              <td className="px-[14px] py-[10px]" style={{ borderBottom: isOpen ? "none" : "1px solid var(--color-line)" }}>
+                                <RatioCell value={m.sauce_cheese_ratio as number} />
+                              </td>
+                              <td className="px-[14px] py-[10px]" style={{ borderBottom: isOpen ? "none" : "1px solid var(--color-line)" }}>
+                                <RatioCell value={m.flour_cheese_ratio as number} />
+                              </td>
+                              <td className="px-[14px] py-[10px]" style={{ borderBottom: isOpen ? "none" : "1px solid var(--color-line)" }}>
+                                {/* Click the status to see why it is that status
+                                    (James, July 22 2026 — he was open on tooltip
+                                    vs click-to-expand; click keeps it readable on
+                                    a laptop trackpad and lets the text be a full
+                                    sentence, and title= still gives a hover hint). */}
+                                <button
+                                  onClick={() => setOpenExplanation(isOpen ? null : weekKey)}
+                                  title={explanation?.headline ?? undefined}
+                                  className="flex items-center gap-[5px] cursor-pointer"
+                                  aria-expanded={isOpen}
+                                >
+                                  <StatusPill status={m.overall_status as ComplianceStatus} />
+                                  <ChevronDown
+                                    className="w-3 h-3 transition-transform"
+                                    style={{ color: "var(--color-ink-3)", transform: isOpen ? "rotate(180deg)" : "none" }}
+                                  />
+                                </button>
+                              </td>
+                            </tr>
+                            {isOpen && explanation && (
+                              <tr>
+                                <td colSpan={7} className="px-[14px] pb-[12px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                                  <div
+                                    className="rounded-[10px] px-[12px] py-[10px] text-[12.5px] leading-relaxed"
+                                    style={{ background: "var(--color-paper)", border: "1px solid var(--color-line)", color: "var(--color-ink-2)" }}
+                                  >
+                                    {explanation.detail}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </tbody>
@@ -462,26 +626,41 @@ export function StoreDetailClient({
 
 // ── Sub-components ───────────────────────────────────────────
 
-function KpiStrip({ label, ordered, estimated, diff, unit, diffUnit, status }: {
-  label: string; ordered: number; estimated: number; diff: number; unit: string; diffUnit: string; status: ComplianceStatus;
+function KpiStrip({ label, ordered, estimated, diff, unit, avgOrdered, avgWeeks }: {
+  label: string; ordered: number; estimated: number; diff: number; unit: string;
+  avgOrdered: number; avgWeeks: number;
 }) {
   return (
     <div className="rounded-[14px] p-[16px] bg-white flex flex-col gap-1" style={{ border: "1px solid var(--color-line)", boxShadow: "var(--shadow-sm)" }}>
       <span className="text-[11px] font-semibold tracking-[.06em] uppercase" style={{ color: "var(--color-ink-3)" }}>{label}</span>
-      <span className="font-mono text-[16px] font-medium">{fmt(ordered)} <span className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>{unit}</span></span>
-      <span className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>Est. from boxes: {fmt(estimated)} {unit}</span>
-      <div className="mt-1"><DiffCell value={diff} unit={diffUnit} /></div>
+      {/* The moving average sits ABOVE the current week's figure (James, July 22
+          2026) so the week is read against its own recent baseline. */}
+      {avgWeeks > 0 && (
+        <span className="text-[11px] font-mono" style={{ color: "var(--color-ink-3)" }}>
+          {avgWeeks}-wk avg: {unitFmt(avgOrdered, unit)}
+        </span>
+      )}
+      <span className="font-mono text-[16px] font-medium">{ordered.toFixed(1)} <span className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>{unit}</span></span>
+      <span className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>Usage based on Boxes: {unitFmt(estimated, unit)}</span>
+      <div className="mt-1"><DiffCell value={diff} unit={unit} /></div>
     </div>
   );
 }
 
-function RatioKpi({ label, value, status }: { label: string; value: number; status: ComplianceStatus }) {
+function RatioKpi({ label, value, status, avgValue, avgWeeks }: {
+  label: string; value: number; status: ComplianceStatus; avgValue: number; avgWeeks: number;
+}) {
   const pct = value * 100;
   const position = Math.min(Math.max((pct / 200) * 100, 0), 100);
 
   return (
     <div className="rounded-[14px] p-[16px] bg-white flex flex-col gap-2" style={{ border: "1px solid var(--color-line)", boxShadow: "var(--shadow-sm)" }}>
       <span className="text-[11px] font-semibold tracking-[.06em] uppercase" style={{ color: "var(--color-ink-3)" }}>{label}</span>
+      {avgWeeks > 0 && (
+        <span className="text-[11px] font-mono -mb-1" style={{ color: "var(--color-ink-3)" }}>
+          {avgWeeks}-wk avg: {(avgValue * 100).toFixed(1)}%
+        </span>
+      )}
       <RatioCell value={value} />
       {/* Range viz */}
       <div className="relative h-[6px] rounded-full mt-1" style={{ background: "var(--color-crust)" }}>
@@ -524,4 +703,57 @@ function TrendChart({ title, data, dataKey, multiply, color, target, threshold }
 
 function fmt(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n.toFixed(1);
+}
+
+/**
+ * Case/bag quantity with its unit. Cases and bags are small numbers (tens, not
+ * thousands, unlike the raw oz these columns used to show), so they read better
+ * at one decimal with no "k" abbreviation.
+ */
+function unitFmt(n: number, unit: string): string {
+  return `${n.toFixed(1)} ${unit}`;
+}
+
+/**
+ * Cheese case size in oz for this store, recovered from stored metrics.
+ *
+ * James (July 22 2026) wants the Ord and "Usage based on Boxes" columns in
+ * cases/bags rather than oz/fl oz/kg. Sauce and flour are fixed conversions
+ * (SAUCE_CASE_FLOZ, FLOUR_BAG_KG), but a CHEESE case is sized from the store's
+ * DOMINANT cheese SKU at aggregation time — stores buy different pack sizes —
+ * and that divisor is never persisted; only the resulting diff is.
+ *
+ * It is recoverable, though, because cheese_diff is that same division:
+ *   cheese_diff = (ordered_oz - estimated_oz) / caseOz
+ *   => caseOz    = (ordered_oz - estimated_oz) / cheese_diff
+ *
+ * Deriving it this way (rather than assuming the 10 kg default) also guarantees
+ * the column arithmetic ties out on screen: Ord - Usage equals the Difference
+ * column, which is the first thing James would check.
+ *
+ * Weeks whose diff is near zero are numerically useless — a tiny numerator over
+ * a tiny denominator — so we take the MEDIAN of the weeks that are usable, which
+ * ignores those and any one-off outlier. Falls back to the engine's own 10 kg
+ * default when no week is usable.
+ *
+ * Persisting the case size on weekly_metrics would be the cleaner fix; it needs
+ * a schema change plus a full re-import (weekly_orders is not populated for
+ * historical weeks, so the raw SKU mix can't be recomputed after the fact).
+ */
+const CHEESE_CASE_OZ_FALLBACK = 10 * KG_TO_OZ;
+
+function deriveCheeseCaseOz(metrics: Record<string, unknown>[]): number {
+  const derived: number[] = [];
+  for (const m of metrics) {
+    const ordered = (m.cheese_ordered_oz as number) ?? 0;
+    const estimated = (m.cheese_estimated_oz as number) ?? 0;
+    const diff = (m.cheese_diff as number) ?? 0;
+    // Need a diff big enough that the division is stable.
+    if (Math.abs(diff) < 0.25) continue;
+    const caseOz = (ordered - estimated) / diff;
+    if (Number.isFinite(caseOz) && caseOz > 1) derived.push(caseOz);
+  }
+  if (derived.length === 0) return CHEESE_CASE_OZ_FALLBACK;
+  derived.sort((a, b) => a - b);
+  return derived[Math.floor(derived.length / 2)];
 }
