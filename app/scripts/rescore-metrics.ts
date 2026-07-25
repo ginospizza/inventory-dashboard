@@ -40,7 +40,7 @@ const STORE_FILTER = storeArg
   ? new Set(storeArg.replace("--store=", "").split(",").map((s) => s.trim().toUpperCase()))
   : null;
 
-const LABEL: Record<ComplianceStatus, string> = { ok: "Compliant", warn: "Borderline", bad: "At Risk" };
+import { STATUS_LABEL as LABEL, statusRank } from "../src/lib/types";
 
 interface Row {
   id: string;
@@ -146,11 +146,21 @@ async function main() {
 
   // ── Summary ───────────────────────────────────────────────
   console.log(`Status changes: ${changes.length} of ${all.length} store-weeks\n`);
-  const order = ["bad->warn", "bad->ok", "warn->ok", "ok->warn", "ok->bad", "warn->bad"];
-  const seen = [...transitions.keys()].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  // Direction comes from statusRank, not a hard-coded list of transition names.
+  // The list was ["bad->warn","bad->ok",...] with `indexOf(k) < 3` meaning
+  // "relaxed" — so any transition NOT in the list scored -1 and was reported as
+  // relaxed. When 'severe' landed, 1563 stores ESCALATING to Severe were printed
+  // as "▼ relaxed At Risk -> undefined".
+  const seen = [...transitions.keys()].sort((a, b) => {
+    const [aFrom, aTo] = a.split("->");
+    const [bFrom, bTo] = b.split("->");
+    const dir = (f: string, t: string) => Math.sign(statusRank(t) - statusRank(f));
+    // Relaxations first, then escalations; within each, worst starting tier first.
+    return dir(aFrom, aTo) - dir(bFrom, bTo) || statusRank(bFrom) - statusRank(aFrom);
+  });
   for (const k of seen) {
     const [from, to] = k.split("->") as ComplianceStatus[];
-    const arrow = order.indexOf(k) < 3 ? "▼ relaxed " : "▲ escalated";
+    const arrow = statusRank(to) < statusRank(from) ? "▼ relaxed " : "▲ escalated";
     console.log(`  ${arrow}  ${LABEL[from]} -> ${LABEL[to]}: ${transitions.get(k)}`);
   }
 
