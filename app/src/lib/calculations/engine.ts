@@ -50,6 +50,9 @@ interface StoreWeekAggregates {
 
   cheese_by_sku: Map<string, { qty: number; weight_kg: number }>;
   total_cheese_oz: number;
+  /** Sauce cases per SKU, with each SKU's own case size in fl oz. Needed because
+   *  the sauce SKUs are NOT all the same size — see sauceDiff. */
+  sauce_by_sku: Map<string, { qty: number; weight_floz: number }>;
   total_sauce_floz: number;
   total_flour_kg: number;
 
@@ -135,6 +138,7 @@ export function aggregateStoreWeek(
     year,
     cheese_by_sku: new Map(),
     total_cheese_oz: 0,
+    sauce_by_sku: new Map(),
     total_sauce_floz: 0,
     total_flour_kg: 0,
     dough_by_sku: new Map(),
@@ -168,6 +172,9 @@ export function aggregateStoreWeek(
       }
       case "Pizza Sauce": {
         if (product.weight_unit === "Fl oz" || product.weight_unit === "fl oz") {
+          const existing = agg.sauce_by_sku.get(product.code) ?? { qty: 0, weight_floz: product.weight };
+          existing.qty += qty;
+          agg.sauce_by_sku.set(product.code, existing);
           agg.total_sauce_floz += qty * product.weight;
         }
         break;
@@ -285,9 +292,48 @@ export function cheeseDiff(agg: StoreWeekAggregates, estimated: number): number 
   return caseOz === 0 ? 0 : (agg.total_cheese_oz - estimated) / caseOz;
 }
 
-/** Sauce diff in cases */
-export function sauceDiff(totalFloz: number, estimated: number): number {
-  return SAUCE_CASE_FLOZ === 0 ? 0 : (totalFloz - estimated) / SAUCE_CASE_FLOZ;
+/**
+ * Sauce case size in fl oz for this store-week: the DOMINANT sauce SKU's own
+ * case size, mirroring how cheeseDiff sizes a cheese case.
+ *
+ * The sauce SKUs are not all the same size (James, July 28 2026):
+ *   40114   V Food Premium Pizza Sauce 6x2.84L   576.19 fl oz
+ *   G040114 Ginos Pizza Sauce 6x100 fl.oz        600 fl oz
+ *   P1250   Crushed Tomatoes & Spice 6/100       600 fl oz
+ *
+ * Dividing everything by the 6x2.84L figure inflated case counts for the two
+ * 600 fl oz products by 600/576.19 = 4.1%, so four real cases displayed as 4.2.
+ *
+ * Falls back to SAUCE_CASE_FLOZ when no SKU detail is available (the historical
+ * path where only a total is known).
+ */
+export function sauceCaseFloz(agg: Pick<StoreWeekAggregates, "sauce_by_sku">): number {
+  let maxQty = 0;
+  let caseFloz = SAUCE_CASE_FLOZ;
+  for (const [, info] of agg.sauce_by_sku) {
+    if (info.qty > maxQty) {
+      maxQty = info.qty;
+      caseFloz = info.weight_floz;
+    }
+  }
+  return caseFloz;
+}
+
+/**
+ * Sauce diff in cases of the store's dominant sauce SKU.
+ *
+ * Accepts either the aggregate (preferred — carries the SKU mix) or a bare
+ * fl-oz total, which falls back to the 6x2.84L case size.
+ */
+export function sauceDiff(
+  totalFlozOrAgg: number | StoreWeekAggregates,
+  estimated: number
+): number {
+  const totalFloz =
+    typeof totalFlozOrAgg === "number" ? totalFlozOrAgg : totalFlozOrAgg.total_sauce_floz;
+  const caseFloz =
+    typeof totalFlozOrAgg === "number" ? SAUCE_CASE_FLOZ : sauceCaseFloz(totalFlozOrAgg);
+  return caseFloz === 0 ? 0 : (totalFloz - estimated) / caseFloz;
 }
 
 /** Flour diff in bags (Flour stores) */
@@ -797,7 +843,7 @@ export function computeWeeklyMetrics(
 
   // Diffs (always reported for the single week — only the STATUS is smoothed)
   const cDiff = cheeseDiff(agg, cheeseEst);
-  const sDiff = sauceDiff(agg.total_sauce_floz, sauceEst);
+  const sDiff = sauceDiff(agg, sauceEst);
   const dDiff = storeType === "dough" ? doughDiff(agg, doughEst) : 0;
 
   // Ratios

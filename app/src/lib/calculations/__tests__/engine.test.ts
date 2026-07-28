@@ -16,6 +16,7 @@ import {
   estimatedFlourKg,
   cheeseDiff,
   sauceDiff,
+  sauceCaseFloz,
   flourDiff,
   doughDiff,
   sauceCheeseRatio,
@@ -43,6 +44,7 @@ import {
   FLOUR_YIELD_FACTOR,
   BOX_RATIOS,
   BOXES_PER_CASE,
+  SAUCE_CASE_FLOZ,
   ROLLING_WINDOW_WEEKS,
   ROLLING_PRIOR_WEEKS,
 } from "../constants";
@@ -451,6 +453,7 @@ function makeAgg(opts: {
   clamshell?: number;
   plates?: number;
   cheese_by_sku?: Map<string, { qty: number; weight_kg: number }>;
+  sauce_by_sku?: Map<string, { qty: number; weight_floz: number }>;
   dough_by_sku?: Map<string, { qty: number; weight_kg: number }>;
 }) {
   return {
@@ -459,6 +462,7 @@ function makeAgg(opts: {
     year: 2026,
     cheese_by_sku: opts.cheese_by_sku ?? new Map(),
     total_cheese_oz: opts.cheese_oz ?? 0,
+    sauce_by_sku: opts.sauce_by_sku ?? new Map(),
     total_sauce_floz: opts.sauce_floz ?? 0,
     total_flour_kg: opts.flour_kg ?? 0,
     dough_by_sku: opts.dough_by_sku ?? new Map(),
@@ -1071,3 +1075,67 @@ function buildDoughProducts(): Map<string, Product> {
   ];
   return new Map(prods.map(p => [p.code, p]));
 }
+
+// ── Sauce case sizing (James, July 28 2026) ──────────────────
+describe("sauceDiff — cases of the store's DOMINANT sauce SKU", () => {
+  // The three real sauce SKUs. Two are 600 fl oz; only the V Food product is
+  // the 6x2.84L (576.19 fl oz) case the engine used to assume for everything.
+  const GINOS_SAUCE: Product = {
+    id: "s-ginos", code: "G040114", description: "Ginos Pizza Sauce 6x100 fl.oz",
+    type: "Pizza Sauce", classification: "primary", pack_size: "6x100 floz",
+    weight: 600, weight_unit: "Fl oz",
+  };
+  const VFOOD_SAUCE: Product = {
+    id: "s-vfood", code: "40114", description: "V Food Premium Pizza Sauce 6x2.84L",
+    type: "Pizza Sauce", classification: "primary", pack_size: "6x 2.84L",
+    weight: 576.19056, weight_unit: "Fl oz",
+  };
+
+  const lookup = new Map<string, Product>([
+    [GINOS_SAUCE.code, GINOS_SAUCE],
+    [VFOOD_SAUCE.code, VFOOD_SAUCE],
+  ]);
+
+  it("reports 4 cases as 4, not 4.2, for the 600 fl oz SKU", () => {
+    // James's exact report: 4 cases of the Ginos 600 fl oz sauce was displaying
+    // as 4.2 because 2400/576.19 = 4.165. Estimated 0 so the diff IS the order.
+    const agg = aggregateStoreWeek(
+      [orderRow(GINOS_SAUCE.code, GINOS_SAUCE.description, 4)], lookup, 2026
+    );
+    expect(agg.total_sauce_floz).toBeCloseTo(2400, 5);
+    expect(sauceDiff(agg, 0)).toBeCloseTo(4.0, 5);
+  });
+
+  it("still uses 576.19 for the 6x2.84L SKU", () => {
+    const agg = aggregateStoreWeek(
+      [orderRow(VFOOD_SAUCE.code, VFOOD_SAUCE.description, 4)], lookup, 2026
+    );
+    expect(sauceDiff(agg, 0)).toBeCloseTo(4.0, 5);
+  });
+
+  it("picks the dominant SKU when a store buys both", () => {
+    // 10 cases Ginos (600) vs 2 cases V Food: dominant is Ginos, so 600.
+    const agg = aggregateStoreWeek(
+      [
+        orderRow(GINOS_SAUCE.code, GINOS_SAUCE.description, 10),
+        orderRow(VFOOD_SAUCE.code, VFOOD_SAUCE.description, 2),
+      ],
+      lookup, 2026
+    );
+    expect(sauceCaseFloz(agg)).toBeCloseTo(600, 5);
+    // 10*600 + 2*576.19 = 7152.38 fl oz over a 600 fl oz case = 11.92 cases.
+    expect(sauceDiff(agg, 0)).toBeCloseTo(7152.38112 / 600, 4);
+  });
+
+  it("falls back to the 6x2.84L case size when given a bare total", () => {
+    // The legacy signature, still used where only a fl-oz total is known.
+    expect(sauceDiff(SAUCE_CASE_FLOZ, 0)).toBeCloseTo(1.0, 5);
+  });
+
+  it("leaves the sauce STATUS untouched — it is graded on fl oz, not cases", () => {
+    // Worth pinning: the case-size fix changes the displayed Difference but must
+    // not move any compliance grade, because diffStatusPct compares fl oz.
+    expect(diffStatusPct(2400, 2400)).toBe("ok");
+    expect(diffStatusPct(2400, 1000)).toBe("severe");
+  });
+});
