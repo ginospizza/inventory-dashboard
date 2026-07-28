@@ -89,10 +89,15 @@ export function StoreDetailClient({
 
   // Ord / "Usage based on Boxes" display in cases and bags rather than raw
   // oz / fl oz / kg (James, July 22 2026). Sauce and flour are fixed
-  // conversions; cheese's case size varies by store, see deriveCheeseCaseOz.
-  const cheeseCaseOz = deriveCheeseCaseOz(metrics);
+  // conversions; cheese's and sauce's case sizes vary by store, see deriveCaseSize.
+  const cheeseCaseOz = deriveCaseSize(
+    metrics, "cheese_ordered_oz", "cheese_estimated_oz", "cheese_diff", 10 * KG_TO_OZ
+  );
+  const sauceCaseFlozValue = deriveCaseSize(
+    metrics, "sauce_ordered_floz", "sauce_estimated_floz", "sauce_diff", SAUCE_CASE_FLOZ
+  );
   const toCheeseCases = (oz: number) => (cheeseCaseOz > 0 ? oz / cheeseCaseOz : 0);
-  const toSauceCases = (floz: number) => floz / SAUCE_CASE_FLOZ;
+  const toSauceCases = (floz: number) => (sauceCaseFlozValue > 0 ? floz / sauceCaseFlozValue : 0);
   const toFlourBags = (kg: number) => kg / FLOUR_BAG_KG;
 
   // 6-week moving average, shown above the current week for every metric
@@ -908,45 +913,52 @@ function unitFmt(n: number, unit: string): string {
 }
 
 /**
- * Cheese case size in oz for this store, recovered from stored metrics.
+ * Case size for this store, recovered from stored metrics.
  *
  * James (July 22 2026) wants the Ord and "Usage based on Boxes" columns in
- * cases/bags rather than oz/fl oz/kg. Sauce and flour are fixed conversions
- * (SAUCE_CASE_FLOZ, FLOUR_BAG_KG), but a CHEESE case is sized from the store's
- * DOMINANT cheese SKU at aggregation time — stores buy different pack sizes —
- * and that divisor is never persisted; only the resulting diff is.
+ * cases/bags rather than oz/fl oz/kg. Flour is a fixed conversion (20 kg bags),
+ * but CHEESE and SAUCE cases are sized from the store's DOMINANT SKU at
+ * aggregation time — stores buy different pack sizes — and that divisor is never
+ * persisted; only the resulting diff is.
  *
- * It is recoverable, though, because cheese_diff is that same division:
- *   cheese_diff = (ordered_oz - estimated_oz) / caseOz
- *   => caseOz    = (ordered_oz - estimated_oz) / cheese_diff
+ * It is recoverable, because the stored diff IS that division:
+ *   diff     = (ordered - estimated) / caseSize
+ *   caseSize = (ordered - estimated) / diff
  *
- * Deriving it this way (rather than assuming the 10 kg default) also guarantees
- * the column arithmetic ties out on screen: Ord - Usage equals the Difference
+ * Deriving it this way (rather than assuming a default) also guarantees the
+ * column arithmetic ties out on screen: Ord - Usage equals the Difference
  * column, which is the first thing James would check.
  *
  * Weeks whose diff is near zero are numerically useless — a tiny numerator over
- * a tiny denominator — so we take the MEDIAN of the weeks that are usable, which
- * ignores those and any one-off outlier. Falls back to the engine's own 10 kg
- * default when no week is usable.
+ * a tiny denominator — so we take the MEDIAN of the usable weeks, which ignores
+ * those and any one-off outlier. Falls back to the engine's own default when no
+ * week is usable.
  *
- * Persisting the case size on weekly_metrics would be the cleaner fix; it needs
- * a schema change plus a full re-import (weekly_orders is not populated for
- * historical weeks, so the raw SKU mix can't be recomputed after the fact).
+ * Sauce matters here as much as cheese: there are three sauce SKUs and two of
+ * them are 600 fl oz against the 576.19 fl oz of the 6x2.84L product, which is
+ * the 4.2-vs-4.0-cases discrepancy James reported on July 28 2026.
+ *
+ * Persisting the case size on weekly_metrics would be cleaner; it needs a schema
+ * change plus a full re-import.
  */
-const CHEESE_CASE_OZ_FALLBACK = 10 * KG_TO_OZ;
-
-function deriveCheeseCaseOz(metrics: Record<string, unknown>[]): number {
+function deriveCaseSize(
+  metrics: Record<string, unknown>[],
+  orderedKey: string,
+  estimatedKey: string,
+  diffKey: string,
+  fallback: number
+): number {
   const derived: number[] = [];
   for (const m of metrics) {
-    const ordered = (m.cheese_ordered_oz as number) ?? 0;
-    const estimated = (m.cheese_estimated_oz as number) ?? 0;
-    const diff = (m.cheese_diff as number) ?? 0;
+    const ordered = (m[orderedKey] as number) ?? 0;
+    const estimated = (m[estimatedKey] as number) ?? 0;
+    const diff = (m[diffKey] as number) ?? 0;
     // Need a diff big enough that the division is stable.
     if (Math.abs(diff) < 0.25) continue;
-    const caseOz = (ordered - estimated) / diff;
-    if (Number.isFinite(caseOz) && caseOz > 1) derived.push(caseOz);
+    const size = (ordered - estimated) / diff;
+    if (Number.isFinite(size) && size > 1) derived.push(size);
   }
-  if (derived.length === 0) return CHEESE_CASE_OZ_FALLBACK;
+  if (derived.length === 0) return fallback;
   derived.sort((a, b) => a - b);
   return derived[Math.floor(derived.length / 2)];
 }
