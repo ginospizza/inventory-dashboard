@@ -320,16 +320,63 @@ export async function POST(request: NextRequest) {
     // week whose rolling average depends on it.
     const touchedStoreIds = [...new Set(computed.map((c) => c.storeId))];
     if (touchedStoreIds.length > 0) {
-      const { data: yearRows } = await admin
-        .from("weekly_metrics")
-        .select(
-          "store_id, week_number, store_type, cheese_ordered_oz, sauce_ordered_floz, flour_ordered_kg, dough_ordered_kg, cheese_estimated_oz, sauce_estimated_floz, flour_estimated_kg, dough_estimated_kg, sauce_cheese_status, flour_cheese_status, dough_cheese_status, cheese_status, sauce_status, flour_status, dough_status, overall_status"
-        )
-        .in("store_id", touchedStoreIds)
-        .eq("year", year);
+      // PAGINATE. Supabase caps a REST response at 1000 rows, and this reads
+      // every week of the year for every touched store — ~150 stores x ~29 weeks
+      // is well over 4000. Unpaginated, it silently returned only the first
+      // ~1000, so most stores never had their rolling status written at all and
+      // kept the week-in-ISOLATION value from step 5b, while the stores that were
+      // partially included got recomputed against a TRUNCATED series.
+      //
+      // James spotted the symptom on 2026-07-28: a Compare row whose explanation
+      // said every metric was in band on the 6-week average sat next to a Severe
+      // pill. 85 of 148 stores were wrong on week 29, plus scattered damage in
+      // weeks 1-7 (the truncated-series stores). Every other multi-row read in
+      // the app already loops like this; this one was missed.
+      const yearRows: Record<string, unknown>[] = [];
+      const SELECT_COLS =
+        "store_id, week_number, store_type, cheese_ordered_oz, sauce_ordered_floz, flour_ordered_kg, dough_ordered_kg, cheese_estimated_oz, sauce_estimated_floz, flour_estimated_kg, dough_estimated_kg, sauce_cheese_status, flour_cheese_status, dough_cheese_status, cheese_status, sauce_status, flour_status, dough_status, overall_status";
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await admin
+          .from("weekly_metrics")
+          .select(SELECT_COLS)
+          .in("store_id", touchedStoreIds)
+          .eq("year", year)
+          .order("store_id", { ascending: true })
+          .order("week_number", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) {
+          console.error("rolling-status read failed:", error);
+          break;
+        }
+        if (!data || data.length === 0) break;
+        yearRows.push(...(data as unknown as Record<string, unknown>[]));
+        if (data.length < PAGE) break;
+      }
 
-      const rowsByStore = new Map<string, NonNullable<typeof yearRows>>();
-      for (const r of yearRows ?? []) {
+      type YearRow = {
+        store_id: string;
+        week_number: number;
+        store_type: StoreType;
+        cheese_ordered_oz: number;
+        sauce_ordered_floz: number;
+        flour_ordered_kg: number;
+        dough_ordered_kg: number;
+        cheese_estimated_oz: number;
+        sauce_estimated_floz: number;
+        flour_estimated_kg: number;
+        dough_estimated_kg: number;
+        cheese_status: string;
+        sauce_status: string;
+        flour_status: string;
+        dough_status: string;
+        sauce_cheese_status: string;
+        flour_cheese_status: string;
+        dough_cheese_status: string;
+        overall_status: string;
+      };
+      const rowsByStore = new Map<string, YearRow[]>();
+      for (const r of yearRows as unknown as YearRow[]) {
         const arr = rowsByStore.get(r.store_id) ?? [];
         arr.push(r);
         rowsByStore.set(r.store_id, arr);
