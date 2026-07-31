@@ -15,10 +15,21 @@
  *     2026-01-01 is a Thursday, so the first Monday is Jan 5; Jan 5 + 26 weeks
  *     = July 6. That matches.
  *
- * So this uses the first-Monday convention, NOT ISO. The two disagree in any
- * year that doesn't begin on a Monday, which is most of them, so this is worth
- * confirming with James if a date column does eventually arrive — a mismatch
- * would shift every label by exactly one week.
+ * CONFIRMED by James (July 31 2026): "Our system goes Monday to Sunday and lists
+ * the last week of the year as 52, and the remainder of that week as 0, and
+ * begins week 1 from the first Monday of the year." The raw workbooks agree —
+ * the 2025 file has a sheet "Export Data Jan 6 - 10" tagged week 1 (Jan 6 2025
+ * being that year's first Monday), "Dec 29 - Jan 4" tagged week 52, and
+ * "Export Data Dec 30 - Jan 5" tagged week 0.
+ *
+ * WEEK 0 is therefore the Monday-week sitting between week 52 of one year and
+ * week 1 of the next — the leftover that 52 weeks from the first Monday doesn't
+ * reach. `firstMonday - 7 days` produces it for free, so week 0 needs no special
+ * case here; mondayOfWeek(2025, 0) = Dec 30 2024, matching that sheet exactly.
+ *
+ * Note that import-historical SKIPS week 0 rows (`weekNumber <= 0`), so week 0
+ * orders are not currently loaded into weekly_metrics at all. That is a data
+ * completeness question rather than a dating one, and is flagged to James.
  */
 
 /** Monday of `week` in `year`, under the first-Monday-of-January convention. */

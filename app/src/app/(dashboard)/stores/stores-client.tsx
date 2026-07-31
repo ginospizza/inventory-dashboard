@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronRight, ChevronUp, ChevronDown, Search } from "lucide-react";
 import { FilterBar, StatusPill, DiffCell, RatioCell } from "@/components/dashboard";
 import type { AppUser, Flag, ComplianceStatus } from "@/lib/types";
+import { statusRank } from "@/lib/types";
 
 type SortKey = "store" | "cheese_diff" | "sauce_diff" | "flour_diff" | "sauce_cheese_ratio" | "flour_cheese_ratio" | "overall_status";
 type SortDir = "asc" | "desc";
@@ -86,15 +87,18 @@ export function StoresClient({
     }
 
     // Sort
-    const statusOrder = { bad: 0, warn: 1, ok: 2 };
     result.sort((a, b) => {
       let cmp = 0;
       if (sortKey === "store") {
         cmp = ((a.stores?.code as string) ?? "").localeCompare((b.stores?.code as string) ?? "");
       } else if (sortKey === "overall_status") {
-        cmp =
-          (statusOrder[a.overall_status as keyof typeof statusOrder] ?? 2) -
-          (statusOrder[b.overall_status as keyof typeof statusOrder] ?? 2);
+        // Worst tier first in the default ("asc") direction, so DESCENDING by
+        // severity rank. This was a local `{ bad: 0, warn: 1, ok: 2 }` map with
+        // `?? 2`, which gave "severe" the same rank as "ok" and sorted the worst
+        // stores in among the Compliant ones (James, July 31 2026: "on the main
+        // All Stores page, Severe is mixed in Compliant. It should be ranked
+        // above At Risk.").
+        cmp = statusRank(b.overall_status) - statusRank(a.overall_status);
       } else {
         cmp = (a[sortKey] as number) - (b[sortKey] as number);
       }
