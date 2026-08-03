@@ -7,6 +7,7 @@ import {
   detectBrand,
   resolveStoreType,
   normalizeStoreCode,
+  preferCanonicalStore,
   shouldIgnoreStore,
   recomputeRollingStatuses,
   type RollingStatusRow,
@@ -145,12 +146,28 @@ export async function POST(request: NextRequest) {
     // Keyed by NORMALIZED store code — the raw export writes names
     // inconsistently ("GINOS002 NEW"); without normalizing, an upload would
     // create duplicate stores next to the canonical ones.
+    //
+    // When two DB rows normalize to the SAME key (a canonical store plus a
+    // stale "OLD" orphan), preferCanonicalStore picks which one receives the
+    // data. This used to be an unconditional set() over an unordered select —
+    // last row won, which was reliably the unassigned orphan, so uploads
+    // attached fresh data to "GINOS176 OLD2" instead of Raj's GINOS176
+    // (James, July 31 2026).
     const { data: existingStores } = await admin
       .from("stores")
-      .select("id, code, brand");
+      .select("id, code, brand, dsm_id");
+    const preferredByKey = new Map<string, NonNullable<typeof existingStores>[number]>();
     for (const s of existingStores ?? []) {
+      const key = normalizeStoreCode(s.code);
+      const winner = preferCanonicalStore(preferredByKey.get(key), s, key);
+      if (preferredByKey.get(key) && winner !== preferredByKey.get(key)) {
+        console.warn(`store collision on "${key}": preferring "${winner.code}" over "${preferredByKey.get(key)!.code}"`);
+      }
+      preferredByKey.set(key, winner);
+    }
+    for (const [key, s] of preferredByKey) {
       const brand = (s.brand as Brand) ?? detectBrand(s.code);
-      storeMap.set(normalizeStoreCode(s.code), {
+      storeMap.set(key, {
         id: s.id,
         brand,
         // resolveStoreType honors the flour-method hybrid overrides (some PP/WM
@@ -173,10 +190,16 @@ export async function POST(request: NextRequest) {
         return { code, name: code, brand };
       });
 
-      const { data: inserted } = await admin
+      // Auto-created stores have no DSM — they land in "Unassigned" and are
+      // flagged in the upload result so James reviews them immediately
+      // (decision: create + flag, never block the weekly upload).
+      const { data: inserted, error: insertError } = await admin
         .from("stores")
         .insert(storesToInsert)
         .select("id, code, brand");
+      if (insertError) {
+        console.error("auto-create stores failed:", insertError);
+      }
 
       for (const s of inserted ?? []) {
         const brand = (s.brand as Brand) ?? detectBrand(s.code);
@@ -453,6 +476,9 @@ export async function POST(request: NextRequest) {
       primary_count: primaryCount,
       secondary_count: secondaryCount,
       unclassified_count: unclassifiedCount,
+      // Stores this upload auto-created (unknown codes). They have no DSM and
+      // sit under Unassigned until reviewed — the upload UI flags them.
+      created_stores: newStores,
     });
   } catch (err) {
     console.error("Upload processing error:", err);
