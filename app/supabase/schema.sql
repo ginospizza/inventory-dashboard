@@ -120,6 +120,9 @@ create table if not exists weekly_metrics (
   boxes_large integer not null default 0,
   boxes_xl integer not null default 0,
   boxes_party integer not null default 0,
+  boxes_party_21x15 numeric not null default 0,
+  boxes_clamshell numeric not null default 0,   -- individual pieces
+  boxes_plates numeric not null default 0,      -- individual pieces
   boxes_total integer not null default 0,
 
   -- Estimated usage

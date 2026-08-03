@@ -2,7 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchMetrics, getAnomalies, getProductTotals, rangeWeeks, type ProductRange } from "@/lib/data-access";
+import { fetchMetrics, getAnomalies, getProductTotals, getProductsByClassification, rangeWeeks, type ProductRange } from "@/lib/data-access";
 import { generateFlags } from "@/lib/calculations";
 import type { WeeklyMetrics, Brand } from "@/lib/types";
 import { StoreDetailClient } from "./store-detail-client";
@@ -164,12 +164,24 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
   const anchorYear = latest?.year ?? selectedYear;
   const [fromWeek, toWeek] = rangeWeeks(productRange, anchorWeek);
 
-  const [secondaryTotals, secondaryPriorYear] = latest
+  const [orderedSecondaries, secondaryPriorYear, allSecondaries] = latest
     ? await Promise.all([
         getProductTotals(id, anchorYear, fromWeek, toWeek, "secondary"),
         getProductTotals(id, anchorYear - 1, fromWeek, toWeek, "secondary"),
+        getProductsByClassification("secondary"),
       ])
-    : [[], []];
+    : [[], [], []];
+
+  // Every secondary product appears, ordered or not (James, July 31 2026):
+  // left-merge the catalog into the ordered totals, zero-filling the gaps.
+  // Ordered products first (qty desc, as before), then the zero rows A-Z.
+  const orderedByCode = new Map(orderedSecondaries.map((p) => [p.code, p]));
+  const secondaryTotals = [
+    ...orderedSecondaries,
+    ...allSecondaries
+      .filter((p) => !orderedByCode.has(p.code))
+      .map((p) => ({ ...p, quantity: 0, weeks: 0 })),
+  ];
 
   // Box quantities come from weekly_metrics, NOT weekly_orders: metrics have the
   // full two-year history whereas line items start at 2026 week 16, so this is
@@ -182,6 +194,19 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
   const boxWeeksPrior = priorYearMetrics.filter(
     (m) => m.week_number >= fromWeek && m.week_number <= toWeek
   );
+
+  // Ingredients tab (James, July 31 2026): cheese/sauce/flour ordered over the
+  // same range, with the same YoY — sourced from weekly_metrics like Boxes, so
+  // both years are covered. Raw units here; the client converts to cases/bags
+  // with its per-store derived case sizes so this tab ties out with the tiles.
+  const sumIngredients = (weeks: typeof sorted) => ({
+    cheese_oz: weeks.reduce((s, m) => s + (m.cheese_ordered_oz || 0), 0),
+    sauce_floz: weeks.reduce((s, m) => s + (m.sauce_ordered_floz || 0), 0),
+    flour_kg: weeks.reduce((s, m) => s + (m.flour_ordered_kg || 0), 0),
+    dough_kg: weeks.reduce((s, m) => s + (m.dough_ordered_kg || 0), 0),
+  });
+  const ingredientTotals = sumIngredients(boxWeeksThis);
+  const ingredientTotalsPriorYear = sumIngredients(boxWeeksPrior);
 
   const brandColor = BRAND_COLORS[store.brand] ?? "#7A7670";
 
@@ -199,6 +224,8 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
       flags={flagHistory}
       secondaryTotals={secondaryTotals}
       secondaryPriorYear={secondaryPriorYear}
+      ingredientTotals={ingredientTotals}
+      ingredientTotalsPriorYear={ingredientTotalsPriorYear}
       boxTotals={summariseBoxes(boxWeeksThis)}
       boxTotalsPriorYear={summariseBoxes(boxWeeksPrior)}
       productRange={productRange}

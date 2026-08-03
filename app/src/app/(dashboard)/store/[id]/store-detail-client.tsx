@@ -35,6 +35,10 @@ interface StoreDetailClientProps {
   flags: Flag[];
   secondaryTotals: { code: string; description: string; pack_size: string; quantity: number; weeks: number }[];
   secondaryPriorYear: { code: string; description: string; pack_size: string; quantity: number; weeks: number }[];
+  /** Raw-unit sums over the selected range; converted to cases/bags client-side
+   *  with the same derived case sizes the tiles use. */
+  ingredientTotals: { cheese_oz: number; sauce_floz: number; flour_kg: number; dough_kg: number };
+  ingredientTotalsPriorYear: { cheese_oz: number; sauce_floz: number; flour_kg: number; dough_kg: number };
   boxTotals: { label: string; quantity: number }[];
   boxTotalsPriorYear: { label: string; quantity: number }[];
   productRange: string;
@@ -56,6 +60,8 @@ export function StoreDetailClient({
   flags,
   secondaryTotals,
   secondaryPriorYear,
+  ingredientTotals,
+  ingredientTotalsPriorYear,
   boxTotals,
   boxTotalsPriorYear,
   productRange,
@@ -66,7 +72,7 @@ export function StoreDetailClient({
   years,
   weeks,
 }: StoreDetailClientProps) {
-  const [activeTab, setActiveTab] = useState<"primary" | "secondary" | "boxes" | "trends" | "flags" | "compare">("primary");
+  const [activeTab, setActiveTab] = useState<"primary" | "secondary" | "ingredients" | "boxes" | "trends" | "flags" | "compare">("primary");
   const [aiLoading, setAiLoading] = useState(false);
   // Summary + recommendation are always shown; details (the full diagnostic
   // reasoning) stays collapsed by default -- DSMs manage 30+ stores and skim
@@ -347,7 +353,9 @@ export function StoreDetailClient({
         {([
           { key: "primary", label: "Primary Products" },
           { key: "secondary", label: "Secondary Products" },
-          // New tab beside Secondary Products (James, July 22 2026).
+          // Boxes: James, July 22 2026. Ingredients: July 31 2026 — cheese/
+          // sauce/flour cases ordered, same date filters and year over year.
+          { key: "ingredients", label: "Ingredients" },
           { key: "boxes", label: "Boxes" },
           { key: "trends", label: "Trends" },
           { key: "compare", label: "Compare" },
@@ -488,6 +496,74 @@ export function StoreDetailClient({
                 No secondary product data for {rangeLabel}
               </p>
             )}
+          </div>
+        )}
+
+        {/* Ingredients — cheese/sauce/flour ordered over the selected range, in
+            cases/bags, with year over year (James, July 31 2026). Sourced from
+            weekly_metrics like Boxes so both years are covered; converted with
+            the same per-store case sizes as the tiles so the numbers tie out. */}
+        {activeTab === "ingredients" && (
+          <div className="p-[18px]">
+            <RangePicker current={productRange} />
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+                <thead>
+                  <tr>
+                    <Th>Ingredient</Th>
+                    <Th align="right">{rangeLabel}</Th>
+                    <Th align="right">{priorRangeLabel}</Th>
+                    <Th align="right">Year over Year</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const isDough = (store.store_type ?? latest?.store_type) === "dough";
+                    const rows = [
+                      {
+                        label: "Cheese",
+                        unit: "cs",
+                        current: toCheeseCases(ingredientTotals.cheese_oz),
+                        prior: toCheeseCases(ingredientTotalsPriorYear.cheese_oz),
+                      },
+                      {
+                        label: "Sauce",
+                        unit: "cs",
+                        current: toSauceCases(ingredientTotals.sauce_floz),
+                        prior: toSauceCases(ingredientTotalsPriorYear.sauce_floz),
+                      },
+                      isDough
+                        ? {
+                            label: "Dough",
+                            unit: "kg",
+                            current: ingredientTotals.dough_kg,
+                            prior: ingredientTotalsPriorYear.dough_kg,
+                          }
+                        : {
+                            label: "Flour",
+                            unit: "bg",
+                            current: toFlourBags(ingredientTotals.flour_kg),
+                            prior: toFlourBags(ingredientTotalsPriorYear.flour_kg),
+                          },
+                    ];
+                    return rows.map((r) => (
+                      <tr key={r.label} className="hover:bg-[rgba(244,236,221,.4)]">
+                        <td className="px-3 py-[10px] font-medium" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                          {r.label}
+                          <span className="text-[11px] ml-2" style={{ color: "var(--color-ink-3)" }}>
+                            {r.unit === "cs" ? "cases" : r.unit === "bg" ? "bags" : "kg"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-[10px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                          {unitFmt(r.current, r.unit)}
+                        </td>
+                        <PriorAndYoY current={r.current} prior={r.prior > 0 ? r.prior : undefined} decimals={1} />
+                      </tr>
+                    ));
+                  })()}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -873,7 +949,7 @@ function RangePicker({ current }: { current: string }) {
  * "—" rather than a fake +100%, which is the honest reading when the prior year
  * simply has no data for this product (see getProductTotals' coverage note).
  */
-function PriorAndYoY({ current, prior, emphasise = false }: { current: number; prior?: number; emphasise?: boolean }) {
+function PriorAndYoY({ current, prior, emphasise = false, decimals = 0 }: { current: number; prior?: number; emphasise?: boolean; decimals?: number }) {
   const border = emphasise ? "2px solid var(--color-line-2)" : "1px solid var(--color-line)";
   const borderProp = emphasise ? { borderTop: border } : { borderBottom: border };
   const hasPrior = prior !== undefined && prior > 0;
@@ -882,7 +958,7 @@ function PriorAndYoY({ current, prior, emphasise = false }: { current: number; p
   return (
     <>
       <td className="px-3 py-[10px] text-right font-mono" style={{ ...borderProp, color: "var(--color-ink-3)" }}>
-        {hasPrior ? prior.toFixed(0) : "—"}
+        {hasPrior ? prior.toFixed(decimals) : "—"}
       </td>
       <td
         className="px-3 py-[10px] text-right font-mono"
