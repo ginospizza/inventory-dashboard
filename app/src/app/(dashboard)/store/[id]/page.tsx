@@ -3,7 +3,8 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchMetrics, getAnomalies, getProductTotals, getProductsByClassification, rangeWeeks, type ProductRange } from "@/lib/data-access";
-import { generateFlags } from "@/lib/calculations";
+import { generateFlags, ROLLING_WINDOW_WEEKS } from "@/lib/calculations";
+import { resolveWindow } from "@/lib/display-window";
 import type { WeeklyMetrics, Brand } from "@/lib/types";
 import { StoreDetailClient } from "./store-detail-client";
 import { hasAiAccess } from "@/lib/ai/access";
@@ -11,53 +12,6 @@ import { hasAiAccess } from "@/lib/ai/access";
 interface PageProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ week?: string; year?: string; range?: string }>;
-}
-
-/**
- * Resolve the dashboard's Period filter to the index of the week it anchors on,
- * within a newest-first series (James, July 22 2026: "Add the same date filters
- * on the dashboard to the store view").
- *
- * The filter picks WHICH week the page centres on; it deliberately does NOT
- * shrink the data the page keeps. The 6-week rolling average and the status
- * explanations need the weeks BEFORE the anchor, so filtering the series down
- * to a single week would leave the average with nothing to average and make the
- * explanation disagree with the stored status.
- */
-function resolveAnchorIndex(
-  sorted: { year: number; week_number: number }[],
-  week: string | undefined,
-  year: number
-): number {
-  if (!week || week === "" || week === "latest") return 0;
-
-  const inYear = (m: { year: number }) => m.year === year;
-
-  if (week === "all") return 0;
-  if (week === "ytd") {
-    const i = sorted.findIndex(inYear);
-    return i === -1 ? 0 : i;
-  }
-
-  const QUARTERS: Record<string, [number, number]> = {
-    q1: [1, 13], q2: [14, 26], q3: [27, 39], q4: [40, 52],
-  };
-  const quarter = QUARTERS[week];
-  if (quarter) {
-    const [lo, hi] = quarter;
-    // Newest week inside the quarter.
-    const i = sorted.findIndex(
-      (m) => inYear(m) && m.week_number >= lo && m.week_number <= hi
-    );
-    return i === -1 ? 0 : i;
-  }
-
-  const n = Number(week);
-  if (Number.isFinite(n)) {
-    const i = sorted.findIndex((m) => inYear(m) && m.week_number === n);
-    if (i !== -1) return i;
-  }
-  return 0;
 }
 
 /** Box sizes as James refers to them, in menu order. `boxes_*` on weekly_metrics
@@ -117,8 +71,13 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
     redirect("/stores");
   }
 
-  // Fetch all metrics for this store (all weeks)
-  const metrics = await fetchMetrics({ storeId: id });
+  // The Year selector was previously inert: fetchMetrics defaults its year
+  // filter to the CURRENT year, so selecting 2025 fetched 2026 data and the
+  // window resolution silently fell back to the newest week. Fetch the year
+  // the user actually chose. (One year at a time keeps the series semantics
+  // identical to the upload-time recompute, which is also per-year.)
+  const selectedYear = query.year ? Number(query.year) : new Date().getFullYear();
+  const metrics = await fetchMetrics({ storeId: id, year: selectedYear });
 
   // Sort by week descending
   const sorted = [...metrics].sort((a, b) => {
@@ -126,11 +85,12 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
     return b.week_number - a.week_number;
   });
 
-  // The Period/Year filters choose which week the page centres on. The full
-  // series still goes to the client so the 6-week average and the status
+  // The Period/Year filters choose the display WINDOW: a 6-week window anchored
+  // on an individual week, or the whole period for Q1..Q4 / YTD / All (James,
+  // July 31 2026). The full series still goes to the client so the status
   // explanations keep the history they need.
-  const selectedYear = query.year ? Number(query.year) : new Date().getFullYear();
-  const anchorIndex = resolveAnchorIndex(sorted, query.week, selectedYear);
+  const window = resolveWindow(sorted, query.week, selectedYear, ROLLING_WINDOW_WEEKS);
+  const anchorIndex = window.start;
 
   const latest = sorted[anchorIndex] ?? null;
 
@@ -221,6 +181,8 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
       metrics={sorted as unknown as Record<string, unknown>[]}
       latest={latest as unknown as Record<string, unknown> | null}
       anchorIndex={anchorIndex}
+      windowCount={window.count}
+      windowLabel={window.label}
       flags={flagHistory}
       secondaryTotals={secondaryTotals}
       secondaryPriorYear={secondaryPriorYear}

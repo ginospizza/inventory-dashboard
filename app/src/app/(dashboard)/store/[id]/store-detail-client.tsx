@@ -32,6 +32,11 @@ interface StoreDetailClientProps {
   latest: Record<string, unknown> | null;
   /** Index in `metrics` (newest-first) that the Period filter anchors on. */
   anchorIndex: number;
+  /** Rows in the display window: the 6-week rolling window for an individual
+   *  week, or the whole period for Q1..Q4 / YTD / All (James, July 31 2026). */
+  windowCount: number;
+  /** Label for the window's average, e.g. "6-wk avg" or "Q2 avg · 13 wks". */
+  windowLabel: string;
   flags: Flag[];
   secondaryTotals: { code: string; description: string; pack_size: string; quantity: number; weeks: number }[];
   secondaryPriorYear: { code: string; description: string; pack_size: string; quantity: number; weeks: number }[];
@@ -57,6 +62,8 @@ export function StoreDetailClient({
   metrics,
   latest,
   anchorIndex,
+  windowCount,
+  windowLabel,
   flags,
   secondaryTotals,
   secondaryPriorYear,
@@ -89,12 +96,12 @@ export function StoreDetailClient({
   const storeBrand = brandLabel(store.brand as string);
   const dsm = store.dsms as { name: string; region: string } | null;
 
-  // Rows displayed and the trend chart both use the smoothing window, so the
-  // table, the charts, and the moving average all describe the same 6 weeks
-  // (James, July 22 2026 — these were 5 and 8).
-  // Windowed from the anchored week rather than always from the newest, so the
-  // Period filter moves the whole page (tiles, table, trend) together.
-  const recentWeeks = metrics.slice(anchorIndex, anchorIndex + ROLLING_WINDOW_WEEKS);
+  // The display window: 6 rolling weeks for an individual Period selection, or
+  // the whole period for Q1..Q4 / YTD / All (James, July 31 2026). Everything
+  // on the page — tiles, table rows, averages, trends — derives from this, so
+  // the Period filter moves the whole page together. Compliance STATUS stays on
+  // the engine's fixed 6-week window regardless (see explanationFor).
+  const recentWeeks = metrics.slice(anchorIndex, anchorIndex + windowCount);
   const trendData = [...recentWeeks].reverse();
 
   // Ord / "Usage based on Boxes" display in cases and bags rather than raw
@@ -110,9 +117,10 @@ export function StoreDetailClient({
   const toSauceCases = (floz: number) => (sauceCaseFlozValue > 0 ? floz / sauceCaseFlozValue : 0);
   const toFlourBags = (kg: number) => kg / FLOUR_BAG_KG;
 
-  // 6-week moving average, shown above the current week for every metric
-  // (James, July 22 2026). Averaged over the same window the compliance status
-  // is smoothed across, so the number here explains the status beside it.
+  // Window average, shown above the current week for every metric (James,
+  // July 22 2026). For an individual week this is the same 6-week window the
+  // compliance status is smoothed across; for a range period it is the whole
+  // period's average (July 31 2026).
   const avgOf = (key: string) =>
     recentWeeks.length === 0
       ? 0
@@ -340,11 +348,11 @@ export function StoreDetailClient({
       {/* KPI strip */}
       {latest && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-[14px] mb-6">
-          <KpiStrip label="Cheese" ordered={toCheeseCases(latest.cheese_ordered_oz as number)} estimated={toCheeseCases(latest.cheese_estimated_oz as number)} diff={latest.cheese_diff as number} unit="cs" avgOrdered={movingAvg.cheeseOrd} avgWeeks={movingAvg.weeks} />
-          <KpiStrip label="Sauce" ordered={toSauceCases(latest.sauce_ordered_floz as number)} estimated={toSauceCases(latest.sauce_estimated_floz as number)} diff={latest.sauce_diff as number} unit="cs" avgOrdered={movingAvg.sauceOrd} avgWeeks={movingAvg.weeks} />
-          <KpiStrip label="Flour" ordered={toFlourBags(latest.flour_ordered_kg as number)} estimated={toFlourBags(latest.flour_estimated_kg as number)} diff={latest.flour_diff as number} unit="bg" avgOrdered={movingAvg.flourOrd} avgWeeks={movingAvg.weeks} />
-          <RatioKpi label="Sauce:Cheese" value={latest.sauce_cheese_ratio as number} status={latest.sauce_cheese_status as ComplianceStatus} avgValue={movingAvg.sc} avgWeeks={movingAvg.weeks} />
-          <RatioKpi label="Flour:Cheese" value={latest.flour_cheese_ratio as number} status={latest.flour_cheese_status as ComplianceStatus} avgValue={movingAvg.fc} avgWeeks={movingAvg.weeks} />
+          <KpiStrip label="Cheese" ordered={toCheeseCases(latest.cheese_ordered_oz as number)} estimated={toCheeseCases(latest.cheese_estimated_oz as number)} diff={latest.cheese_diff as number} unit="cs" avgOrdered={movingAvg.cheeseOrd} avgWeeks={movingAvg.weeks} avgLabel={windowLabel} />
+          <KpiStrip label="Sauce" ordered={toSauceCases(latest.sauce_ordered_floz as number)} estimated={toSauceCases(latest.sauce_estimated_floz as number)} diff={latest.sauce_diff as number} unit="cs" avgOrdered={movingAvg.sauceOrd} avgWeeks={movingAvg.weeks} avgLabel={windowLabel} />
+          <KpiStrip label="Flour" ordered={toFlourBags(latest.flour_ordered_kg as number)} estimated={toFlourBags(latest.flour_estimated_kg as number)} diff={latest.flour_diff as number} unit="bg" avgOrdered={movingAvg.flourOrd} avgWeeks={movingAvg.weeks} avgLabel={windowLabel} />
+          <RatioKpi label="Sauce:Cheese" value={latest.sauce_cheese_ratio as number} status={latest.sauce_cheese_status as ComplianceStatus} avgValue={movingAvg.sc} avgWeeks={movingAvg.weeks} avgLabel={windowLabel} />
+          <RatioKpi label="Flour:Cheese" value={latest.flour_cheese_ratio as number} status={latest.flour_cheese_status as ComplianceStatus} avgValue={movingAvg.fc} avgWeeks={movingAvg.weeks} avgLabel={windowLabel} />
         </div>
       )}
 
@@ -400,13 +408,14 @@ export function StoreDetailClient({
                 </tr>
               </thead>
               <tbody>
-                {/* 6-week moving average, above the weekly rows (James, July 22
-                    2026). Tinted and labelled so it reads as a summary line
-                    rather than another week. */}
+                {/* Window average, above the weekly rows (James, July 22 2026;
+                    July 31: for range periods this is the average of the WHOLE
+                    period, not the last 6 weeks of it). Tinted and labelled so
+                    it reads as a summary line rather than another week. */}
                 {movingAvg.weeks > 0 && (
                   <tr style={{ background: "var(--color-paper)" }}>
                     <td className="px-3 py-[10px] font-semibold text-[11px] tracking-[.04em] uppercase whitespace-nowrap" style={{ borderBottom: "2px solid var(--color-line-2)", color: "var(--color-ink-2)" }}>
-                      {movingAvg.weeks}-wk avg
+                      {windowLabel}
                     </td>
                     {[
                       unitFmt(movingAvg.cheeseOrd, "cs"),
@@ -809,18 +818,19 @@ export function StoreDetailClient({
 
 // ── Sub-components ───────────────────────────────────────────
 
-function KpiStrip({ label, ordered, estimated, diff, unit, avgOrdered, avgWeeks }: {
+function KpiStrip({ label, ordered, estimated, diff, unit, avgOrdered, avgWeeks, avgLabel }: {
   label: string; ordered: number; estimated: number; diff: number; unit: string;
-  avgOrdered: number; avgWeeks: number;
+  avgOrdered: number; avgWeeks: number; avgLabel: string;
 }) {
   return (
     <div className="rounded-[14px] p-[16px] bg-white flex flex-col gap-1" style={{ border: "1px solid var(--color-line)", boxShadow: "var(--shadow-sm)" }}>
       <span className="text-[11px] font-semibold tracking-[.06em] uppercase" style={{ color: "var(--color-ink-3)" }}>{label}</span>
-      {/* The moving average sits ABOVE the current week's figure (James, July 22
-          2026) so the week is read against its own recent baseline. */}
+      {/* The window average sits ABOVE the current week's figure (James, July 22
+          2026) so the week is read against its own recent baseline. For range
+          periods the average covers the whole period (July 31 2026). */}
       {avgWeeks > 0 && (
         <span className="text-[11px] font-mono" style={{ color: "var(--color-ink-3)" }}>
-          {avgWeeks}-wk avg: {unitFmt(avgOrdered, unit)}
+          {avgLabel}: {unitFmt(avgOrdered, unit)}
         </span>
       )}
       <span className="font-mono text-[16px] font-medium">{ordered.toFixed(1)} <span className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>{unit}</span></span>
@@ -830,8 +840,8 @@ function KpiStrip({ label, ordered, estimated, diff, unit, avgOrdered, avgWeeks 
   );
 }
 
-function RatioKpi({ label, value, status, avgValue, avgWeeks }: {
-  label: string; value: number; status: ComplianceStatus; avgValue: number; avgWeeks: number;
+function RatioKpi({ label, value, status, avgValue, avgWeeks, avgLabel }: {
+  label: string; value: number; status: ComplianceStatus; avgValue: number; avgWeeks: number; avgLabel: string;
 }) {
   const pct = value * 100;
   const position = Math.min(Math.max((pct / 200) * 100, 0), 100);
@@ -841,7 +851,7 @@ function RatioKpi({ label, value, status, avgValue, avgWeeks }: {
       <span className="text-[11px] font-semibold tracking-[.06em] uppercase" style={{ color: "var(--color-ink-3)" }}>{label}</span>
       {avgWeeks > 0 && (
         <span className="text-[11px] font-mono -mb-1" style={{ color: "var(--color-ink-3)" }}>
-          {avgWeeks}-wk avg: {(avgValue * 100).toFixed(1)}%
+          {avgLabel}: {(avgValue * 100).toFixed(1)}%
         </span>
       )}
       <RatioCell value={value} />
