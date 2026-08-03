@@ -19,6 +19,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { recomputeRollingStatuses, type RollingStatusRow } from "../src/lib/calculations/engine";
+import { ensureEngineConfig } from "../src/lib/calculations/config-loader";
 import { STATUS_LABEL } from "../src/lib/types";
 import type { ComplianceStatus, StoreType } from "../src/lib/types";
 
@@ -61,6 +62,7 @@ const toRolling = (r: Row): RollingStatusRow => ({
 });
 
 async function main() {
+  await ensureEngineConfig();
   console.log(`\n=== Verify stored statuses against the engine${YEAR ? ` (${YEAR})` : ""} ===`);
 
   const all: Row[] = [];

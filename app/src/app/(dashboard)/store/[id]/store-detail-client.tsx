@@ -21,6 +21,7 @@ import {
   KG_TO_OZ,
 } from "@/lib/calculations/constants";
 import { explainStatus, type StatusExplanation, type RollingWeek } from "@/lib/calculations/engine";
+import { setEngineConfig, type EngineConfig } from "@/lib/calculations/engine-config";
 
 interface StoreDetailClientProps {
   user: AppUser;
@@ -32,6 +33,10 @@ interface StoreDetailClientProps {
   latest: Record<string, unknown> | null;
   /** Index in `metrics` (newest-first) that the Period filter anchors on. */
   anchorIndex: number;
+  /** The server's active engine config — thresholds are DB-editable now, so
+   *  client-side status explanations must grade with the SAME numbers the
+   *  server graded with, not the compiled-in constants. */
+  engineConfig: EngineConfig;
   /** Rows in the display window: the 6-week rolling window for an individual
    *  week, or the whole period for Q1..Q4 / YTD / All (James, July 31 2026). */
   windowCount: number;
@@ -62,6 +67,7 @@ export function StoreDetailClient({
   metrics,
   latest,
   anchorIndex,
+  engineConfig,
   windowCount,
   windowLabel,
   flags,
@@ -90,6 +96,9 @@ export function StoreDetailClient({
   // Which week's status explanation is expanded in the Compare tab, keyed
   // "year-week" (null = none).
   const [openExplanation, setOpenExplanation] = useState<string | null>(null);
+
+  // Activate the server's config for this render before explainStatus runs.
+  setEngineConfig(engineConfig);
 
   const storeCode = store.code as string;
   const storeCity = store.city as string;

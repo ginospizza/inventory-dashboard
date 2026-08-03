@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSuperAdminApi } from "@/lib/supabase/auth";
+import { ensureEngineConfig } from "@/lib/calculations/config-loader";
 import { parseExcelFile, getUploadPreview } from "@/lib/excel-parser";
 import {
   computeWeeklyMetrics,
@@ -31,6 +32,10 @@ export async function POST(request: NextRequest) {
   const auth = await requireSuperAdminApi();
   if (auth.error) return auth.error;
   const currentUser = auth.user;
+
+  // Upload-time grading and box-expected estimates must use the same engine
+  // config (thresholds + assumptions) the rest of the app grades with.
+  await ensureEngineConfig();
 
   // Parse the file
   const formData = await request.formData();

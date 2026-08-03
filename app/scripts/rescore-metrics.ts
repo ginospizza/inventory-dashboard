@@ -23,6 +23,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { recomputeRollingStatuses, type RollingStatusRow } from "../src/lib/calculations/engine";
+import { ensureEngineConfig } from "../src/lib/calculations/config-loader";
 import { ROLLING_WINDOW_WEEKS } from "../src/lib/calculations/constants";
 import type { ComplianceStatus, StoreType } from "../src/lib/types";
 
@@ -70,6 +71,7 @@ const toRollingStatusRow = (r: Row): RollingStatusRow => ({
 const pct = (ord: number, est: number) => (est > 0 ? Math.round(((ord - est) / est) * 100) : null);
 
 async function main() {
+  await ensureEngineConfig();
   console.log(`\n=== Re-score weekly_metrics (${ROLLING_WINDOW_WEEKS}-week rolling avg, both sides) ===`);
   console.log(APPLY ? "MODE: APPLY (will write status changes)" : "MODE: DRY RUN (no writes)");
   if (STORE_FILTER) console.log(`Store filter (detail view): ${[...STORE_FILTER].join(", ")}`);

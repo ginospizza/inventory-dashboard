@@ -646,47 +646,234 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
 // ── Thresholds ───────────────────────────────────────────────
 
 function ThresholdsTab({ thresholds, assumptions }: { thresholds: Record<string, unknown>[]; assumptions: Record<string, unknown>[] }) {
+  const router = useRouter();
+
+  // Editable thresholds & assumptions (James, July 31 2026). These rows DRIVE
+  // grading now — the engine loads them at runtime with the old constants as
+  // fallback. Diff thresholds are stored as fractions but edited as percent.
+  const diffRow = thresholds.find((t) => t.metric === "ingredient_diff_pct");
+  const ratioRow = thresholds.find((t) => t.metric === "ratio_bands");
+
+  const [pct, setPct] = useState({
+    warn: Number(diffRow?.warn_value ?? 0.25) * 100,
+    bad: Number(diffRow?.bad_value ?? 0.5) * 100,
+    severe: Number(diffRow?.severe_value ?? 0.75) * 100,
+  });
+  const [ratio, setRatio] = useState({
+    ok_low: Number(ratioRow?.ok_low ?? 75), ok_high: Number(ratioRow?.ok_high ?? 125),
+    warn_low: Number(ratioRow?.warn_low ?? 65), warn_high: Number(ratioRow?.warn_high ?? 135),
+    bad_low: Number(ratioRow?.bad_low ?? 50), bad_high: Number(ratioRow?.bad_high ?? 150),
+  });
+  const [rows, setRows] = useState(
+    assumptions.map((a) => ({
+      pizza_size: a.pizza_size as string,
+      cheese_oz: Number(a.cheese_oz ?? 0),
+      sauce_oz: Number(a.sauce_oz ?? 0),
+      dough_kg: Number(a.dough_kg ?? 0),
+      pizza_sales_per_case: Number(a.pizza_sales_per_case ?? 0),
+    }))
+  );
+
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  // Re-score flow: preview first, always.
+  const [rescorePreview, setRescorePreview] = useState<{ changed: number; total: number; transitions: Record<string, number> } | null>(null);
+  const [rescoring, setRescoring] = useState<"preview" | "apply" | null>(null);
+
+  async function handleSave() {
+    setSaving(true);
+    setMessage("");
+    setSaved(false);
+    try {
+      const res = await fetch("/api/thresholds", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pct: { warn: pct.warn / 100, bad: pct.bad / 100, severe: pct.severe / 100 },
+          ratio,
+          assumptions: rows,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) setMessage(`Error: ${data.error}`);
+      else {
+        setMessage("Saved. New uploads grade with these values immediately.");
+        setSaved(true);
+        setRescorePreview(null);
+        router.refresh();
+      }
+    } catch {
+      setMessage("Error: request failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRescore(apply: boolean) {
+    setRescoring(apply ? "apply" : "preview");
+    setMessage("");
+    try {
+      const res = await fetch("/api/rescore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apply }),
+      });
+      const data = await res.json();
+      if (data.error) setMessage(`Error: ${data.error}`);
+      else if (!apply) setRescorePreview(data);
+      else {
+        setMessage(`Re-score complete: ${data.updated} store-weeks updated.`);
+        setRescorePreview(null);
+        setSaved(false);
+        router.refresh();
+      }
+    } catch {
+      setMessage("Error: request failed");
+    } finally {
+      setRescoring(null);
+    }
+  }
+
+  const num = (v: string) => (v === "" ? 0 : Number(v));
+  const inputCls = "w-[76px] rounded px-2 py-1 text-[12.5px] font-mono text-right";
+  const inputStyle = { border: "1px solid var(--color-line)", background: "white" } as const;
+
   return (
-    <div className="p-[18px] grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div>
-        <h4 className="text-[14px] font-semibold mb-3">Compliance Thresholds</h4>
-        <div className="flex flex-col gap-3">
-          {thresholds.map((t) => (
-            <div key={t.id as string} className="flex items-center justify-between p-3 rounded-lg" style={{ border: "1px solid var(--color-line)" }}>
-              <span className="text-[13px] font-medium">{t.metric as string}</span>
-              <div className="flex gap-3 text-[12px] font-mono">
-                <span style={{ color: "var(--color-mustard)" }}>warn: {String(t.warn_value)}</span>
-                <span style={{ color: "var(--color-ginos-red)" }}>bad: {String(t.bad_value)}</span>
-              </div>
-            </div>
-          ))}
+    <div className="p-[18px] flex flex-col gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="rounded-[12px] p-[16px]" style={{ border: "1px solid var(--color-line)" }}>
+          <h4 className="text-[14px] font-semibold mb-1">Ingredient thresholds</h4>
+          <p className="text-[12px] mb-3" style={{ color: "var(--color-ink-3)" }}>
+            How far an ingredient may drift from its box-expected amount (6-week average), as a percentage.
+          </p>
+          <div className="flex flex-col gap-2">
+            {([["warn", "Borderline beyond"], ["bad", "At Risk beyond"], ["severe", "Severe beyond"]] as const).map(([k, label]) => (
+              <label key={k} className="flex items-center justify-between text-[13px]">
+                <span>{label}</span>
+                <span className="flex items-center gap-1">
+                  <input type="number" step="1" min="1" className={inputCls} style={inputStyle}
+                    value={pct[k]} onChange={(e) => setPct({ ...pct, [k]: num(e.target.value) })} />
+                  <span className="text-[12px]" style={{ color: "var(--color-ink-3)" }}>%</span>
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <h4 className="text-[14px] font-semibold mb-1 mt-5">Ratio bands</h4>
+          <p className="text-[12px] mb-3" style={{ color: "var(--color-ink-3)" }}>
+            Sauce:Cheese and Flour:Cheese, as a percentage of the 100% ideal. Outside the widest band is Severe.
+          </p>
+          <div className="flex flex-col gap-2">
+            {([["ok", "Compliant"], ["warn", "Borderline"], ["bad", "At Risk"]] as const).map(([k, label]) => (
+              <label key={k} className="flex items-center justify-between text-[13px]">
+                <span>{label} within</span>
+                <span className="flex items-center gap-1 font-mono text-[12.5px]">
+                  <input type="number" step="1" className={inputCls} style={inputStyle}
+                    value={ratio[`${k}_low` as keyof typeof ratio]}
+                    onChange={(e) => setRatio({ ...ratio, [`${k}_low`]: num(e.target.value) })} />
+                  <span style={{ color: "var(--color-ink-3)" }}>–</span>
+                  <input type="number" step="1" className={inputCls} style={inputStyle}
+                    value={ratio[`${k}_high` as keyof typeof ratio]}
+                    onChange={(e) => setRatio({ ...ratio, [`${k}_high`]: num(e.target.value) })} />
+                  <span className="text-[12px]" style={{ color: "var(--color-ink-3)" }}>%</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[12px] p-[16px]" style={{ border: "1px solid var(--color-line)" }}>
+          <h4 className="text-[14px] font-semibold mb-1">Per-box usage assumptions</h4>
+          <p className="text-[12px] mb-3" style={{ color: "var(--color-ink-3)" }}>
+            Usage per box (per piece for clamshells and plates). Dough kg — flour stores derive flour as dough ÷ 1.6.
+            Changes apply to FUTURE uploads; historical estimates keep the values they were computed with.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12.5px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+              <thead>
+                <tr>
+                  {["Size", "Cheese (oz)", "Sauce (fl oz)", "Dough (kg)", "Pizzas/case"].map((h, i) => (
+                    <th key={h} className="font-semibold text-[11px] tracking-[.06em] uppercase px-2 py-2" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)", textAlign: i === 0 ? "left" : "right" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((a, idx) => (
+                  <tr key={a.pizza_size}>
+                    <td className="px-2 py-1.5 font-medium" style={{ borderBottom: "1px solid var(--color-line)" }}>{a.pizza_size.replace("_", " ")}</td>
+                    {(["cheese_oz", "sauce_oz", "dough_kg", "pizza_sales_per_case"] as const).map((f) => (
+                      <td key={f} className="px-2 py-1.5 text-right" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                        <input type="number" step="0.005" min="0" className={inputCls} style={inputStyle}
+                          value={a[f]}
+                          onChange={(e) => {
+                            const next = [...rows];
+                            next[idx] = { ...a, [f]: num(e.target.value) };
+                            setRows(next);
+                          }} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      <div>
-        <h4 className="text-[14px] font-semibold mb-3">Per-Pizza Usage Assumptions</h4>
-        <table className="w-full text-[13px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
-          <thead>
-            <tr>
-              {["Size", "Cheese (oz)", "Sauce (oz)", "Flour (kg)"].map((h) => (
-                <th key={h} className="text-left font-semibold text-[11px] tracking-[.06em] uppercase px-3 py-2" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)" }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {assumptions.map((a) => (
-              <tr key={a.id as string}>
-                <td className="px-3 py-2 font-medium capitalize" style={{ borderBottom: "1px solid var(--color-line)" }}>{a.pizza_size as string}</td>
-                <td className="px-3 py-2 font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>{String(a.cheese_oz)}</td>
-                <td className="px-3 py-2 font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>{String(a.sauce_oz)}</td>
-                <td className="px-3 py-2 font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>{String(a.flour_kg)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="flex flex-wrap items-center gap-3">
+        <button onClick={handleSave} disabled={saving}
+          className="px-[14px] py-2 rounded-[9px] text-white text-[13px] font-medium disabled:opacity-60"
+          style={{ background: "var(--color-ginos-red)" }}>
+          {saving ? "Saving…" : "Save changes"}
+        </button>
+        {message && (
+          <span className="text-[12px]" style={{ color: message.startsWith("Error") ? "var(--color-ginos-red)" : "var(--color-basil)" }}>{message}</span>
+        )}
       </div>
+
+      {saved && (
+        <div className="rounded-[10px] px-4 py-3" style={{ background: "var(--color-mustard-soft)", border: "1px solid var(--color-mustard)" }}>
+          <p className="text-[12.5px] font-semibold mb-1" style={{ color: "var(--color-mustard)" }}>
+            Historical statuses still reflect the previous thresholds
+          </p>
+          <p className="text-[12px] mb-2" style={{ color: "var(--color-ink-2)" }}>
+            Every stored week was graded with the values that were active at the time. Preview what a
+            re-grade would change before applying it — the preview writes nothing.
+          </p>
+          {!rescorePreview ? (
+            <button onClick={() => handleRescore(false)} disabled={rescoring !== null}
+              className="px-3 py-1.5 rounded-[8px] text-[12.5px] font-medium disabled:opacity-60"
+              style={{ border: "1px solid var(--color-mustard)", color: "var(--color-mustard)", background: "white" }}>
+              {rescoring === "preview" ? "Computing preview…" : "Preview re-score"}
+            </button>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <p className="text-[12.5px] font-medium">
+                {rescorePreview.changed} of {rescorePreview.total} store-weeks would change:
+              </p>
+              <ul className="text-[12px] font-mono flex flex-col gap-0.5" style={{ color: "var(--color-ink-2)" }}>
+                {Object.entries(rescorePreview.transitions).map(([k, n]) => (
+                  <li key={k}>{k.replace("->", " → ")}: {n}</li>
+                ))}
+                {Object.keys(rescorePreview.transitions).length === 0 && <li>No overall-status changes (only sub-metric colours move)</li>}
+              </ul>
+              <div className="flex gap-2 mt-1">
+                <button onClick={() => handleRescore(true)} disabled={rescoring !== null}
+                  className="px-3 py-1.5 rounded-[8px] text-white text-[12.5px] font-medium disabled:opacity-60"
+                  style={{ background: "var(--color-ginos-red)" }}>
+                  {rescoring === "apply" ? "Re-scoring…" : `Apply re-score (${rescorePreview.changed} rows)`}
+                </button>
+                <button onClick={() => setRescorePreview(null)} disabled={rescoring !== null}
+                  className="px-3 py-1.5 rounded-[8px] text-[12.5px] font-medium"
+                  style={{ border: "1px solid var(--color-line)" }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

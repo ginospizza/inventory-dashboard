@@ -21,6 +21,7 @@ import type {
   StoreType,
 } from "@/lib/types";
 import { worstStatus, statusRank, STATUS_LABEL } from "@/lib/types";
+import { getEngineConfig, type EngineConfig } from "./engine-config";
 
 import {
   KG_TO_OZ,
@@ -28,15 +29,12 @@ import {
   PLATES_PER_CASE,
   BOX_RATIOS,
   FLOUR_YIELD_FACTOR,
-  PIZZA_SALES_PER_CASE,
   SAUCE_CASE_FLOZ,
   FLOUR_BAG_KG,
   SAUCE_RATIO_DIVISOR,
   CHEESE_RATIO_DIVISOR,
   DOUGH_RATIO_DIVISOR,
   DEFAULT_DIFF_THRESHOLDS,
-  DEFAULT_PCT_THRESHOLDS,
-  DEFAULT_RATIO_THRESHOLDS,
   ROLLING_PRIOR_WEEKS,
   ROLLING_WINDOW_WEEKS,
 } from "./constants";
@@ -228,21 +226,21 @@ export function aggregateStoreWeek(
 
 function sumEstimated(agg: StoreWeekAggregates, field: "cheese_oz" | "sauce_oz" | "dough_kg", includePlates: boolean): number {
   let total =
-    agg.boxes_small * BOXES_PER_CASE * BOX_RATIOS.small[field] +
-    agg.boxes_medium * BOXES_PER_CASE * BOX_RATIOS.medium[field] +
-    agg.boxes_large * BOXES_PER_CASE * BOX_RATIOS.large[field] +
-    agg.boxes_xl * BOXES_PER_CASE * BOX_RATIOS.xl[field] +
-    agg.boxes_party_20 * BOXES_PER_CASE * BOX_RATIOS.party_20[field] +
-    agg.boxes_party_21x15 * BOXES_PER_CASE * BOX_RATIOS.party_21x15[field];
+    agg.boxes_small * BOXES_PER_CASE * getEngineConfig().boxRatios.small[field] +
+    agg.boxes_medium * BOXES_PER_CASE * getEngineConfig().boxRatios.medium[field] +
+    agg.boxes_large * BOXES_PER_CASE * getEngineConfig().boxRatios.large[field] +
+    agg.boxes_xl * BOXES_PER_CASE * getEngineConfig().boxRatios.xl[field] +
+    agg.boxes_party_20 * BOXES_PER_CASE * getEngineConfig().boxRatios.party_20[field] +
+    agg.boxes_party_21x15 * BOXES_PER_CASE * getEngineConfig().boxRatios.party_21x15[field];
 
   // Clamshells count for ALL brands (James, July 3 2026).
   // boxes_clamshell stores individual units (not cases), so multiply directly by ratio.
-  total += agg.boxes_clamshell * BOX_RATIOS.clamshell[field];
+  total += agg.boxes_clamshell * getEngineConfig().boxRatios.clamshell[field];
 
   // Paper plates carry the same per-piece slice usage, but only for
   // TTD/PP/WM stores. boxes_plates is individual units too.
   if (includePlates && agg.boxes_plates > 0) {
-    total += agg.boxes_plates * BOX_RATIOS.plate[field];
+    total += agg.boxes_plates * getEngineConfig().boxRatios.plate[field];
   }
 
   // Wing boxes are deliberately NOT counted — volume tracking only
@@ -387,9 +385,9 @@ export function diffStatus(value: number, warn = DEFAULT_DIFF_THRESHOLDS.warn, b
 export function diffStatusPct(ordered: number, estimated: number): ComplianceStatus {
   if (estimated <= 0) return "ok"; // can't calculate % if no estimate
   const pctDiff = Math.abs(ordered - estimated) / estimated;
-  if (pctDiff > DEFAULT_PCT_THRESHOLDS.severe) return "severe";
-  if (pctDiff > DEFAULT_PCT_THRESHOLDS.bad) return "bad";
-  if (pctDiff > DEFAULT_PCT_THRESHOLDS.warn) return "warn";
+  if (pctDiff > getEngineConfig().pct.severe) return "severe";
+  if (pctDiff > getEngineConfig().pct.bad) return "bad";
+  if (pctDiff > getEngineConfig().pct.warn) return "warn";
   return "ok";
 }
 
@@ -397,7 +395,7 @@ export function diffStatusPct(ordered: number, estimated: number): ComplianceSta
  * Ratio status, graded on distance from the 100% ideal.
  * 75-125 ok · 65-135 warn · 50-150 bad · outside severe (James, July 22 2026)
  */
-export function ratioStatus(value: number, thresholds = DEFAULT_RATIO_THRESHOLDS): ComplianceStatus {
+export function ratioStatus(value: number, thresholds: EngineConfig["ratio"] = getEngineConfig().ratio): ComplianceStatus {
   // A ratio of exactly 0 means one side of it was never ordered (the ratio
   // helpers return 0 when cheese is 0), so there is no real distance-from-ideal
   // to grade. That case has always landed on "bad"; keep it there rather than
@@ -445,7 +443,7 @@ export function generateFlags(metrics: WeeklyMetrics): Flag[] {
   // (was: flat ±6-case thresholds, which over-flagged big stores and
   // under-flagged small ones — a 6-case swing is noise at 40 cases/week and
   // catastrophic at 7). Flag.value for diff flags is the signed % deviation.
-  const warnPct = DEFAULT_PCT_THRESHOLDS.warn * 100; // ±25% of expected
+  const warnPct = getEngineConfig().pct.warn * 100; // ±25% of expected
   const pctDev = (ordered: number, estimated: number) =>
     estimated > 0 ? ((ordered - estimated) / estimated) * 100 : 0;
 
@@ -472,18 +470,18 @@ export function generateFlags(metrics: WeeklyMetrics): Flag[] {
 
   // S:C ratio
   const scPct = metrics.sauce_cheese_ratio * 100;
-  if (scPct > 0 && scPct < DEFAULT_RATIO_THRESHOLDS.ok_low) flags.push({ type: "sc_ratio_low", metric: "S:C Ratio", value: scPct, threshold: DEFAULT_RATIO_THRESHOLDS.ok_low, meaning: FLAG_MEANINGS.sc_ratio_low });
-  else if (scPct > DEFAULT_RATIO_THRESHOLDS.ok_high) flags.push({ type: "sc_ratio_high", metric: "S:C Ratio", value: scPct, threshold: DEFAULT_RATIO_THRESHOLDS.ok_high, meaning: FLAG_MEANINGS.sc_ratio_high });
+  if (scPct > 0 && scPct < getEngineConfig().ratio.ok_low) flags.push({ type: "sc_ratio_low", metric: "S:C Ratio", value: scPct, threshold: getEngineConfig().ratio.ok_low, meaning: FLAG_MEANINGS.sc_ratio_low });
+  else if (scPct > getEngineConfig().ratio.ok_high) flags.push({ type: "sc_ratio_high", metric: "S:C Ratio", value: scPct, threshold: getEngineConfig().ratio.ok_high, meaning: FLAG_MEANINGS.sc_ratio_high });
 
   // F:C or D:C ratio
   if (metrics.store_type === "flour") {
     const fcPct = metrics.flour_cheese_ratio * 100;
-    if (fcPct > 0 && fcPct < DEFAULT_RATIO_THRESHOLDS.ok_low) flags.push({ type: "fc_ratio_low", metric: "F:C Ratio", value: fcPct, threshold: DEFAULT_RATIO_THRESHOLDS.ok_low, meaning: FLAG_MEANINGS.fc_ratio_low });
-    else if (fcPct > DEFAULT_RATIO_THRESHOLDS.ok_high) flags.push({ type: "fc_ratio_high", metric: "F:C Ratio", value: fcPct, threshold: DEFAULT_RATIO_THRESHOLDS.ok_high, meaning: FLAG_MEANINGS.fc_ratio_high });
+    if (fcPct > 0 && fcPct < getEngineConfig().ratio.ok_low) flags.push({ type: "fc_ratio_low", metric: "F:C Ratio", value: fcPct, threshold: getEngineConfig().ratio.ok_low, meaning: FLAG_MEANINGS.fc_ratio_low });
+    else if (fcPct > getEngineConfig().ratio.ok_high) flags.push({ type: "fc_ratio_high", metric: "F:C Ratio", value: fcPct, threshold: getEngineConfig().ratio.ok_high, meaning: FLAG_MEANINGS.fc_ratio_high });
   } else {
     const dcPct = metrics.dough_cheese_ratio * 100;
-    if (dcPct > 0 && dcPct < DEFAULT_RATIO_THRESHOLDS.ok_low) flags.push({ type: "dc_ratio_low", metric: "D:C Ratio", value: dcPct, threshold: DEFAULT_RATIO_THRESHOLDS.ok_low, meaning: FLAG_MEANINGS.dc_ratio_low });
-    else if (dcPct > DEFAULT_RATIO_THRESHOLDS.ok_high) flags.push({ type: "dc_ratio_high", metric: "D:C Ratio", value: dcPct, threshold: DEFAULT_RATIO_THRESHOLDS.ok_high, meaning: FLAG_MEANINGS.dc_ratio_high });
+    if (dcPct > 0 && dcPct < getEngineConfig().ratio.ok_low) flags.push({ type: "dc_ratio_low", metric: "D:C Ratio", value: dcPct, threshold: getEngineConfig().ratio.ok_low, meaning: FLAG_MEANINGS.dc_ratio_low });
+    else if (dcPct > getEngineConfig().ratio.ok_high) flags.push({ type: "dc_ratio_high", metric: "D:C Ratio", value: dcPct, threshold: getEngineConfig().ratio.ok_high, meaning: FLAG_MEANINGS.dc_ratio_high });
   }
 
   return flags;
@@ -725,7 +723,7 @@ export function explainStatus(
   const addRatio = (label: string, value: number, status: ComplianceStatus) => {
     candidates.push({
       label,
-      phrase: `${label} ratio at ${Math.round(value * 100)}% (target ${DEFAULT_RATIO_THRESHOLDS.ok_low}-${DEFAULT_RATIO_THRESHOLDS.ok_high}%)`,
+      phrase: `${label} ratio at ${Math.round(value * 100)}% (target ${getEngineConfig().ratio.ok_low}-${getEngineConfig().ratio.ok_high}%)`,
       status,
     });
   };
@@ -746,7 +744,7 @@ export function explainStatus(
     return {
       status,
       headline: "All metrics on target",
-      detail: `Every ingredient is within ${Math.round(DEFAULT_PCT_THRESHOLDS.warn * 100)}% of what the box count expects and both ratios are in band, on a ${windowLabel}.`,
+      detail: `Every ingredient is within ${Math.round(getEngineConfig().pct.warn * 100)}% of what the box count expects and both ratios are in band, on a ${windowLabel}.`,
       drivers: [],
       windowWeeks: n,
     };
@@ -898,14 +896,14 @@ export function computeWeeklyMetrics(
   const totalBoxUnits = totalBoxesCases * BOXES_PER_CASE + agg.boxes_clamshell + platePieces;
 
   const estPizzaSales =
-    agg.boxes_small * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.small +
-    agg.boxes_medium * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.medium +
-    agg.boxes_large * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.large +
-    agg.boxes_xl * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.xl +
-    agg.boxes_party_20 * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.party_20 +
-    agg.boxes_party_21x15 * BOXES_PER_CASE * PIZZA_SALES_PER_CASE.party_21x15 +
-    agg.boxes_clamshell * PIZZA_SALES_PER_CASE.clamshell +
-    platePieces * PIZZA_SALES_PER_CASE.plate;
+    agg.boxes_small * BOXES_PER_CASE * getEngineConfig().pizzaSales.small +
+    agg.boxes_medium * BOXES_PER_CASE * getEngineConfig().pizzaSales.medium +
+    agg.boxes_large * BOXES_PER_CASE * getEngineConfig().pizzaSales.large +
+    agg.boxes_xl * BOXES_PER_CASE * getEngineConfig().pizzaSales.xl +
+    agg.boxes_party_20 * BOXES_PER_CASE * getEngineConfig().pizzaSales.party_20 +
+    agg.boxes_party_21x15 * BOXES_PER_CASE * getEngineConfig().pizzaSales.party_21x15 +
+    agg.boxes_clamshell * getEngineConfig().pizzaSales.clamshell +
+    platePieces * getEngineConfig().pizzaSales.plate;
 
   return {
     store_id: "",
@@ -979,7 +977,7 @@ export function computeNetworkStats(metrics: WeeklyMetrics[]): NetworkStats {
   // (51 stores over + 23 under netted to "+0.8 cases" while the average store
   // was 50% off — James, July 11 2026), so the share on target is the honest
   // headline; the signed avg stays available as secondary context.
-  const warnFrac = DEFAULT_PCT_THRESHOLDS.warn;
+  const warnFrac = getEngineConfig().pct.warn;
   let cheeseMeasurable = 0, cheeseOnTarget = 0;
   let sauceMeasurable = 0, sauceOnTarget = 0;
   let flourMeasurable = 0, flourOnTarget = 0;
@@ -997,8 +995,8 @@ export function computeNetworkStats(metrics: WeeklyMetrics[]): NetworkStats {
     const fdRatio = m.store_type === "flour" ? m.flour_cheese_ratio : m.dough_cheese_ratio;
     const fdPct = fdRatio * 100;
 
-    if (scPct >= DEFAULT_RATIO_THRESHOLDS.ok_low && scPct <= DEFAULT_RATIO_THRESHOLDS.ok_high) scInBand++;
-    if (fdPct >= DEFAULT_RATIO_THRESHOLDS.ok_low && fdPct <= DEFAULT_RATIO_THRESHOLDS.ok_high) fcInBand++;
+    if (scPct >= getEngineConfig().ratio.ok_low && scPct <= getEngineConfig().ratio.ok_high) scInBand++;
+    if (fdPct >= getEngineConfig().ratio.ok_low && fdPct <= getEngineConfig().ratio.ok_high) fcInBand++;
 
     sumCheese += m.cheese_diff;
     sumSauce += m.sauce_diff;
