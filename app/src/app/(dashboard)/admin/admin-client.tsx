@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Package, Sliders, Activity, Sparkles, UserPlus, Trash2 } from "lucide-react";
+import { Users, Package, Sliders, Activity, Sparkles, UserPlus, Trash2, Search } from "lucide-react";
 
 interface AdminClientProps {
   dsms: Record<string, unknown>[];
@@ -600,45 +600,178 @@ function DsmTab({ dsms, stores }: { dsms: Record<string, unknown>[]; stores: Rec
 // ── Products ─────────────────────────────────────────────────
 
 function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
+  const router = useRouter();
   const classColors: Record<string, { bg: string; text: string }> = {
     primary: { bg: "var(--color-basil-soft)", text: "var(--color-basil)" },
     secondary: { bg: "var(--color-crust)", text: "var(--color-ink-2)" },
     neither: { bg: "var(--color-mustard-soft)", text: "var(--color-mustard)" },
   };
+  const TYPES = ["Cheese", "Pizza Sauce", "Flour", "Dough", "Packaging", "Wing Box", "Secondary", "Other"];
+  const CLASSES = ["primary", "secondary", "neither"];
+  const UNITS = ["kg", "Fl oz", "each"];
+
+  const [search, setSearch] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Record<string, unknown>>({});
+  const [showAdd, setShowAdd] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const filtered = products.filter((p) => {
+    const q = search.toLowerCase();
+    return !q || String(p.code).toLowerCase().includes(q) || String(p.description).toLowerCase().includes(q);
+  });
+
+  async function call(method: string, body: Record<string, unknown>) {
+    const res = await fetch("/api/products", {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.error) setMessage(`Error: ${data.error}`);
+    else {
+      setMessage(method === "POST" ? "Product added" : method === "PUT" ? "Product updated" : "Product deleted");
+      setEditingId(null);
+      setShowAdd(false);
+      router.refresh();
+    }
+  }
+
+  const emptyDraft = { code: "", description: "", type: "Secondary", classification: "secondary", pack_size: "", weight: 0, weight_unit: "each" };
+  const inputCls = "rounded px-1.5 py-1 text-[12px] w-full";
+  const inputStyle = { border: "1px solid var(--color-line)" } as const;
+
+  function EditableRow({ p, isNew }: { p: Record<string, unknown>; isNew: boolean }) {
+    return (
+      <tr style={{ background: "var(--color-paper)" }}>
+        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+          <input className={inputCls} style={inputStyle} defaultValue={p.code as string} disabled={!isNew}
+            title={isNew ? undefined : "Codes match the commissary export and cannot change"}
+            onChange={(e) => setDraft((d) => ({ ...d, code: e.target.value }))} />
+        </td>
+        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+          <input className={inputCls} style={inputStyle} defaultValue={p.description as string}
+            onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
+        </td>
+        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+          <select className={inputCls} style={inputStyle} defaultValue={p.type as string}
+            onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value }))}>
+            {TYPES.map((t) => <option key={t}>{t}</option>)}
+          </select>
+        </td>
+        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+          <input className={inputCls} style={inputStyle} defaultValue={p.pack_size as string}
+            onChange={(e) => setDraft((d) => ({ ...d, pack_size: e.target.value }))} />
+        </td>
+        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+          <input type="number" step="0.01" min="0" className={inputCls} style={inputStyle} defaultValue={String(p.weight ?? 0)}
+            onChange={(e) => setDraft((d) => ({ ...d, weight: Number(e.target.value) }))} />
+        </td>
+        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+          <select className={inputCls} style={inputStyle} defaultValue={p.weight_unit as string}
+            onChange={(e) => setDraft((d) => ({ ...d, weight_unit: e.target.value }))}>
+            {UNITS.map((u) => <option key={u}>{u}</option>)}
+          </select>
+        </td>
+        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+          <select className={inputCls} style={inputStyle} defaultValue={p.classification as string}
+            onChange={(e) => setDraft((d) => ({ ...d, classification: e.target.value }))}>
+            {CLASSES.map((c) => <option key={c}>{c}</option>)}
+          </select>
+        </td>
+        <td className="px-2 py-1.5 whitespace-nowrap" style={{ borderBottom: "1px solid var(--color-line)" }}>
+          <button onClick={() => (isNew ? call("POST", { ...emptyDraft, ...draft }) : call("PUT", { id: p.id, ...draft }))}
+            className="text-[12px] font-medium px-2 py-1 rounded text-white mr-1" style={{ background: "var(--color-ginos-red)" }}>
+            Save
+          </button>
+          <button onClick={() => { setEditingId(null); setShowAdd(false); setDraft({}); }}
+            className="text-[12px] px-2 py-1 rounded" style={{ border: "1px solid var(--color-line)" }}>
+            Cancel
+          </button>
+        </td>
+      </tr>
+    );
+  }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[13px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
-        <thead>
-          <tr>
-            {["Code", "Description", "Type", "Pack Size", "Classification"].map((h) => (
-              <th key={h} className="text-left font-semibold text-[11px] tracking-[.06em] uppercase px-[14px] py-[10px]" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)", background: "var(--color-paper)" }}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {products.map((p) => {
-            const cls = p.classification as string;
-            const colors = classColors[cls] ?? classColors.neither;
-            return (
-              <tr key={p.id as string} className="hover:bg-[rgba(244,236,221,.4)]" style={cls === "neither" ? { background: "var(--color-mustard-soft)", opacity: 0.7 } : undefined}>
-                <td className="px-[14px] py-[10px] font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)" }}>{p.code as string}</td>
-                <td className="px-[14px] py-[10px]" style={{ borderBottom: "1px solid var(--color-line)" }}>{p.description as string}</td>
-                <td className="px-[14px] py-[10px]" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-2)" }}>{p.type as string}</td>
-                <td className="px-[14px] py-[10px] font-mono text-[12px]" style={{ borderBottom: "1px solid var(--color-line)" }}>{p.pack_size as string}</td>
-                <td className="px-[14px] py-[10px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: colors.bg, color: colors.text }}>
-                    {cls}
-                  </span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {products.length === 0 && <p className="text-center py-8 text-[13px]" style={{ color: "var(--color-ink-3)" }}>No products loaded</p>}
+    <div className="p-[18px]">
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className="relative flex-1 min-w-[220px] max-w-[360px]">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--color-ink-3)" }} />
+          <input
+            placeholder="Search code or description…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-[8px] pl-8 pr-3 py-[7px] text-[12.5px]"
+            style={{ border: "1px solid var(--color-line)", background: "white" }}
+          />
+        </div>
+        <button onClick={() => { setDraft({}); setShowAdd(true); setEditingId(null); }}
+          className="px-[12px] py-[7px] rounded-[8px] text-white text-[12.5px] font-medium"
+          style={{ background: "var(--color-ginos-red)" }}>
+          Add SKU
+        </button>
+        {message && (
+          <span className="text-[12px]" style={{ color: message.startsWith("Error") ? "var(--color-ginos-red)" : "var(--color-basil)" }}>{message}</span>
+        )}
+      </div>
+      <p className="text-[11.5px] mb-3" style={{ color: "var(--color-ink-3)" }}>
+        Weight is what the calculations multiply by (kg for cheese/flour/dough, fl oz for sauce, units per case for
+        packaging). Changes apply to future uploads; past weeks keep the values they were computed with. For pizza
+        boxes, the SIZE is read from the description text — renaming a box product can change which size bucket it
+        counts in.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12.5px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+          <thead>
+            <tr>
+              {["Code", "Description", "Type", "Pack size", "Weight", "Unit", "Class", ""].map((h) => (
+                <th key={h} className="text-left font-semibold text-[11px] tracking-[.06em] uppercase px-2 py-2" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {showAdd && <EditableRow p={emptyDraft} isNew />}
+            {filtered.map((p) =>
+              editingId === (p.id as string) ? (
+                <EditableRow key={p.id as string} p={p} isNew={false} />
+              ) : (
+                <tr key={p.id as string} className="hover:bg-[rgba(244,236,221,.35)] group">
+                  <td className="px-2 py-1.5 font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>{p.code as string}</td>
+                  <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>{p.description as string}</td>
+                  <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-2)" }}>{p.type as string}</td>
+                  <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-3)" }}>{p.pack_size as string}</td>
+                  <td className="px-2 py-1.5 font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>{String(p.weight ?? "")}</td>
+                  <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-3)" }}>{p.weight_unit as string}</td>
+                  <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                    <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold" style={{
+                      background: classColors[p.classification as string]?.bg,
+                      color: classColors[p.classification as string]?.text,
+                    }}>
+                      {p.classification as string}
+                    </span>
+                  </td>
+                  <td className="px-2 py-1.5 whitespace-nowrap" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                    <button onClick={() => { setDraft({}); setEditingId(p.id as string); setShowAdd(false); }}
+                      className="text-[11.5px] font-medium opacity-0 group-hover:opacity-100 transition-opacity mr-2"
+                      style={{ color: "var(--color-ginos-red)" }}>
+                      Edit
+                    </button>
+                    <button onClick={() => { if (confirm(`Delete product ${p.code}?`)) call("DELETE", { id: p.id }); }}
+                      className="text-[11.5px] opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ color: "var(--color-ink-3)" }}>
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              )
+            )}
+          </tbody>
+        </table>
+        {filtered.length === 0 && (
+          <p className="text-[12.5px] py-6 text-center" style={{ color: "var(--color-ink-3)" }}>No products match</p>
+        )}
+      </div>
     </div>
   );
 }
