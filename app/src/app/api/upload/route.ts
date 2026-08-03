@@ -265,17 +265,14 @@ export async function POST(request: NextRequest) {
       }
 
       // Compute metrics with the store's actual type + brand (plate handling).
-      // Strip fields that exist on the metrics object but NOT as weekly_metrics
-      // columns (boxes_clamshell / boxes_plates / boxes_party_21x15 — their
-      // contribution is already folded into boxes_total and the estimates);
-      // PostgREST rejects the whole upsert on any unknown key.
+      // boxes_clamshell / boxes_plates / boxes_party_21x15 became real columns
+      // in migration 004 (they were stripped here before that, which is why the
+      // Boxes tab showed 0 for all three since it shipped) — only the two
+      // non-column identifiers still need dropping before the upsert.
       const metrics = computeWeeklyMetrics(rows, productLookup, year, info.storeType, info.brand);
       const {
         store_id: _sid,
         store_code: _sc,
-        boxes_clamshell: _bc,
-        boxes_plates: _bp,
-        boxes_party_21x15: _b21,
         ...metricFields
       } = metrics;
       computed.push({

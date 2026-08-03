@@ -578,6 +578,26 @@ export async function getProductTotals(
 }
 
 /**
+ * Every product of a classification, regardless of whether it was ever ordered.
+ *
+ * getProductTotals joins FROM weekly_orders, so a product with no line items in
+ * the range simply doesn't appear. James (July 31 2026) wants the Secondary
+ * Products tab to list all of them even at quantity 0 — a DSM scanning the tab
+ * should see "this store ordered none of X", not wonder whether X exists.
+ */
+export async function getProductsByClassification(
+  classification: "primary" | "secondary"
+): Promise<{ code: string; description: string; pack_size: string }[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("products")
+    .select("code, description, pack_size")
+    .eq("classification", classification)
+    .order("description");
+  return (data ?? []) as { code: string; description: string; pack_size: string }[];
+}
+
+/**
  * Get recent uploads.
  */
 export async function getRecentUploads(limit = 5) {

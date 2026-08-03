@@ -545,6 +545,11 @@ async function computeAndWriteMetrics(
         boxes_large: metrics.boxes_large,
         boxes_xl: metrics.boxes_xl,
         boxes_party: metrics.boxes_party,
+        // Columns since migration 004 — the engine always computed these, the
+        // schema just couldn't hold them (clamshell/plates are pieces).
+        boxes_party_21x15: metrics.boxes_party_21x15 ?? 0,
+        boxes_clamshell: metrics.boxes_clamshell ?? 0,
+        boxes_plates: metrics.boxes_plates ?? 0,
         boxes_total: metrics.boxes_total,
         cheese_estimated_oz: metrics.cheese_estimated_oz,
         sauce_estimated_floz: metrics.sauce_estimated_floz,
