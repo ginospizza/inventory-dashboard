@@ -8,6 +8,7 @@ import { resolveWindow } from "@/lib/display-window";
 import type { WeeklyMetrics, Brand } from "@/lib/types";
 import { StoreDetailClient } from "./store-detail-client";
 import { hasAiAccess } from "@/lib/ai/access";
+import { getEngineConfig } from "@/lib/calculations/engine-config";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -181,6 +182,7 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
       metrics={sorted as unknown as Record<string, unknown>[]}
       latest={latest as unknown as Record<string, unknown> | null}
       anchorIndex={anchorIndex}
+      engineConfig={getEngineConfig()}
       windowCount={window.count}
       windowLabel={window.label}
       flags={flagHistory}

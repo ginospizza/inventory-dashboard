@@ -48,7 +48,7 @@ export default async function AdminPage() {
     supabase.from("dsms").select("*").order("name"),
     supabase.from("stores").select("*, dsms(name)").order("code"),
     supabase.from("products").select("*").order("type, description"),
-    supabase.from("thresholds").select("*"),
+    supabase.from("thresholds").select("*").order("metric"),
     supabase.from("usage_assumptions").select("*").order("pizza_size"),
     supabase.from("profiles").select("*, dsms(name)").order("name"),
     supabase.from("ai_config").select("*").limit(1).single(),

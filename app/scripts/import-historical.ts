@@ -22,6 +22,7 @@ import {
   recomputeRollingStatuses,
   resolveStoreType,
 } from "../src/lib/calculations/engine";
+import { ensureEngineConfig } from "../src/lib/calculations/config-loader";
 import { normalizeStoreCode, shouldIgnoreStore } from "../src/lib/calculations/stores";
 import type { Product, RawOrderRow, Brand, StoreType } from "../src/lib/types";
 
@@ -604,6 +605,7 @@ async function computeAndWriteMetrics(
 // ── Main ────────────────────────────────────────────────────
 
 async function main() {
+  await ensureEngineConfig();
   console.log("=== Gino's Pizza Historical Data Import ===\n");
 
   // Load Excel files

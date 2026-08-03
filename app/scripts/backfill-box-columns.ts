@@ -23,6 +23,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { aggregateStoreWeek, platesCountForBrand } from "../src/lib/calculations/engine";
+import { ensureEngineConfig } from "../src/lib/calculations/config-loader";
 import { BOXES_PER_CASE } from "../src/lib/calculations/constants";
 import type { Product, RawOrderRow, Brand } from "../src/lib/types";
 
@@ -48,6 +49,7 @@ async function paged<T>(build: (from: number, to: number) => PromiseLike<{ data:
 }
 
 async function main() {
+  await ensureEngineConfig();
   console.log(`\n=== Backfill box columns from weekly_orders ===`);
   console.log(APPLY ? "MODE: APPLY" : "MODE: DRY RUN (no writes)");
 

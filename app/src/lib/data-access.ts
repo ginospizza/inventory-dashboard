@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { computeNetworkStats, computeBrandStats, severityScore, DEFAULT_DIFF_THRESHOLDS, ROLLING_WINDOW_WEEKS } from "@/lib/calculations";
 import type { WeeklyMetrics, NetworkStats, BrandStats, WeeklyTrend, Brand, Anomaly } from "@/lib/types";
 import { statusRank } from "@/lib/types";
+import { ensureEngineConfig } from "@/lib/calculations/config-loader";
 
 interface MetricsFilters {
   week?: number | string; // number for specific week, or "all", "ytd", "q1", "q2", "q3", "q4"
@@ -29,6 +30,9 @@ const QUARTER_RANGES: Record<string, [number, number]> = {
  * RLS automatically filters by user role.
  */
 export async function fetchMetrics(filters: MetricsFilters = {}) {
+  // Grading/flag math downstream of every page read uses the active engine
+  // config — make sure the DB values are loaded (60s TTL, so this is cheap).
+  await ensureEngineConfig();
   const supabase = createAdminClient();
   const year = filters.year ?? new Date().getFullYear();
 
