@@ -1,22 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/auth";
+import { hasAiAccess } from "@/lib/ai/access";
 import { buildOverviewPrompt, buildStorePrompt, SYSTEM_PROMPT } from "@/lib/ai/prompts";
 
 export async function POST(request: NextRequest) {
-  const admin = createAdminClient();
-
-  // Get current user from session
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const userId = user?.id ?? null;
-
-  // Look up user name for tracking
-  let userName = "Unknown";
-  if (userId) {
-    const { data: profile } = await admin.from("profiles").select("name").eq("id", userId).single();
-    if (profile) userName = profile.name;
+  // This route previously had NO auth requirement — an unauthenticated caller
+  // could burn the OpenRouter budget. Require a session, then apply the same
+  // access rule the UI uses to decide whether to show the buttons at all
+  // (super admins always; DSMs per ai_config.dsm_access_mode).
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
+  if (!(await hasAiAccess(user))) {
+    return NextResponse.json(
+      { error: "AI Insights is not enabled for your account" },
+      { status: 403 }
+    );
+  }
+
+  const admin = createAdminClient();
+  const userId = user.id;
 
   const body = await request.json();
   const { page, context } = body;

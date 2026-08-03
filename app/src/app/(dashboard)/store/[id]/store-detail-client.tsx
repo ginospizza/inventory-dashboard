@@ -24,6 +24,9 @@ import { explainStatus, type StatusExplanation, type RollingWeek } from "@/lib/c
 
 interface StoreDetailClientProps {
   user: AppUser;
+  /** Whether THIS user may use AI Insights (super admins always; DSMs per
+   *  ai_config). Computed server-side; the /api/ai route enforces it too. */
+  aiEnabled: boolean;
   store: Record<string, unknown>;
   metrics: Record<string, unknown>[];
   latest: Record<string, unknown> | null;
@@ -45,6 +48,7 @@ interface StoreDetailClientProps {
 
 export function StoreDetailClient({
   user,
+  aiEnabled,
   store,
   metrics,
   latest,
@@ -247,17 +251,21 @@ export function StoreDetailClient({
           </div>
         </div>
 
-        <button
-          onClick={handleAiInsight}
-          className="flex items-center gap-[7px] px-[14px] py-2 rounded-[9px] text-white text-[13px] font-medium"
-          style={{
-            background: "var(--color-ginos-red)",
-            boxShadow: "0 4px 14px rgba(226,35,26,.25), inset 0 1px 0 rgba(255,255,255,.18)",
-          }}
-        >
-          <Sparkles className="w-4 h-4" />
-          AI Insights
-        </button>
+        {/* Per-user: super admins always, DSMs per ai_config (James + Raj,
+            July 31 2026). /api/ai enforces the same rule server-side. */}
+        {aiEnabled && (
+          <button
+            onClick={handleAiInsight}
+            className="flex items-center gap-[7px] px-[14px] py-2 rounded-[9px] text-white text-[13px] font-medium"
+            style={{
+              background: "var(--color-ginos-red)",
+              boxShadow: "0 4px 14px rgba(226,35,26,.25), inset 0 1px 0 rgba(255,255,255,.18)",
+            }}
+          >
+            <Sparkles className="w-4 h-4" />
+            AI Insights
+          </button>
+        )}
       </div>
 
       {/* Date filters — the dashboard's Year + Period selectors, carried over to
@@ -274,7 +282,7 @@ export function StoreDetailClient({
       />
 
       {/* AI insight panel */}
-      {(aiLoading || aiInsight) && (
+      {aiEnabled && (aiLoading || aiInsight) && (
         <div
           className="rounded-[14px] p-[18px] mb-5"
           style={{
