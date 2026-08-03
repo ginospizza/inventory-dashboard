@@ -345,7 +345,31 @@ function DsmTab({ dsms, stores }: { dsms: Record<string, unknown>[]; stores: Rec
   const [newDsmName, setNewDsmName] = useState("");
   const [addingDsm, setAddingDsm] = useState(false);
   const [reassigning, setReassigning] = useState<string | null>(null); // store id being reassigned
+  // District being renamed + the in-progress value. James, July 31 2026:
+  // "Michel is gone and a new DSM is being assigned his territory. It would be
+  // convenient if I could just change the name Michel instead of making a new
+  // district and moving everything into the new one."
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [message, setMessage] = useState("");
+
+  async function handleRenameDsm(dsmId: string, oldName: string) {
+    const name = renameValue.trim();
+    setRenaming(null);
+    if (!name || name === oldName) return;
+    const res = await fetch("/api/dsms", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: dsmId, name }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      setMessage(`Error: ${data.error}`);
+    } else {
+      setMessage(`District "${oldName}" renamed to "${name}"`);
+      router.refresh();
+    }
+  }
 
   async function handleDeleteDsm(dsmId: string, dsmName: string, storeCount: number) {
     const msg = storeCount > 0
@@ -445,7 +469,28 @@ function DsmTab({ dsms, stores }: { dsms: Record<string, unknown>[]; stores: Rec
                   {(dsm.name as string).charAt(0)}
                 </div>
                 <div className="flex-1">
-                  <div className="font-semibold text-[14px]">{dsm.name as string}</div>
+                  {renaming === (dsm.id as string) ? (
+                    <input
+                      autoFocus
+                      defaultValue={dsm.name as string}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onBlur={() => handleRenameDsm(dsm.id as string, dsm.name as string)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                        if (e.key === "Escape") { setRenameValue(""); setRenaming(null); }
+                      }}
+                      className="font-semibold text-[14px] w-full rounded px-1 -mx-1"
+                      style={{ border: "1px solid var(--color-ginos-red)", outline: "none" }}
+                    />
+                  ) : (
+                    <button
+                      onClick={() => { setRenameValue(dsm.name as string); setRenaming(dsm.id as string); }}
+                      className="font-semibold text-[14px] text-left hover:underline decoration-dotted underline-offset-2"
+                      title="Click to rename district"
+                    >
+                      {dsm.name as string}
+                    </button>
+                  )}
                   <div className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>
                     {dsm.region as string || "—"} &middot; {dsmStores.length} stores
                   </div>
