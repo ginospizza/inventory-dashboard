@@ -11,14 +11,48 @@
 
 /** Canonical store code: collapse whitespace, uppercase, strip OLD/NEW suffixes. */
 export function normalizeStoreCode(raw: string): string {
-  return raw
-    .trim()
-    .replace(/\s+/g, " ")
-    .toUpperCase()
-    .replace(/\s*OLD\s*\d*\s*$/i, "")  // strip OLD, OLD2, etc.
-    .replace(/\s*NEW\s*\d*\s*$/i, "")  // strip NEW, NEW2, etc.
-    .replace(/NEW$/, "")               // catch remaining NEW suffix
-    .trim();
+  return (
+    raw
+      .trim()
+      .replace(/\s+/g, " ")
+      .toUpperCase()
+      .replace(/\s*OLD\s*\d*\s*$/i, "") // strip OLD, OLD2, etc.
+      .replace(/\s*NEW\s*\d*\s*$/i, "") // strip NEW, NEW2, etc.
+      // "GINOS 005" and "GINOS005" are the same store — the commissary export
+      // sometimes puts a space between the brand and the number, which made a
+      // second store row (James, July 31 2026: "GINOS 005 under Unassigned").
+      // ONLY GINOS is collapsed: GINOS codes are always brand+digits, whereas
+      // "STORE 015", "TTD BARRIE", "PP/WM14 WM081" legitimately contain spaces.
+      .replace(/^GINOS\s+(?=\d)/, "GINOS")
+      .trim()
+  );
+}
+
+/**
+ * Of two store rows whose codes normalize to the same key, which should
+ * uploads attach data to?
+ *
+ * Preference: the row whose stored code IS the canonical form ("GINOS176"
+ * beats "GINOS176 OLD2"), then the row with a DSM assignment, then the
+ * incumbent. Before this rule the upload route's storeMap was built with an
+ * unconditional set() over an UNORDERED select, so whichever row the database
+ * returned last silently won — reliably the unassigned "OLD" orphan, because
+ * those rows were created later. That is exactly James's "the data is right,
+ * but this should be under Raj's GINOS176, not the unassigned GINOS176 OLD2"
+ * (July 31 2026).
+ */
+export function preferCanonicalStore<T extends { code: string; dsm_id?: string | null }>(
+  incumbent: T | undefined,
+  candidate: T,
+  normalizedCode: string
+): T {
+  if (!incumbent) return candidate;
+  const canonical = (s: T) => normalizeStoreCode(s.code) === s.code.trim().toUpperCase();
+  const exact = (s: T) => s.code.trim().toUpperCase() === normalizedCode;
+  if (exact(incumbent) !== exact(candidate)) return exact(incumbent) ? incumbent : candidate;
+  if (canonical(incumbent) !== canonical(candidate)) return canonical(incumbent) ? incumbent : candidate;
+  if (!!incumbent.dsm_id !== !!candidate.dsm_id) return incumbent.dsm_id ? incumbent : candidate;
+  return incumbent;
 }
 
 // Non-store entries per James: head offices, wholesalers, anything without a

@@ -28,6 +28,9 @@ interface UploadResult {
   primary_count: number;
   secondary_count: number;
   unclassified_count: number;
+  /** Unknown store codes this upload auto-created — they sit under Unassigned
+   *  until reviewed (create + flag, never block the weekly upload). */
+  created_stores?: string[];
 }
 
 export function UploadClient({ recentUploads }: { recentUploads: Record<string, unknown>[] }) {
@@ -285,6 +288,28 @@ export function UploadClient({ recentUploads }: { recentUploads: Record<string, 
               <p className="text-[13px] mb-5" style={{ color: "var(--color-ink-3)" }}>
                 {result.rows_processed} rows processed across {result.stores_processed} stores
               </p>
+              {/* Unknown store codes were auto-created rather than blocking the
+                  upload — but they need a human before they disappear into the
+                  Unassigned pile (James's duplicate-store complaint, July 31
+                  2026, started exactly this way). */}
+              {(result.created_stores?.length ?? 0) > 0 && (
+                <div
+                  className="rounded-[10px] px-4 py-3 mb-5 text-left max-w-[440px]"
+                  style={{ background: "var(--color-mustard-soft)", border: "1px solid var(--color-mustard)" }}
+                >
+                  <p className="text-[12.5px] font-semibold mb-1" style={{ color: "var(--color-mustard)" }}>
+                    {result.created_stores!.length} new store{result.created_stores!.length === 1 ? "" : "s"} created — needs review
+                  </p>
+                  <p className="text-[12px] mb-2" style={{ color: "var(--color-ink-2)" }}>
+                    These codes weren&apos;t in the store list, so they were created under
+                    Unassigned. If one is a misspelling of an existing store, fix it in the
+                    Admin Panel before the next upload.
+                  </p>
+                  <p className="text-[12px] font-mono" style={{ color: "var(--color-ink-2)" }}>
+                    {result.created_stores!.join(", ")}
+                  </p>
+                </div>
+              )}
               <div className="flex gap-2">
                 <button onClick={reset} className="px-4 py-2 rounded-[9px] text-[13px] font-medium" style={{ border: "1px solid var(--color-line)" }}>
                   Upload another
