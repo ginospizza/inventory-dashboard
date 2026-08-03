@@ -12,6 +12,9 @@ import { weekWithDate } from "@/lib/weeks";
 
 interface OverviewClientProps {
   user: AppUser;
+  /** Whether THIS user may use AI Insights (super admins always; DSMs per
+   *  ai_config). Computed server-side; the /api/ai route enforces it too. */
+  aiEnabled: boolean;
   stats: NetworkStats;
   brandStats: BrandStats[];
   trend: WeeklyTrend[];
@@ -27,6 +30,7 @@ interface OverviewClientProps {
 
 export function OverviewClient({
   user,
+  aiEnabled,
   stats,
   brandStats,
   trend,
@@ -122,17 +126,22 @@ export function OverviewClient({
           >
             Export
           </button>
-          <button
-            onClick={handleGenerateInsight}
-            className="flex items-center gap-[7px] px-[10px] sm:px-[14px] py-2 rounded-[9px] text-white text-[13px] font-medium"
-            style={{
-              background: "var(--color-ginos-red)",
-              boxShadow: "0 4px 14px rgba(226,35,26,.25), inset 0 1px 0 rgba(255,255,255,.18)",
-            }}
-          >
-            <Sparkles className="w-4 h-4" />
-            <span className="hidden sm:inline">AI Insights</span>
-          </button>
+          {/* Rendered per-user: super admins always, DSMs per ai_config
+              (James + Raj, July 31 2026 — AI is phase 2 for DSMs). The API
+              enforces the same rule; this is just the visible half. */}
+          {aiEnabled && (
+            <button
+              onClick={handleGenerateInsight}
+              className="flex items-center gap-[7px] px-[10px] sm:px-[14px] py-2 rounded-[9px] text-white text-[13px] font-medium"
+              style={{
+                background: "var(--color-ginos-red)",
+                boxShadow: "0 4px 14px rgba(226,35,26,.25), inset 0 1px 0 rgba(255,255,255,.18)",
+              }}
+            >
+              <Sparkles className="w-4 h-4" />
+              <span className="hidden sm:inline">AI Insights</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -334,9 +343,12 @@ export function OverviewClient({
         </div>
       </div>
 
-      {/* Bottom row: AI Insights + At-risk stores */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1.6fr] gap-[14px]">
+      {/* Bottom row: AI Insights + At-risk stores. Without AI access the grid
+          collapses to one column so the At-risk panel takes the full width
+          rather than sitting beside a hole. */}
+      <div className={aiEnabled ? "grid grid-cols-1 lg:grid-cols-[1.05fr_1.6fr] gap-[14px]" : "grid grid-cols-1 gap-[14px]"}>
         {/* AI Insights */}
+        {aiEnabled && (
         <div
           id="ai-insights-card"
           className="rounded-[14px] p-[18px] relative overflow-hidden"
@@ -408,6 +420,7 @@ export function OverviewClient({
             </>
           )}
         </div>
+        )}
 
         {/* At-risk stores */}
         <div

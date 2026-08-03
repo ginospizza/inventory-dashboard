@@ -76,7 +76,7 @@ export function AdminClient({
         {activeTab === "products" && <ProductsTab products={products} />}
         {activeTab === "thresholds" && <ThresholdsTab thresholds={thresholds} assumptions={assumptions} />}
         {activeTab === "activity" && <ActivityTab profiles={profiles} />}
-        {activeTab === "ai" && <AiTab config={aiConfig} calls={aiCalls} />}
+        {activeTab === "ai" && <AiTab config={aiConfig} calls={aiCalls} dsms={dsms} />}
       </div>
     </div>
   );
@@ -711,7 +711,51 @@ function ActivityTab({ profiles }: { profiles: Record<string, unknown>[] }) {
 
 // ── AI Usage ─────────────────────────────────────────────────
 
-function AiTab({ config, calls }: { config: Record<string, unknown>; calls: Record<string, unknown>[] }) {
+function AiTab({ config, calls, dsms }: {
+  config: Record<string, unknown>;
+  calls: Record<string, unknown>[];
+  dsms: Record<string, unknown>[];
+}) {
+  const router = useRouter();
+
+  // ── DSM access control (James + Raj, July 31 2026) ─────────
+  // Super admins always have AI. DSM access is set here: off for launch,
+  // on for everyone, or on for a pilot group — switchable any time, no deploy.
+  const [accessMode, setAccessMode] = useState<string>(
+    (config.dsm_access_mode as string) ?? "none"
+  );
+  const [selectedDsms, setSelectedDsms] = useState<string[]>(
+    (config.allowed_dsm_ids as string[]) ?? []
+  );
+  const [accessMessage, setAccessMessage] = useState("");
+  const [savingAccess, setSavingAccess] = useState(false);
+
+  async function handleSaveAccess() {
+    setSavingAccess(true);
+    setAccessMessage("");
+    try {
+      const res = await fetch("/api/ai-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dsm_access_mode: accessMode,
+          allowed_dsm_ids: accessMode === "selected" ? selectedDsms : [],
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setAccessMessage(`Error: ${data.error}`);
+      } else {
+        setAccessMessage("Saved");
+        router.refresh();
+      }
+    } catch {
+      setAccessMessage("Error: request failed");
+    } finally {
+      setSavingAccess(false);
+    }
+  }
+
   const cap = config.monthly_call_cap as number ?? 200;
   const monthCalls = calls.filter((c) => {
     const d = new Date(c.called_at as string);
@@ -723,6 +767,23 @@ function AiTab({ config, calls }: { config: Record<string, unknown>; calls: Reco
   // GPT-4o-mini: ~$0.15/1M input + $0.60/1M output. Approx avg $0.35/1M total
   const estMonthlyCost = (totalTokens * 0.35) / 1_000_000;
 
+  // ── Usage by person, this month ─────────────────────────────
+  // James wants to see which DSM uses how much AI and what it costs, so this
+  // groups the month's calls per user with their district alongside.
+  const usageByUser = (() => {
+    const map = new Map<string, { name: string; district: string; calls: number; tokens: number }>();
+    for (const c of monthCalls) {
+      const profile = c.profiles as { name?: string; dsms?: { name?: string } | null } | null;
+      const name = profile?.name ?? "Unknown";
+      const district = profile?.dsms?.name ?? "—";
+      const entry = map.get(name) ?? { name, district, calls: 0, tokens: 0 };
+      entry.calls += 1;
+      entry.tokens += (c.tokens_used as number) ?? 0;
+      map.set(name, entry);
+    }
+    return [...map.values()].sort((a, b) => b.tokens - a.tokens);
+  })();
+
   // Parse per-call cost from page_context if available
   function parseCallInfo(context: string) {
     const parts = (context ?? "").split(" | ");
@@ -732,8 +793,109 @@ function AiTab({ config, calls }: { config: Record<string, unknown>; calls: Reco
     return { page, tokenBreakdown, cost };
   }
 
+  const accessOptions = [
+    { key: "none", label: "Off for all DSMs", hint: "Only admins see AI Insights (launch default)" },
+    { key: "all", label: "On for all DSMs", hint: "Every DSM gets the AI Insights buttons" },
+    { key: "selected", label: "Pilot group", hint: "Only the DSMs picked below" },
+  ];
+
   return (
-    <div className="p-[18px] grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="p-[18px] flex flex-col gap-6">
+      {/* DSM access control */}
+      <div className="rounded-[12px] p-[16px]" style={{ border: "1px solid var(--color-line)", background: "var(--color-paper)" }}>
+        <h4 className="text-[14px] font-semibold mb-1">DSM access</h4>
+        <p className="text-[12px] mb-3" style={{ color: "var(--color-ink-3)" }}>
+          Admins always have AI Insights. Choose what DSMs see — switch any time, takes effect immediately.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2 mb-3">
+          {accessOptions.map((o) => (
+            <button
+              key={o.key}
+              onClick={() => setAccessMode(o.key)}
+              className="flex-1 text-left rounded-[10px] px-3 py-2 transition-all"
+              style={{
+                border: accessMode === o.key ? "1.5px solid var(--color-ginos-red)" : "1px solid var(--color-line)",
+                background: accessMode === o.key ? "var(--color-ginos-red-soft)" : "white",
+              }}
+            >
+              <div className="text-[13px] font-medium">{o.label}</div>
+              <div className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>{o.hint}</div>
+            </button>
+          ))}
+        </div>
+        {accessMode === "selected" && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {dsms.map((d) => {
+              const id = d.id as string;
+              const on = selectedDsms.includes(id);
+              return (
+                <button
+                  key={id}
+                  onClick={() =>
+                    setSelectedDsms(on ? selectedDsms.filter((x) => x !== id) : [...selectedDsms, id])
+                  }
+                  className="px-3 py-[6px] rounded-full text-[12px] font-medium transition-all"
+                  style={{
+                    border: on ? "1.5px solid var(--color-ginos-red)" : "1px solid var(--color-line)",
+                    background: on ? "var(--color-ginos-red-soft)" : "white",
+                    color: on ? "var(--color-ginos-red)" : "var(--color-ink-2)",
+                  }}
+                >
+                  {d.name as string}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveAccess}
+            disabled={savingAccess}
+            className="px-[14px] py-2 rounded-[9px] text-white text-[13px] font-medium disabled:opacity-60"
+            style={{ background: "var(--color-ginos-red)" }}
+          >
+            {savingAccess ? "Saving…" : "Save access"}
+          </button>
+          {accessMessage && (
+            <span className="text-[12px]" style={{ color: accessMessage.startsWith("Error") ? "var(--color-ginos-red)" : "var(--color-basil)" }}>
+              {accessMessage}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Usage by person, this month */}
+      <div className="rounded-[12px] p-[16px]" style={{ border: "1px solid var(--color-line)" }}>
+        <h4 className="text-[14px] font-semibold mb-3">Usage by person (this month)</h4>
+        {usageByUser.length > 0 ? (
+          <table className="w-full text-[12.5px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+            <thead>
+              <tr>
+                {["Person", "District", "Calls", "Tokens", "Est. cost"].map((h, i) => (
+                  <th key={h} className="font-semibold text-[11px] tracking-[.06em] uppercase px-2 py-[8px]" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)", textAlign: i < 2 ? "left" : "right" }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {usageByUser.map((u) => (
+                <tr key={u.name}>
+                  <td className="px-2 py-[8px] font-medium" style={{ borderBottom: "1px solid var(--color-line)" }}>{u.name}</td>
+                  <td className="px-2 py-[8px]" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-3)" }}>{u.district}</td>
+                  <td className="px-2 py-[8px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>{u.calls}</td>
+                  <td className="px-2 py-[8px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>{u.tokens.toLocaleString()}</td>
+                  <td className="px-2 py-[8px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>${((u.tokens * 0.35) / 1_000_000).toFixed(4)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-[12px] py-2" style={{ color: "var(--color-ink-3)" }}>No AI calls this month</p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div>
         <div className="font-serif text-[32px] leading-none mb-2">
           {thisMonth} <span className="text-[18px]" style={{ color: "var(--color-ink-3)" }}>of {cap} calls</span>
@@ -797,6 +959,7 @@ function AiTab({ config, calls }: { config: Record<string, unknown>; calls: Reco
           })}
           {calls.length === 0 && <p className="text-[12px] py-4 text-center" style={{ color: "var(--color-ink-3)" }}>No AI calls yet</p>}
         </div>
+      </div>
       </div>
     </div>
   );

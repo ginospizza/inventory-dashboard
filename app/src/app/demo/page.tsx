@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   LayoutDashboard, Store, Upload, Settings, ChevronRight,
-  Sparkles, Flag, Search, Bell,
+  Flag, Search, Bell,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -139,9 +139,8 @@ function Overview() {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 9, background: "white", border: "1px solid #E7DFCE", fontSize: 13, fontWeight: 500, color: "#1B1A17", cursor: "pointer" }}>Export</button>
-          <button style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 9, background: "#E2231A", border: "1px solid #E2231A", color: "white", fontSize: 13, fontWeight: 500, cursor: "pointer", boxShadow: "0 4px 14px rgba(226,35,26,.25), inset 0 1px 0 rgba(255,255,255,.18)" }}>
-            <Sparkles style={{ width: 16, height: 16 }} />AI Insights
-          </button>
+          {/* AI Insights is phase 2 (James + Raj, July 31 2026) — no AI in the
+              launch demo either. */}
         </div>
       </div>
 
@@ -225,21 +224,7 @@ function Overview() {
       </div>
 
       {/* Bottom: AI + At-risk */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.05fr 1.6fr", gap: 14 }}>
-        {/* AI */}
-        <div style={{ borderRadius: 14, padding: 18, background: "radial-gradient(ellipse at top right, rgba(226,35,26,.06), transparent 60%), linear-gradient(180deg, #FFFDF8, #FBF6EC)", border: "1px solid #E7DFCE" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", padding: "4px 9px", borderRadius: 999, background: "linear-gradient(135deg, #1B1A17, #3a2c20)", color: "#F4ECDD" }}>
-              <Sparkles style={{ width: 12, height: 12 }} />AI Insights
-            </span>
-          </div>
-          <h4 style={{ margin: 0, fontFamily: "'Instrument Serif', serif", fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em" }}>What should I focus on this week?</h4>
-          <p style={{ color: "#4A4843", fontSize: 13.5, lineHeight: 1.55, margin: "8px 0 16px" }}>Generate an AI-powered summary of compliance patterns, anomalies, and recommended actions.</p>
-          <button style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 9, background: "#E2231A", border: "none", color: "white", fontSize: 13, fontWeight: 500, cursor: "pointer", boxShadow: "0 4px 14px rgba(226,35,26,.25)" }}>
-            <Sparkles style={{ width: 16, height: 16 }} />Generate insight
-          </button>
-        </div>
-
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
         {/* At-risk table */}
         <Card title="Stores Requiring Attention" action={<span style={{ color: "#E2231A", fontSize: 11.5, fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}>View all<ChevronRight style={{ width: 14, height: 14 }} /></span>}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 13 }}>

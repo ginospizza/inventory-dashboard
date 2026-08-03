@@ -15,6 +15,7 @@ import {
 import { generateFlags, ROLLING_WINDOW_WEEKS } from "@/lib/calculations";
 import type { WeeklyMetrics } from "@/lib/types";
 import { OverviewClient } from "./overview-client";
+import { hasAiAccess } from "@/lib/ai/access";
 
 interface PageProps {
   searchParams: Promise<{
@@ -81,6 +82,7 @@ export default async function OverviewPage({ searchParams }: PageProps) {
   return (
     <OverviewClient
       user={user}
+      aiEnabled={await hasAiAccess(user)}
       stats={stats}
       brandStats={brandStats}
       trend={trend}

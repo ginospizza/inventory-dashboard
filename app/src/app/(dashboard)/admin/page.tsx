@@ -52,7 +52,10 @@ export default async function AdminPage() {
     supabase.from("usage_assumptions").select("*").order("pizza_size"),
     supabase.from("profiles").select("*, dsms(name)").order("name"),
     supabase.from("ai_config").select("*").limit(1).single(),
-    supabase.from("ai_calls").select("*, profiles(name)").order("called_at", { ascending: false }).limit(20),
+    // Enough history for the month's per-user usage rollup, and the caller's
+    // district so usage can be attributed to a DSM (James wants to see which
+    // DSM uses how much AI and what it costs, July 31 2026).
+    supabase.from("ai_calls").select("*, profiles(name, dsm_id, dsms(name))").order("called_at", { ascending: false }).limit(500),
   ]);
 
   return (

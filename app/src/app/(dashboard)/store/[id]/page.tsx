@@ -6,6 +6,7 @@ import { fetchMetrics, getAnomalies, getProductTotals, rangeWeeks, type ProductR
 import { generateFlags } from "@/lib/calculations";
 import type { WeeklyMetrics, Brand } from "@/lib/types";
 import { StoreDetailClient } from "./store-detail-client";
+import { hasAiAccess } from "@/lib/ai/access";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -190,6 +191,7 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
   return (
     <StoreDetailClient
       user={user}
+      aiEnabled={await hasAiAccess(user)}
       store={store}
       metrics={sorted as unknown as Record<string, unknown>[]}
       latest={latest as unknown as Record<string, unknown> | null}
