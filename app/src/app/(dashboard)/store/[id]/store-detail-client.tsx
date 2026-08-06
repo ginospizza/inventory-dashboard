@@ -49,8 +49,8 @@ interface StoreDetailClientProps {
    *  with the same derived case sizes the tiles use. */
   ingredientTotals: { cheese_oz: number; sauce_floz: number; flour_kg: number; dough_kg: number };
   ingredientTotalsPriorYear: { cheese_oz: number; sauce_floz: number; flour_kg: number; dough_kg: number };
-  boxTotals: { label: string; quantity: number }[];
-  boxTotalsPriorYear: { label: string; quantity: number }[];
+  boxTotals: { label: string; quantity: number; unit: string }[];
+  boxTotalsPriorYear: { label: string; quantity: number; unit: string }[];
   productRange: string;
   rangeLabel: string;
   priorRangeLabel: string;
@@ -604,26 +604,50 @@ export function StoreDetailClient({
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Pizza sizes in BUNDLES (a bundle = the case of 40 — James,
+                      Aug 4 2026), clamshells/plates in pieces. */}
                   {boxTotals.map((b, i) => (
                     <tr key={b.label} className="hover:bg-[rgba(244,236,221,.4)]">
-                      <td className="px-3 py-[10px] font-medium" style={{ borderBottom: "1px solid var(--color-line)" }}>{b.label}</td>
-                      <td className="px-3 py-[10px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                        {b.quantity.toFixed(0)}
+                      <td className="px-3 py-[10px] font-medium" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                        {b.label}
+                        <span className="text-[11px] ml-2" style={{ color: "var(--color-ink-3)" }}>
+                          {b.unit === "bd" ? "bundles" : "pieces"}
+                        </span>
                       </td>
-                      <PriorAndYoY current={b.quantity} prior={boxTotalsPriorYear[i]?.quantity} />
+                      <td className="px-3 py-[10px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                        {b.unit === "bd" ? unitFmt(b.quantity, "bd") : `${b.quantity.toFixed(0)} pc`}
+                      </td>
+                      <PriorAndYoY
+                        current={b.quantity}
+                        prior={boxTotalsPriorYear[i]?.quantity}
+                        decimals={b.unit === "bd" ? 1 : 0}
+                      />
                     </tr>
                   ))}
-                  <tr style={{ background: "var(--color-paper)" }}>
-                    <td className="px-3 py-[10px] font-semibold" style={{ borderTop: "2px solid var(--color-line-2)" }}>Total</td>
-                    <td className="px-3 py-[10px] text-right font-mono font-semibold" style={{ borderTop: "2px solid var(--color-line-2)" }}>
-                      {boxTotals.reduce((s, b) => s + b.quantity, 0).toFixed(0)}
-                    </td>
-                    <PriorAndYoY
-                      current={boxTotals.reduce((s, b) => s + b.quantity, 0)}
-                      prior={boxTotalsPriorYear.reduce((s, b) => s + b.quantity, 0)}
-                      emphasise
-                    />
-                  </tr>
+                  {/* A single total would add bundles to pieces — meaningless —
+                      so the pizza-box bundles and the piece counts total apart. */}
+                  {(() => {
+                    const sum = (rows: typeof boxTotals, unit: string) =>
+                      rows.filter((b) => b.unit === unit).reduce((s, b) => s + b.quantity, 0);
+                    return (
+                      <>
+                        <tr style={{ background: "var(--color-paper)" }}>
+                          <td className="px-3 py-[10px] font-semibold" style={{ borderTop: "2px solid var(--color-line-2)" }}>Total bundles</td>
+                          <td className="px-3 py-[10px] text-right font-mono font-semibold" style={{ borderTop: "2px solid var(--color-line-2)" }}>
+                            {unitFmt(sum(boxTotals, "bd"), "bd")}
+                          </td>
+                          <PriorAndYoY current={sum(boxTotals, "bd")} prior={sum(boxTotalsPriorYear, "bd")} emphasise decimals={1} />
+                        </tr>
+                        <tr style={{ background: "var(--color-paper)" }}>
+                          <td className="px-3 py-[10px] font-semibold" style={{ borderBottom: "1px solid var(--color-line)" }}>Total pieces</td>
+                          <td className="px-3 py-[10px] text-right font-mono font-semibold" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                            {`${sum(boxTotals, "pc").toFixed(0)} pc`}
+                          </td>
+                          <PriorAndYoY current={sum(boxTotals, "pc")} prior={sum(boxTotalsPriorYear, "pc")} />
+                        </tr>
+                      </>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>

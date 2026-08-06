@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchMetrics, getAnomalies, getProductTotals, getProductsByClassification, rangeWeeks, type ProductRange } from "@/lib/data-access";
-import { generateFlags, ROLLING_WINDOW_WEEKS } from "@/lib/calculations";
+import { generateFlags, ROLLING_WINDOW_WEEKS, BOXES_PER_CASE } from "@/lib/calculations";
 import { resolveWindow } from "@/lib/display-window";
 import type { WeeklyMetrics, Brand } from "@/lib/types";
 import { StoreDetailClient } from "./store-detail-client";
@@ -15,29 +15,40 @@ interface PageProps {
   searchParams: Promise<{ week?: string; year?: string; range?: string }>;
 }
 
-/** Box sizes as James refers to them, in menu order. `boxes_*` on weekly_metrics
- *  hold individual boxes (cases × 40), except clamshells/plates which are already
- *  individual pieces. */
+/**
+ * Box sizes as James refers to them, in menu order. `boxes_*` on weekly_metrics
+ * hold individual boxes (cases × 40), except clamshells/plates which are
+ * already individual pieces.
+ *
+ * Display units per James (Aug 4 2026): pizza boxes in BUNDLES — "a bundle is
+ * a case for the boxes, 40 pieces per" — while clamshells and plates stay in
+ * pieces. `divisor` converts the stored individual-box counts.
+ */
 const BOX_SIZES = [
-  { key: "boxes_small", label: 'Small (10")' },
-  { key: "boxes_medium", label: 'Medium (12")' },
-  { key: "boxes_large", label: 'Large (14")' },
-  { key: "boxes_xl", label: 'X-Large (16")' },
-  { key: "boxes_party", label: 'Party (20")' },
-  { key: "boxes_party_21x15", label: "Party 21x15" },
-  { key: "boxes_clamshell", label: "Clamshell / slice" },
-  { key: "boxes_plates", label: "Paper plates" },
+  { key: "boxes_small", label: 'Small (10")', divisor: BOXES_PER_CASE, unit: "bd" },
+  { key: "boxes_medium", label: 'Medium (12")', divisor: BOXES_PER_CASE, unit: "bd" },
+  { key: "boxes_large", label: 'Large (14")', divisor: BOXES_PER_CASE, unit: "bd" },
+  { key: "boxes_xl", label: 'X-Large (16")', divisor: BOXES_PER_CASE, unit: "bd" },
+  { key: "boxes_party", label: 'Party (20")', divisor: BOXES_PER_CASE, unit: "bd" },
+  { key: "boxes_party_21x15", label: "Party 21x15", divisor: BOXES_PER_CASE, unit: "bd" },
+  { key: "boxes_clamshell", label: "Clamshell / slice", divisor: 1, unit: "pc" },
+  { key: "boxes_plates", label: "Paper plates", divisor: 1, unit: "pc" },
 ] as const;
 
 type BoxKey = (typeof BOX_SIZES)[number]["key"];
 
-/** Sum each box size across a set of store-weeks. */
+/**
+ * Sum each box size across a set of store-weeks, in DISPLAY units (bundles for
+ * pizza sizes, pieces for clamshell/plates). Year-over-year percentages are
+ * unaffected: both years divide by the same divisor.
+ */
 function summariseBoxes(
   weeks: Pick<WeeklyMetrics, BoxKey>[]
-): { label: string; quantity: number }[] {
-  return BOX_SIZES.map(({ key, label }) => ({
+): { label: string; quantity: number; unit: string }[] {
+  return BOX_SIZES.map(({ key, label, divisor, unit }) => ({
     label,
-    quantity: weeks.reduce((s, m) => s + (m[key] ?? 0), 0),
+    quantity: weeks.reduce((s, m) => s + (m[key] ?? 0), 0) / divisor,
+    unit,
   }));
 }
 
