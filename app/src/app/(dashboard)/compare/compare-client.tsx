@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { NetworkStats } from "@/lib/types";
 import { statusRank, statusColor } from "@/lib/types";
+import { towardTarget } from "@/lib/toward-target";
 
 interface StoreCompare {
   store_code: string;
@@ -38,16 +39,50 @@ const selectStyle: React.CSSProperties = {
   cursor: "default",
 };
 
-function DeltaChip({ value, suffix = "", invert = false }: { value: number; suffix?: string; invert?: boolean }) {
-  const isPositive = invert ? value < 0 : value > 0;
-  const isNegative = invert ? value > 0 : value < 0;
-  const color = isPositive ? "var(--color-basil)" : isNegative ? "var(--color-ginos-red)" : "var(--color-ink-3)";
+/**
+ * Change chip for a metric where MORE IS BETTER (compliance %): the sign of
+ * the change is its meaning, so colour follows sign.
+ */
+function DeltaChip({ value, suffix = "" }: { value: number; suffix?: string }) {
+  const color = value > 0 ? "var(--color-basil)" : value < 0 ? "var(--color-ginos-red)" : "var(--color-ink-3)";
   return (
     <span className="inline-flex items-center gap-1 font-mono text-[12px]" style={{ color }}>
       {value > 0 ? "+" : ""}{value.toFixed(1)}{suffix}
-      {isPositive && <TrendingUp className="w-3 h-3" />}
-      {isNegative && <TrendingDown className="w-3 h-3" />}
+      {value > 0 && <TrendingUp className="w-3 h-3" />}
+      {value < 0 && <TrendingDown className="w-3 h-3" />}
       {value === 0 && <Minus className="w-3 h-3" />}
+    </span>
+  );
+}
+
+/**
+ * Change chip for a TARGET-SEEKING metric — diffs aim at 0, ratios at 100% —
+ * where the sign of the change says nothing by itself. Colour and arrow follow
+ * whether the metric moved TOWARD the target (James, Aug 6 2026: "green if
+ * it's moving towards 0.0 or 100%, and red if it's getting further away");
+ * the number shown is still the plain signed change.
+ */
+function TowardTargetChip({ before, after, target, suffix = "" }: {
+  before: number; after: number; target: number; suffix?: string;
+}) {
+  const direction = towardTarget(before, after, target);
+  const change = after - before;
+  const color =
+    direction === "improved" ? "var(--color-basil)" :
+    direction === "worsened" ? "var(--color-ginos-red)" : "var(--color-ink-3)";
+  return (
+    <span
+      className="inline-flex items-center gap-1 font-mono text-[12px]"
+      style={{ color }}
+      title={
+        direction === "improved" ? "Moving toward target" :
+        direction === "worsened" ? "Moving away from target" : "No meaningful change"
+      }
+    >
+      {change > 0 ? "+" : ""}{change.toFixed(1)}{suffix}
+      {direction === "improved" && <TrendingUp className="w-3 h-3" />}
+      {direction === "worsened" && <TrendingDown className="w-3 h-3" />}
+      {direction === "same" && <Minus className="w-3 h-3" />}
     </span>
   );
 }
@@ -81,9 +116,6 @@ export function CompareClient({
   );
 
   const complianceDelta = statsB.compliance_pct - statsA.compliance_pct;
-  const cheeseDelta = statsB.avg_cheese_diff - statsA.avg_cheese_diff;
-  const sauceDelta = statsB.avg_sauce_diff - statsA.avg_sauce_diff;
-  const scDelta = (statsB.avg_sauce_cheese_ratio - statsA.avg_sauce_cheese_ratio) * 100;
 
   // Count improved / worsened stores
   const improved = storeComparison.filter(s => {
@@ -148,19 +180,19 @@ export function CompareClient({
           label="Avg Cheese Diff"
           valueA={`${statsA.avg_cheese_diff > 0 ? "+" : ""}${statsA.avg_cheese_diff.toFixed(1)}`}
           valueB={`${statsB.avg_cheese_diff > 0 ? "+" : ""}${statsB.avg_cheese_diff.toFixed(1)}`}
-          delta={<DeltaChip value={cheeseDelta} invert />}
+          delta={<TowardTargetChip before={statsA.avg_cheese_diff} after={statsB.avg_cheese_diff} target={0} />}
         />
         <CompareCard
           label="Avg Sauce Diff"
           valueA={`${statsA.avg_sauce_diff > 0 ? "+" : ""}${statsA.avg_sauce_diff.toFixed(1)}`}
           valueB={`${statsB.avg_sauce_diff > 0 ? "+" : ""}${statsB.avg_sauce_diff.toFixed(1)}`}
-          delta={<DeltaChip value={sauceDelta} invert />}
+          delta={<TowardTargetChip before={statsA.avg_sauce_diff} after={statsB.avg_sauce_diff} target={0} />}
         />
         <CompareCard
           label="Avg S:C Ratio"
           valueA={`${(statsA.avg_sauce_cheese_ratio * 100).toFixed(1)}%`}
           valueB={`${(statsB.avg_sauce_cheese_ratio * 100).toFixed(1)}%`}
-          delta={<DeltaChip value={scDelta} suffix="%" />}
+          delta={<TowardTargetChip before={statsA.avg_sauce_cheese_ratio * 100} after={statsB.avg_sauce_cheese_ratio * 100} target={100} suffix="%" />}
         />
       </div>
 
@@ -213,8 +245,6 @@ export function CompareClient({
             <tbody>
               {storeComparison.slice(0, 30).map((s) => {
                 const statusChange = s.a && s.b ? statusRank(s.b.status) - statusRank(s.a.status) : 0;
-                const cheeseDiff = s.a && s.b ? s.b.cheese_diff - s.a.cheese_diff : 0;
-                const scChange = s.a && s.b ? (s.b.sc_ratio - s.a.sc_ratio) * 100 : 0;
 
                 return (
                   <tr key={s.store_id} className="hover:bg-[rgba(244,236,221,.3)] transition-colors">
@@ -229,10 +259,10 @@ export function CompareClient({
                       {s.b ? <StatusDot status={s.b.status} /> : <span className="text-[11px]" style={{ color: "var(--color-ink-3)" }}>—</span>}
                     </td>
                     <td className="px-[14px] py-[10px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                      {s.a && s.b ? <DeltaChip value={cheeseDiff} invert /> : "—"}
+                      {s.a && s.b ? <TowardTargetChip before={s.a.cheese_diff} after={s.b.cheese_diff} target={0} /> : "—"}
                     </td>
                     <td className="px-[14px] py-[10px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                      {s.a && s.b ? <DeltaChip value={scChange} suffix="%" /> : "—"}
+                      {s.a && s.b ? <TowardTargetChip before={s.a.sc_ratio * 100} after={s.b.sc_ratio * 100} target={100} suffix="%" /> : "—"}
                     </td>
                     <td className="px-[14px] py-[10px] text-center" style={{ borderBottom: "1px solid var(--color-line)" }}>
                       {statusChange < 0 ? (
