@@ -599,6 +599,102 @@ function DsmTab({ dsms, stores }: { dsms: Record<string, unknown>[]; stores: Rec
 
 // ── Products ─────────────────────────────────────────────────
 
+const PRODUCT_TYPES = ["Cheese", "Pizza Sauce", "Flour", "Dough", "Packaging", "Wing Box", "Secondary", "Other"];
+const PRODUCT_CLASSES = ["primary", "secondary", "neither"];
+const WEIGHT_UNITS = ["kg", "Fl oz", "each"];
+const EMPTY_PRODUCT = { code: "", description: "", type: "Secondary", classification: "secondary", pack_size: "", weight: 0, weight_unit: "each" };
+
+const productInputCls = "rounded px-1.5 py-1 text-[12px] w-full";
+const productInputStyle = { border: "1px solid var(--color-line)" } as const;
+
+interface ProductDraft {
+  code: string; description: string; type: string; classification: string;
+  pack_size: string; weight: number; weight_unit: string;
+}
+
+/**
+ * Inline edit/add row for the products table.
+ *
+ * MODULE-LEVEL on purpose, with its own draft state. The first version was a
+ * component function defined INSIDE ProductsTab whose inputs wrote to the
+ * parent's draft state — so every keystroke re-rendered the parent, which
+ * re-created the component TYPE, which made React unmount and remount the row,
+ * resetting the input and dropping focus before the character landed. James,
+ * Aug 6 2026: "after hitting Add Sku or Edit, I can't actually type into the
+ * fields." A stable component identity + self-contained state is the fix:
+ * keystrokes re-render only this row.
+ */
+function ProductEditRow({ initial, isNew, onSave, onCancel }: {
+  initial: Record<string, unknown>;
+  isNew: boolean;
+  onSave: (draft: ProductDraft) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState<ProductDraft>({
+    code: String(initial.code ?? ""),
+    description: String(initial.description ?? ""),
+    type: String(initial.type ?? "Secondary"),
+    classification: String(initial.classification ?? "secondary"),
+    pack_size: String(initial.pack_size ?? ""),
+    weight: Number(initial.weight ?? 0),
+    weight_unit: String(initial.weight_unit ?? "each"),
+  });
+  const set = (patch: Partial<ProductDraft>) => setDraft((d) => ({ ...d, ...patch }));
+
+  return (
+    <tr style={{ background: "var(--color-paper)" }}>
+      <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+        <input className={productInputCls} style={productInputStyle} value={draft.code} disabled={!isNew}
+          autoFocus={isNew}
+          title={isNew ? undefined : "Codes match the commissary export and cannot change"}
+          onChange={(e) => set({ code: e.target.value })} />
+      </td>
+      <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+        <input className={productInputCls} style={productInputStyle} value={draft.description}
+          autoFocus={!isNew}
+          onChange={(e) => set({ description: e.target.value })} />
+      </td>
+      <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+        <select className={productInputCls} style={productInputStyle} value={draft.type}
+          onChange={(e) => set({ type: e.target.value })}>
+          {PRODUCT_TYPES.map((t) => <option key={t}>{t}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+        <input className={productInputCls} style={productInputStyle} value={draft.pack_size}
+          onChange={(e) => set({ pack_size: e.target.value })} />
+      </td>
+      <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+        <input type="number" step="0.01" min="0" className={productInputCls} style={productInputStyle}
+          value={draft.weight}
+          onChange={(e) => set({ weight: e.target.value === "" ? 0 : Number(e.target.value) })} />
+      </td>
+      <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+        <select className={productInputCls} style={productInputStyle} value={draft.weight_unit}
+          onChange={(e) => set({ weight_unit: e.target.value })}>
+          {WEIGHT_UNITS.map((u) => <option key={u}>{u}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+        <select className={productInputCls} style={productInputStyle} value={draft.classification}
+          onChange={(e) => set({ classification: e.target.value })}>
+          {PRODUCT_CLASSES.map((c) => <option key={c}>{c}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5 whitespace-nowrap" style={{ borderBottom: "1px solid var(--color-line)" }}>
+        <button onClick={() => onSave(draft)}
+          className="text-[12px] font-medium px-2 py-1 rounded text-white mr-1" style={{ background: "var(--color-ginos-red)" }}>
+          Save
+        </button>
+        <button onClick={onCancel}
+          className="text-[12px] px-2 py-1 rounded" style={{ border: "1px solid var(--color-line)" }}>
+          Cancel
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
   const router = useRouter();
   const classColors: Record<string, { bg: string; text: string }> = {
@@ -606,13 +702,9 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
     secondary: { bg: "var(--color-crust)", text: "var(--color-ink-2)" },
     neither: { bg: "var(--color-mustard-soft)", text: "var(--color-mustard)" },
   };
-  const TYPES = ["Cheese", "Pizza Sauce", "Flour", "Dough", "Packaging", "Wing Box", "Secondary", "Other"];
-  const CLASSES = ["primary", "secondary", "neither"];
-  const UNITS = ["kg", "Fl oz", "each"];
 
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Record<string, unknown>>({});
   const [showAdd, setShowAdd] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -637,62 +729,6 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
     }
   }
 
-  const emptyDraft = { code: "", description: "", type: "Secondary", classification: "secondary", pack_size: "", weight: 0, weight_unit: "each" };
-  const inputCls = "rounded px-1.5 py-1 text-[12px] w-full";
-  const inputStyle = { border: "1px solid var(--color-line)" } as const;
-
-  function EditableRow({ p, isNew }: { p: Record<string, unknown>; isNew: boolean }) {
-    return (
-      <tr style={{ background: "var(--color-paper)" }}>
-        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
-          <input className={inputCls} style={inputStyle} defaultValue={p.code as string} disabled={!isNew}
-            title={isNew ? undefined : "Codes match the commissary export and cannot change"}
-            onChange={(e) => setDraft((d) => ({ ...d, code: e.target.value }))} />
-        </td>
-        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
-          <input className={inputCls} style={inputStyle} defaultValue={p.description as string}
-            onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
-        </td>
-        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
-          <select className={inputCls} style={inputStyle} defaultValue={p.type as string}
-            onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value }))}>
-            {TYPES.map((t) => <option key={t}>{t}</option>)}
-          </select>
-        </td>
-        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
-          <input className={inputCls} style={inputStyle} defaultValue={p.pack_size as string}
-            onChange={(e) => setDraft((d) => ({ ...d, pack_size: e.target.value }))} />
-        </td>
-        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
-          <input type="number" step="0.01" min="0" className={inputCls} style={inputStyle} defaultValue={String(p.weight ?? 0)}
-            onChange={(e) => setDraft((d) => ({ ...d, weight: Number(e.target.value) }))} />
-        </td>
-        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
-          <select className={inputCls} style={inputStyle} defaultValue={p.weight_unit as string}
-            onChange={(e) => setDraft((d) => ({ ...d, weight_unit: e.target.value }))}>
-            {UNITS.map((u) => <option key={u}>{u}</option>)}
-          </select>
-        </td>
-        <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
-          <select className={inputCls} style={inputStyle} defaultValue={p.classification as string}
-            onChange={(e) => setDraft((d) => ({ ...d, classification: e.target.value }))}>
-            {CLASSES.map((c) => <option key={c}>{c}</option>)}
-          </select>
-        </td>
-        <td className="px-2 py-1.5 whitespace-nowrap" style={{ borderBottom: "1px solid var(--color-line)" }}>
-          <button onClick={() => (isNew ? call("POST", { ...emptyDraft, ...draft }) : call("PUT", { id: p.id, ...draft }))}
-            className="text-[12px] font-medium px-2 py-1 rounded text-white mr-1" style={{ background: "var(--color-ginos-red)" }}>
-            Save
-          </button>
-          <button onClick={() => { setEditingId(null); setShowAdd(false); setDraft({}); }}
-            className="text-[12px] px-2 py-1 rounded" style={{ border: "1px solid var(--color-line)" }}>
-            Cancel
-          </button>
-        </td>
-      </tr>
-    );
-  }
-
   return (
     <div className="p-[18px]">
       <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -706,7 +742,7 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
             style={{ border: "1px solid var(--color-line)", background: "white" }}
           />
         </div>
-        <button onClick={() => { setDraft({}); setShowAdd(true); setEditingId(null); }}
+        <button onClick={() => { setShowAdd(true); setEditingId(null); }}
           className="px-[12px] py-[7px] rounded-[8px] text-white text-[12.5px] font-medium"
           style={{ background: "var(--color-ginos-red)" }}>
           Add SKU
@@ -731,10 +767,23 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
             </tr>
           </thead>
           <tbody>
-            {showAdd && <EditableRow p={emptyDraft} isNew />}
+            {showAdd && (
+              <ProductEditRow
+                initial={EMPTY_PRODUCT}
+                isNew
+                onSave={(d) => call("POST", { ...d })}
+                onCancel={() => setShowAdd(false)}
+              />
+            )}
             {filtered.map((p) =>
               editingId === (p.id as string) ? (
-                <EditableRow key={p.id as string} p={p} isNew={false} />
+                <ProductEditRow
+                  key={p.id as string}
+                  initial={p}
+                  isNew={false}
+                  onSave={(d) => call("PUT", { id: p.id, ...d })}
+                  onCancel={() => setEditingId(null)}
+                />
               ) : (
                 <tr key={p.id as string} className="hover:bg-[rgba(244,236,221,.35)] group">
                   <td className="px-2 py-1.5 font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>{p.code as string}</td>
@@ -752,7 +801,7 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
                     </span>
                   </td>
                   <td className="px-2 py-1.5 whitespace-nowrap" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                    <button onClick={() => { setDraft({}); setEditingId(p.id as string); setShowAdd(false); }}
+                    <button onClick={() => { setEditingId(p.id as string); setShowAdd(false); }}
                       className="text-[11.5px] font-medium opacity-0 group-hover:opacity-100 transition-opacity mr-2"
                       style={{ color: "var(--color-ginos-red)" }}>
                       Edit
