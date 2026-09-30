@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { groupSecondaries } from "@/lib/secondary-groups";
 import { fetchMetrics, getAnomalies, getProductTotals, getProductsByClassification, rangeWeeks, type ProductRange } from "@/lib/data-access";
 import { generateFlags, ROLLING_WINDOW_WEEKS, BOXES_PER_CASE } from "@/lib/calculations";
 import { resolveWindow } from "@/lib/display-window";
@@ -146,14 +147,17 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
 
   // Every secondary product appears, ordered or not (James, July 31 2026):
   // left-merge the catalog into the ordered totals, zero-filling the gaps.
-  // Ordered products first (qty desc, as before), then the zero rows A-Z.
+  // Products sharing a category are grouped under one subtotal (Sept 30 2026).
   const orderedByCode = new Map(orderedSecondaries.map((p) => [p.code, p]));
-  const secondaryTotals = [
-    ...orderedSecondaries,
-    ...allSecondaries
-      .filter((p) => !orderedByCode.has(p.code))
-      .map((p) => ({ ...p, quantity: 0, weeks: 0 })),
-  ];
+  const secondaryGroups = groupSecondaries(
+    [
+      ...orderedSecondaries,
+      ...allSecondaries
+        .filter((p) => !orderedByCode.has(p.code))
+        .map((p) => ({ ...p, quantity: 0 })),
+    ],
+    secondaryPriorYear
+  );
 
   // Box quantities come from weekly_metrics, NOT weekly_orders: metrics have the
   // full two-year history whereas line items start at 2026 week 16, so this is
@@ -197,8 +201,8 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
       windowCount={window.count}
       windowLabel={window.label}
       flags={flagHistory}
-      secondaryTotals={secondaryTotals}
-      secondaryPriorYear={secondaryPriorYear}
+      secondaryGroups={secondaryGroups}
+      hasSecondaryPriorYear={secondaryPriorYear.length > 0}
       ingredientTotals={ingredientTotals}
       ingredientTotalsPriorYear={ingredientTotalsPriorYear}
       boxTotals={summariseBoxes(boxWeeksThis)}

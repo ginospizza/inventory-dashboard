@@ -529,7 +529,7 @@ export async function getProductTotals(
   fromWeek: number,
   toWeek: number,
   classification: "secondary" | "primary"
-): Promise<{ code: string; description: string; pack_size: string; quantity: number; weeks: number }[]> {
+): Promise<{ code: string; description: string; pack_size: string; category: string | null; quantity: number; weeks: number }[]> {
   const supabase = createAdminClient();
 
   const rows: Record<string, unknown>[] = [];
@@ -538,7 +538,7 @@ export async function getProductTotals(
   while (true) {
     const { data, error } = await supabase
       .from("weekly_orders")
-      .select("quantity, week_number, products!inner(code, description, classification, pack_size)")
+      .select("quantity, week_number, products!inner(code, description, classification, pack_size, category)")
       .eq("store_id", storeId)
       .eq("year", year)
       .gte("week_number", fromWeek)
@@ -557,7 +557,7 @@ export async function getProductTotals(
 
   const byProduct = new Map<
     string,
-    { code: string; description: string; pack_size: string; quantity: number; weeks: Set<number> }
+    { code: string; description: string; pack_size: string; category: string | null; quantity: number; weeks: Set<number> }
   >();
   for (const r of rows) {
     const p = r.products as Record<string, unknown>;
@@ -568,6 +568,7 @@ export async function getProductTotals(
         code,
         description: String(p?.description ?? "—"),
         pack_size: String(p?.pack_size ?? ""),
+        category: (p?.category as string | null) ?? null,
         quantity: 0,
         weeks: new Set<number>(),
       };
@@ -591,14 +592,14 @@ export async function getProductTotals(
  */
 export async function getProductsByClassification(
   classification: "primary" | "secondary"
-): Promise<{ code: string; description: string; pack_size: string }[]> {
+): Promise<{ code: string; description: string; pack_size: string; category: string | null }[]> {
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("products")
-    .select("code, description, pack_size")
+    .select("code, description, pack_size, category")
     .eq("classification", classification)
     .order("description");
-  return (data ?? []) as { code: string; description: string; pack_size: string }[];
+  return (data ?? []) as { code: string; description: string; pack_size: string; category: string | null }[];
 }
 
 /**

@@ -7,6 +7,7 @@ import { ArrowRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { NetworkStats } from "@/lib/types";
 import { statusRank, statusColor } from "@/lib/types";
 import { towardTarget } from "@/lib/toward-target";
+import type { ComparePeriod } from "@/lib/compare-period";
 
 interface StoreCompare {
   store_code: string;
@@ -20,10 +21,12 @@ interface CompareClientProps {
   years: number[];
   weeksA: number[];
   weeksB: number[];
+  quartersA: { value: string; label: string }[];
+  quartersB: { value: string; label: string }[];
   yearA: number;
-  weekA: number;
+  weekA: ComparePeriod;
   yearB: number;
-  weekB: number;
+  weekB: ComparePeriod;
   statsA: NetworkStats;
   statsB: NetworkStats;
   storeComparison: StoreCompare[];
@@ -95,6 +98,8 @@ export function CompareClient({
   years,
   weeksA,
   weeksB,
+  quartersA,
+  quartersB,
   yearA,
   weekA,
   yearB,
@@ -149,9 +154,7 @@ export function CompareClient({
           <select value={yearA} onChange={(e) => updateParams({ yearA: e.target.value })} style={selectStyle}>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <select value={weekA} onChange={(e) => updateParams({ weekA: e.target.value })} style={selectStyle}>
-            {weeksA.map(w => <option key={w} value={w}>Week {w}</option>)}
-          </select>
+          <PeriodSelect value={weekA} weeks={weeksA} quarters={quartersA} onChange={(v) => updateParams({ weekA: v })} />
         </div>
 
         <ArrowRight className="w-5 h-5 mx-2 shrink-0 hidden sm:block" style={{ color: "var(--color-ink-3)" }} />
@@ -162,9 +165,7 @@ export function CompareClient({
           <select value={yearB} onChange={(e) => updateParams({ yearB: e.target.value })} style={selectStyle}>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <select value={weekB} onChange={(e) => updateParams({ weekB: e.target.value })} style={selectStyle}>
-            {weeksB.map(w => <option key={w} value={w}>Week {w}</option>)}
-          </select>
+          <PeriodSelect value={weekB} weeks={weeksB} quarters={quartersB} onChange={(v) => updateParams({ weekB: v })} />
         </div>
       </div>
 
@@ -281,6 +282,31 @@ export function CompareClient({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Week-or-quarter picker. Quarters sit above the weeks (James, Sept 30 2026:
+ * "adding quarters as an option here instead of just weeks"); a quarter
+ * averages every week in it — see lib/compare-period.
+ */
+function PeriodSelect({ value, weeks, quarters, onChange }: {
+  value: ComparePeriod;
+  weeks: number[];
+  quarters: { value: string; label: string }[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <select value={String(value)} onChange={(e) => onChange(e.target.value)} style={selectStyle}>
+      {quarters.length > 0 && (
+        <optgroup label="Quarters">
+          {quarters.map(q => <option key={q.value} value={q.value}>{q.label}</option>)}
+        </optgroup>
+      )}
+      <optgroup label="Weeks">
+        {weeks.map(w => <option key={w} value={w}>Week {w}</option>)}
+      </optgroup>
+    </select>
   );
 }
 
