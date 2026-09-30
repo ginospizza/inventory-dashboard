@@ -14,6 +14,7 @@ import type { AppUser, Flag, ComplianceStatus, Anomaly } from "@/lib/types";
 import { brandLabel, statusRank, statusColor } from "@/lib/types";
 import { signedPct } from "@/lib/ai/prompts";
 import { weekWithDate, weekMondayLabel } from "@/lib/weeks";
+import type { SecondaryGroup } from "@/lib/secondary-groups";
 import {
   ROLLING_WINDOW_WEEKS,
   SAUCE_CASE_FLOZ,
@@ -43,8 +44,9 @@ interface StoreDetailClientProps {
   /** Label for the window's average, e.g. "6-wk avg" or "Q2 avg · 13 wks". */
   windowLabel: string;
   flags: Flag[];
-  secondaryTotals: { code: string; description: string; pack_size: string; quantity: number; weeks: number }[];
-  secondaryPriorYear: { code: string; description: string; pack_size: string; quantity: number; weeks: number }[];
+  /** Secondary products grouped by category (see lib/secondary-groups). */
+  secondaryGroups: SecondaryGroup[];
+  hasSecondaryPriorYear: boolean;
   /** Raw-unit sums over the selected range; converted to cases/bags client-side
    *  with the same derived case sizes the tiles use. */
   ingredientTotals: { cheese_oz: number; sauce_floz: number; flour_kg: number; dough_kg: number };
@@ -71,8 +73,8 @@ export function StoreDetailClient({
   windowCount,
   windowLabel,
   flags,
-  secondaryTotals,
-  secondaryPriorYear,
+  secondaryGroups,
+  hasSecondaryPriorYear,
   ingredientTotals,
   ingredientTotalsPriorYear,
   boxTotals,
@@ -478,7 +480,7 @@ export function StoreDetailClient({
         {activeTab === "secondary" && (
           <div className="p-[18px]">
             <RangePicker current={productRange} />
-            {secondaryTotals.length > 0 ? (
+            {secondaryGroups.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-[13px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
                   <thead>
@@ -490,24 +492,41 @@ export function StoreDetailClient({
                     </tr>
                   </thead>
                   <tbody>
-                    {secondaryTotals.map((p) => {
-                      const prior = secondaryPriorYear.find((q) => q.code === p.code);
-                      return (
-                        <tr key={p.code} className="hover:bg-[rgba(244,236,221,.4)]">
-                          <td className="px-3 py-[10px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                            <span className="font-medium">{p.description}</span>
-                            <span className="text-[11px] ml-2" style={{ color: "var(--color-ink-3)" }}>{p.pack_size}</span>
-                          </td>
-                          <td className="px-3 py-[10px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>
-                            {p.quantity.toFixed(0)}
-                          </td>
-                          <PriorAndYoY current={p.quantity} prior={prior?.quantity} />
-                        </tr>
-                      );
-                    })}
+                    {secondaryGroups.map((g) => (
+                      <Fragment key={g.category ?? g.rows[0].code}>
+                        {/* Category subtotal: old and new SKUs combined, so YoY
+                            survives a SKU change (James, Sept 30 2026). */}
+                        {g.category && (
+                          <tr style={{ background: "rgba(244,236,221,.45)" }}>
+                            <td className="px-3 py-[10px]" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                              <span className="font-semibold">{g.category}</span>
+                              <span className="text-[11px] ml-2" style={{ color: "var(--color-ink-3)" }}>
+                                {g.rows.length} SKU{g.rows.length === 1 ? "" : "s"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-[10px] text-right font-mono font-semibold" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                              {g.quantity.toFixed(0)}
+                            </td>
+                            <PriorAndYoY current={g.quantity} prior={g.prior} />
+                          </tr>
+                        )}
+                        {g.rows.map((p) => (
+                          <tr key={p.code} className="hover:bg-[rgba(244,236,221,.4)]">
+                            <td className={`${g.category ? "pl-8 pr-3" : "px-3"} py-[10px]`} style={{ borderBottom: "1px solid var(--color-line)" }}>
+                              <span className={g.category ? "" : "font-medium"}>{p.description}</span>
+                              <span className="text-[11px] ml-2" style={{ color: "var(--color-ink-3)" }}>{p.pack_size}</span>
+                            </td>
+                            <td className="px-3 py-[10px] text-right font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>
+                              {p.quantity.toFixed(0)}
+                            </td>
+                            <PriorAndYoY current={p.quantity} prior={p.prior} />
+                          </tr>
+                        ))}
+                      </Fragment>
+                    ))}
                   </tbody>
                 </table>
-                {secondaryPriorYear.length === 0 && <NoPriorYearNote />}
+                {!hasSecondaryPriorYear && <NoPriorYearNote />}
               </div>
             ) : (
               <p className="text-center py-8 text-[13px]" style={{ color: "var(--color-ink-3)" }}>

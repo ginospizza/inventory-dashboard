@@ -4,6 +4,7 @@ import { getAvailableWeeks, getAvailableYears, getNetworkStats, fetchMetrics } f
 import { computeNetworkStats } from "@/lib/calculations";
 import type { WeeklyMetrics } from "@/lib/types";
 import { statusRank } from "@/lib/types";
+import { parsePeriod, summariseStores, availableQuarters } from "@/lib/compare-period";
 import { CompareClient } from "./compare-client";
 
 interface PageProps {
@@ -29,9 +30,10 @@ export default async function ComparePage({ searchParams }: PageProps) {
   const defaultWeekB = currentWeeks[0] ?? 1; // latest
 
   const yearA = params.yearA ? Number(params.yearA) : currentYear;
-  const weekA = params.weekA ? Number(params.weekA) : defaultWeekA;
+  // A period is a week number or a quarter ("q1".."q4") — see lib/compare-period.
+  const weekA = parsePeriod(params.weekA, defaultWeekA);
   const yearB = params.yearB ? Number(params.yearB) : currentYear;
-  const weekB = params.weekB ? Number(params.weekB) : defaultWeekB;
+  const weekB = parsePeriod(params.weekB, defaultWeekB);
 
   // Fetch weeks for both selected years
   const [weeksForYearA, weeksForYearB] = await Promise.all([
@@ -48,21 +50,10 @@ export default async function ComparePage({ searchParams }: PageProps) {
     fetchMetrics({ year: yearB, week: weekB, dsm: dsmFilter }),
   ]);
 
-  // Deduplicate by store
-  const dedup = (metrics: typeof metricsA) => {
-    const byStore = new Map<string, typeof metricsA[0]>();
-    for (const m of metrics) {
-      const existing = byStore.get(m.store_id);
-      if (!existing || m.week_number > existing.week_number) byStore.set(m.store_id, m);
-    }
-    return Array.from(byStore.values());
-  };
-
-  const dedupA = dedup(metricsA);
-  const dedupB = dedup(metricsB);
-
-  const statsA = computeNetworkStats(dedupA as unknown as WeeklyMetrics[]);
-  const statsB = computeNetworkStats(dedupB as unknown as WeeklyMetrics[]);
+  // Network cards cover every store-week in the period: for a single week that
+  // is one row per store, for a quarter it averages the whole quarter.
+  const statsA = computeNetworkStats(metricsA as unknown as WeeklyMetrics[]);
+  const statsB = computeNetworkStats(metricsB as unknown as WeeklyMetrics[]);
 
   // Per-store comparison: match stores across both periods
   const storeComparison: {
@@ -73,22 +64,25 @@ export default async function ComparePage({ searchParams }: PageProps) {
     b: { cheese_diff: number; sauce_diff: number; sc_ratio: number; status: string } | null;
   }[] = [];
 
-  const allStoreIds = new Set([...dedupA.map(m => m.store_id), ...dedupB.map(m => m.store_id)]);
-  const mapA = new Map(dedupA.map(m => [m.store_id, m]));
-  const mapB = new Map(dedupB.map(m => [m.store_id, m]));
+  const mapA = summariseStores(metricsA);
+  const mapB = summariseStores(metricsB);
+  const storeInfo = new Map(
+    [...metricsA, ...metricsB].map(m => [m.store_id, m.stores as unknown as { code: string; brand: string }])
+  );
+  const allStoreIds = new Set([...mapA.keys(), ...mapB.keys()]);
 
   for (const sid of allStoreIds) {
     const a = mapA.get(sid);
     const b = mapB.get(sid);
-    const store = (a?.stores ?? b?.stores) as { code: string; brand: string } | undefined;
+    const store = storeInfo.get(sid);
     if (!store) continue;
 
     storeComparison.push({
       store_code: store.code,
       store_id: sid,
       brand: store.brand,
-      a: a ? { cheese_diff: a.cheese_diff, sauce_diff: a.sauce_diff, sc_ratio: a.sauce_cheese_ratio, status: a.overall_status } : null,
-      b: b ? { cheese_diff: b.cheese_diff, sauce_diff: b.sauce_diff, sc_ratio: b.sauce_cheese_ratio, status: b.overall_status } : null,
+      a: a ?? null,
+      b: b ?? null,
     });
   }
 
@@ -104,6 +98,8 @@ export default async function ComparePage({ searchParams }: PageProps) {
       years={years}
       weeksA={weeksForYearA}
       weeksB={weeksForYearB}
+      quartersA={availableQuarters(weeksForYearA)}
+      quartersB={availableQuarters(weeksForYearB)}
       yearA={yearA}
       weekA={weekA}
       yearB={yearB}

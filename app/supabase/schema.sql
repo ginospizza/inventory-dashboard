@@ -55,6 +55,7 @@ create table if not exists products (
   description text not null,
   type text not null default 'Other',          -- Cheese, Pizza Sauce, Flour, Dough, Packaging, Wing Box, Secondary, Other
   classification text not null default 'neither' check (classification in ('primary', 'secondary', 'neither')),
+  category text,                               -- groups related SKUs on the Secondary Products tab (migration 006)
   pack_size text not null default '',
   weight numeric not null default 0,
   weight_unit text not null default 'each',     -- kg, Fl oz, each

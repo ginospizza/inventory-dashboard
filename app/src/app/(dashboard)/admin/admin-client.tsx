@@ -602,14 +602,14 @@ function DsmTab({ dsms, stores }: { dsms: Record<string, unknown>[]; stores: Rec
 const PRODUCT_TYPES = ["Cheese", "Pizza Sauce", "Flour", "Dough", "Packaging", "Wing Box", "Secondary", "Other"];
 const PRODUCT_CLASSES = ["primary", "secondary", "neither"];
 const WEIGHT_UNITS = ["kg", "Fl oz", "each"];
-const EMPTY_PRODUCT = { code: "", description: "", type: "Secondary", classification: "secondary", pack_size: "", weight: 0, weight_unit: "each" };
+const EMPTY_PRODUCT = { code: "", description: "", type: "Secondary", classification: "secondary", category: "", pack_size: "", weight: 0, weight_unit: "each" };
 
 const productInputCls = "rounded px-1.5 py-1 text-[12px] w-full";
 const productInputStyle = { border: "1px solid var(--color-line)" } as const;
 
 interface ProductDraft {
   code: string; description: string; type: string; classification: string;
-  pack_size: string; weight: number; weight_unit: string;
+  category: string; pack_size: string; weight: number; weight_unit: string;
 }
 
 /**
@@ -624,9 +624,10 @@ interface ProductDraft {
  * fields." A stable component identity + self-contained state is the fix:
  * keystrokes re-render only this row.
  */
-function ProductEditRow({ initial, isNew, onSave, onCancel }: {
+function ProductEditRow({ initial, isNew, categoryListId, onSave, onCancel }: {
   initial: Record<string, unknown>;
   isNew: boolean;
+  categoryListId: string;
   onSave: (draft: ProductDraft) => void;
   onCancel: () => void;
 }) {
@@ -635,6 +636,7 @@ function ProductEditRow({ initial, isNew, onSave, onCancel }: {
     description: String(initial.description ?? ""),
     type: String(initial.type ?? "Secondary"),
     classification: String(initial.classification ?? "secondary"),
+    category: String(initial.category ?? ""),
     pack_size: String(initial.pack_size ?? ""),
     weight: Number(initial.weight ?? 0),
     weight_unit: String(initial.weight_unit ?? "each"),
@@ -659,6 +661,11 @@ function ProductEditRow({ initial, isNew, onSave, onCancel }: {
           onChange={(e) => set({ type: e.target.value })}>
           {PRODUCT_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
+      </td>
+      <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
+        <input className={productInputCls} style={productInputStyle} value={draft.category}
+          list={categoryListId} placeholder="e.g. Pepperoni"
+          onChange={(e) => set({ category: e.target.value })} />
       </td>
       <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>
         <input className={productInputCls} style={productInputStyle} value={draft.pack_size}
@@ -710,8 +717,13 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
 
   const filtered = products.filter((p) => {
     const q = search.toLowerCase();
-    return !q || String(p.code).toLowerCase().includes(q) || String(p.description).toLowerCase().includes(q);
+    return !q || String(p.code).toLowerCase().includes(q) || String(p.description).toLowerCase().includes(q)
+      || String(p.category ?? "").toLowerCase().includes(q);
   });
+
+  // Existing categories, offered as suggestions so the same group is spelled
+  // the same way on every SKU.
+  const categories = [...new Set(products.map((p) => String(p.category ?? "").trim()).filter(Boolean))].sort();
 
   async function call(method: string, body: Record<string, unknown>) {
     const res = await fetch("/api/products", {
@@ -735,7 +747,7 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
         <div className="relative flex-1 min-w-[220px] max-w-[360px]">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--color-ink-3)" }} />
           <input
-            placeholder="Search code or description…"
+            placeholder="Search code, description or category…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-[8px] pl-8 pr-3 py-[7px] text-[12.5px]"
@@ -755,13 +767,17 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
         Weight is what the calculations multiply by (kg for cheese/flour/dough, fl oz for sauce, units per case for
         packaging). Changes apply to future uploads; past weeks keep the values they were computed with. For pizza
         boxes, the SIZE is read from the description text — renaming a box product can change which size bucket it
-        counts in.
+        counts in. Category groups related SKUs (e.g. an old and a new pepperoni) together on the Secondary
+        Products tab with a combined total; leave it blank for a product that stands alone.
       </p>
+      <datalist id="product-categories">
+        {categories.map((c) => <option key={c} value={c} />)}
+      </datalist>
       <div className="overflow-x-auto">
         <table className="w-full text-[12.5px]" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
           <thead>
             <tr>
-              {["Code", "Description", "Type", "Pack size", "Weight", "Unit", "Class", ""].map((h) => (
+              {["Code", "Description", "Type", "Category", "Pack size", "Weight", "Unit", "Class", ""].map((h) => (
                 <th key={h} className="text-left font-semibold text-[11px] tracking-[.06em] uppercase px-2 py-2" style={{ color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-line)" }}>{h}</th>
               ))}
             </tr>
@@ -771,6 +787,7 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
               <ProductEditRow
                 initial={EMPTY_PRODUCT}
                 isNew
+                categoryListId="product-categories"
                 onSave={(d) => call("POST", { ...d })}
                 onCancel={() => setShowAdd(false)}
               />
@@ -781,6 +798,7 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
                   key={p.id as string}
                   initial={p}
                   isNew={false}
+                  categoryListId="product-categories"
                   onSave={(d) => call("PUT", { id: p.id, ...d })}
                   onCancel={() => setEditingId(null)}
                 />
@@ -789,6 +807,7 @@ function ProductsTab({ products }: { products: Record<string, unknown>[] }) {
                   <td className="px-2 py-1.5 font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>{p.code as string}</td>
                   <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)" }}>{p.description as string}</td>
                   <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-2)" }}>{p.type as string}</td>
+                  <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-2)" }}>{(p.category as string | null) ?? ""}</td>
                   <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-3)" }}>{p.pack_size as string}</td>
                   <td className="px-2 py-1.5 font-mono" style={{ borderBottom: "1px solid var(--color-line)" }}>{String(p.weight ?? "")}</td>
                   <td className="px-2 py-1.5" style={{ borderBottom: "1px solid var(--color-line)", color: "var(--color-ink-3)" }}>{p.weight_unit as string}</td>

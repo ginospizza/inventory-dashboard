@@ -30,7 +30,18 @@ function validate(body: Record<string, unknown>, requireAll: boolean): string | 
     return "Classification must be primary, secondary or neither";
   if (weight !== undefined && (!Number.isFinite(Number(weight)) || Number(weight) < 0))
     return "Weight must be a non-negative number";
+  if (body.category != null && String(body.category).length > 60)
+    return "Category must be 60 characters or fewer";
   return null;
+}
+
+/**
+ * Category groups old and new SKUs of the same thing on the Secondary Products
+ * tab (James, Sept 30 2026). Blank means "no category".
+ */
+function normaliseCategory(raw: unknown): string | null {
+  const s = raw == null ? "" : String(raw).trim().replace(/\s+/g, " ");
+  return s || null;
 }
 
 export async function POST(request: NextRequest) {
@@ -52,6 +63,7 @@ export async function POST(request: NextRequest) {
       pack_size: body.pack_size ?? "",
       weight: Number(body.weight ?? 0),
       weight_unit: body.weight_unit ?? "each",
+      category: normaliseCategory(body.category),
     })
     .select("id, code")
     .single();
@@ -79,6 +91,7 @@ export async function PUT(request: NextRequest) {
   for (const f of ["code", "description", "type", "classification", "pack_size", "weight", "weight_unit"]) {
     if (body[f] !== undefined) patch[f] = f === "weight" ? Number(body[f]) : body[f];
   }
+  if (body.category !== undefined) patch.category = normaliseCategory(body.category);
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
