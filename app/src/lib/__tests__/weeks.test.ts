@@ -20,7 +20,7 @@ describe("mondayOfWeek — first-Monday-of-January convention", () => {
   });
 
   it("always lands on a Monday, every week of both loaded years", () => {
-    for (const year of [2025, 2026]) {
+    for (const year of [2024, 2025, 2026]) {
       for (let w = 1; w <= 52; w++) {
         expect(mondayOfWeek(year, w).getUTCDay()).toBe(1);
       }
@@ -33,9 +33,14 @@ describe("mondayOfWeek — first-Monday-of-January convention", () => {
     expect(b - a).toBe(7 * 24 * 60 * 60 * 1000);
   });
 
-  it("handles a year that begins ON a Monday without skipping a week", () => {
-    // 2029-01-01 is a Monday, so week 1 must be Jan 1 itself, not Jan 8.
-    expect(iso(mondayOfWeek(2029, 1))).toBe("2029-01-01");
+  it("a year that begins ON a Monday: Jan 1's week is week 0, week 1 is Jan 8", () => {
+    // Proven by the 2024 export (Oct 2026): week 0 holds a full week of
+    // orders, and the 2025 workbook's "Export Data Dec 23 - 27" sheet is
+    // tagged week 51 of 2024, with "Dec 30 - Jan 5" holding week 52 + week 0.
+    expect(iso(mondayOfWeek(2024, 0))).toBe("2024-01-01");
+    expect(iso(mondayOfWeek(2024, 1))).toBe("2024-01-08");
+    expect(iso(mondayOfWeek(2024, 51))).toBe("2024-12-23");
+    expect(iso(mondayOfWeek(2024, 52))).toBe("2024-12-30");
   });
 
   it("is timezone-stable (computed in UTC, not local time)", () => {
