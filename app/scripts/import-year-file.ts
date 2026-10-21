@@ -103,6 +103,7 @@ function parseSheet(sheet: XLSX.WorkSheet): RawOrderRow[] {
   return rows;
 }
 
+// Callers must .order() — unordered range paging can skip or repeat rows.
 async function paged<T>(build: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; ; from += 1000) {
@@ -127,7 +128,7 @@ async function main() {
   console.log(`Parsed ${rows.length} lines from ${wb.SheetNames.length} sheet(s)`);
 
   const stores = await paged<{ id: string; code: string; brand: string | null }>((f, t) =>
-    supabase.from("stores").select("id, code, brand").range(f, t)
+    supabase.from("stores").select("id, code, brand").order("id").range(f, t)
   );
   const storeByCode = new Map<string, { id: string; brand: Brand; storeType: StoreType }>();
   for (const s of stores) {
@@ -136,7 +137,7 @@ async function main() {
   }
 
   const products = await paged<Product>((f, t) =>
-    supabase.from("products").select("id, code, description, type, classification, pack_size, weight, weight_unit").range(f, t)
+    supabase.from("products").select("id, code, description, type, classification, pack_size, weight, weight_unit").order("id").range(f, t)
   );
   const productMap = new Map(products.map((p) => [String(p.code), p]));
 
@@ -223,7 +224,7 @@ async function main() {
 
   // What's already there for the year.
   const existing = await paged<{ id: string; store_id: string; week_number: number }>((f, t) =>
-    supabase.from("weekly_metrics").select("id, store_id, week_number").eq("year", YEAR).range(f, t)
+    supabase.from("weekly_metrics").select("id, store_id, week_number").eq("year", YEAR).order("id").range(f, t)
   );
   const newKeys = new Set(metricRows.map((r) => `${r.store_id}::${r.week_number}`));
   const stale = existing.filter((e) => !newKeys.has(`${e.store_id}::${e.week_number}`));
@@ -246,7 +247,7 @@ async function main() {
     coveredWeeks.set(g.store.id, list);
   }
   const existingOrders = await paged<{ store_id: string; week_number: number }>((f, t) =>
-    supabase.from("weekly_orders").select("store_id, week_number").eq("year", YEAR).is("upload_id", null).range(f, t)
+    supabase.from("weekly_orders").select("id, store_id, week_number").eq("year", YEAR).is("upload_id", null).order("id").range(f, t)
   );
   const replaced = existingOrders.filter((o) => newKeys.has(`${o.store_id}::${o.week_number}`)).length;
   console.log(`weekly_orders: ${existingOrders.length} existing non-upload ${YEAR} lines (${replaced} in covered store-weeks → replaced, ${existingOrders.length - replaced} kept); inserting ${orderLines.length} lines from the file`);
