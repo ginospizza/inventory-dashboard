@@ -24,29 +24,33 @@
  *
  * WEEK 0 is therefore the Monday-week sitting between week 52 of one year and
  * week 1 of the next — the leftover that 52 weeks from the first Monday doesn't
- * reach. `firstMonday - 7 days` produces it for free, so week 0 needs no special
- * case here; mondayOfWeek(2025, 0) = Dec 30 2024, matching that sheet exactly.
+ * reach (a full week when Jan 1 is a Monday, see mondayOfWeek). It needs no
+ * special case; mondayOfWeek(2025, 0) = Dec 30 2024, matching that sheet exactly.
  *
  * Note that import-historical SKIPS week 0 rows (`weekNumber <= 0`), so week 0
  * orders are not currently loaded into weekly_metrics at all. That is a data
  * completeness question rather than a dating one, and is flagged to James.
  */
 
-/** Monday of `week` in `year`, under the first-Monday-of-January convention. */
+/**
+ * Monday of `week` in `year`: week N starts N weeks after the Monday on or
+ * before Jan 1 (week 0 is that Monday's week).
+ *
+ * For most years this IS "week 1 = first Monday of the year". The difference
+ * is a year that starts ON a Monday, where James's system still makes the week
+ * containing Jan 1 week 0 and starts week 1 a week later. The 2024 export
+ * (Oct 2026) proves it: its week 0 is a full week of orders, and the 2025
+ * workbook's "Export Data Dec 23 - 27" sheet is tagged week 51 of 2024 —
+ * true only if 2024's week 1 is Jan 8. Before this fix every 2024 week was
+ * labelled a week early.
+ */
 export function mondayOfWeek(year: number, week: number): Date {
   // Jan 1 in UTC, so the result can't be shifted by a local timezone offset.
   const jan1 = new Date(Date.UTC(year, 0, 1));
   const dow = jan1.getUTCDay(); // 0 = Sunday, 1 = Monday
-  // Days from Jan 1 forward to the first Monday (0 if Jan 1 IS a Monday).
-  const offsetToFirstMonday = (8 - dow) % 7;
-  const firstMonday = new Date(Date.UTC(year, 0, 1 + offsetToFirstMonday));
-  return new Date(
-    Date.UTC(
-      firstMonday.getUTCFullYear(),
-      firstMonday.getUTCMonth(),
-      firstMonday.getUTCDate() + (week - 1) * 7
-    )
-  );
+  // Days back from Jan 1 to the Monday on or before it.
+  const back = (dow + 6) % 7;
+  return new Date(Date.UTC(year, 0, 1 - back + week * 7));
 }
 
 /**
